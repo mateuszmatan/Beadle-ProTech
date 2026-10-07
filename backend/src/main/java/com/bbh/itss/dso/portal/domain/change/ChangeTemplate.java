@@ -23,6 +23,8 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
     public static final String TIME_OF_DAY = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
     public static final String TIME_OF_DAY_MESSAGE = "must be a time of day such as 18:00";
     public static final int GROUP_MAX = 200;
+    public static final int NAME_MAX = 100;
+    public static final int NUMBER_MAX = 40;
     public static final int TEXT_MAX = 2000;
     public static final int MAX_HOURS = 72;
     public static final int MAX_PRIVILEGED_USERS = 7;
@@ -98,6 +100,15 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
         if (jiraProjectKey != null && !isJiraKey(jiraProjectKey)) {
             problems.add("jiraProjectKey", JIRA_KEY_MESSAGE);
         }
+        problems.fits("assignmentGroup", assignmentGroup, GROUP_MAX)
+                .fits("category", category, NAME_MAX)
+                .fits("configurationItem", configurationItem, GROUP_MAX)
+                .fits("release", release, NAME_MAX)
+                .fits("incident", incident, NUMBER_MAX)
+                .fits("problem", problem, NUMBER_MAX)
+                .fits("affectedClients", affectedClients, TEXT_MAX)
+                .fits("description", description, TEXT_MAX);
+        approvers.validate(problems.at("approvers"));
         if (timing != null) {
             timing.validate(problems.at("timing"));
         }
@@ -116,6 +127,12 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
             l1Manager = trimToNull(l1Manager);
             l2Manager = trimToNull(l2Manager);
             businessApprover = trimToNull(businessApprover);
+        }
+
+        void validate(ValidationProblems problems) {
+            problems.fits("l1Manager", l1Manager, GROUP_MAX)
+                    .fits("l2Manager", l2Manager, GROUP_MAX)
+                    .fits("businessApprover", businessApprover, GROUP_MAX);
         }
     }
 
@@ -164,7 +181,12 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
                     .require("implementationPlan", implementationPlan, REQUIRED)
                     .require("validationPlan", validationPlan, REQUIRED)
                     .require("backoutPlan", backoutPlan, REQUIRED)
-                    .require("firstUsePlan", firstUsePlan, REQUIRED);
+                    .require("firstUsePlan", firstUsePlan, REQUIRED)
+                    .fits("testSummary", testSummary, TEXT_MAX)
+                    .fits("implementationPlan", implementationPlan, TEXT_MAX)
+                    .fits("validationPlan", validationPlan, TEXT_MAX)
+                    .fits("backoutPlan", backoutPlan, TEXT_MAX)
+                    .fits("firstUsePlan", firstUsePlan, TEXT_MAX);
         }
     }
 
@@ -193,7 +215,9 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
                     problems.add("users[" + index + "]", REQUIRED);
                 } else {
                     problems.at("users[" + index + "]").require("user", user.user(), REQUIRED)
-                            .require("account", user.account(), REQUIRED);
+                            .require("account", user.account(), REQUIRED)
+                            .fits("user", user.user(), GROUP_MAX)
+                            .fits("account", user.account(), GROUP_MAX);
                 }
             }
         }
@@ -237,6 +261,11 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
             notNegative(problems, "bbhApplications", bbhApplications);
             notNegative(problems, "clients", clients);
             notNegative(problems, "clientsOutsideBbh", clientsOutsideBbh);
+            problems.fits("businessImpact", businessImpact, NAME_MAX)
+                    .fits("changeComplexity", changeComplexity, NAME_MAX)
+                    .fits("validationComplexity", validationComplexity, NAME_MAX)
+                    .fits("backoutTesting", backoutTesting, TEXT_MAX)
+                    .fits("platformStatus", platformStatus, NAME_MAX);
         }
 
         List<String> lines() {
