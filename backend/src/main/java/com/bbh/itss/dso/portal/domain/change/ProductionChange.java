@@ -49,7 +49,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         String text = epics.isEmpty() ? product.name() + " production release"
                 : product.name() + " release: " + epics.stream().map(JiraIssue::summary)
                 .collect(Collectors.joining("; "));
-        return abbreviate(text, SHORT_DESCRIPTION_MAX);
+        return Text.abbreviate(text, SHORT_DESCRIPTION_MAX);
     }
 
     static String descriptionOf(Product product, String departmentName, List<Service> services,
@@ -69,16 +69,17 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                     .map(story -> "- " + story.line()).forEach(lines::add);
         }
         StringBuilder text = new StringBuilder(head);
-        int room = DESCRIPTION_MAX - head.length() - tail.length() - 60;
+        int room = DESCRIPTION_MAX - Text.bytes(head) - Text.bytes(tail) - 60;
         for (int index = 0; index < lines.size(); index++) {
-            if (room - lines.get(index).length() - 1 < 0) {
+            int size = Text.bytes(lines.get(index)) + 1;
+            if (room - size < 0) {
                 text.append("...and ").append(lines.size() - index).append(" more issues in Jira.\n");
                 break;
             }
-            room -= lines.get(index).length() + 1;
+            room -= size;
             text.append(lines.get(index)).append('\n');
         }
-        return abbreviate(text.append(tail).toString().strip(), DESCRIPTION_MAX);
+        return Text.abbreviate(text.append(tail).toString().strip(), DESCRIPTION_MAX);
     }
 
     static ChangeTask taskOf(Product product, Service service, ChangeWindow window) {
@@ -88,11 +89,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 + (service.description() == null ? "" : " (" + service.description() + ")") + ", "
                 + window.text() + ". " + how + ", then run its smoke tests and confirm the result in this task.";
         return new ChangeTask(null, service.name(),
-                abbreviate("Deploy " + service.name() + " of " + product.name() + " to production",
-                        SHORT_DESCRIPTION_MAX), abbreviate(description, DESCRIPTION_MAX));
-    }
-
-    static String abbreviate(String text, int max) {
-        return text.length() <= max ? text : text.substring(0, max - 3).stripTrailing() + "...";
+                Text.abbreviate("Deploy " + service.name() + " of " + product.name() + " to production",
+                        SHORT_DESCRIPTION_MAX), Text.abbreviate(description, DESCRIPTION_MAX));
     }
 }

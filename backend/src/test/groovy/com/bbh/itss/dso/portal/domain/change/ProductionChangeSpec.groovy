@@ -1,6 +1,7 @@
 package com.bbh.itss.dso.portal.domain.change
 
 import com.bbh.itss.dso.portal.domain.catalog.DeployTarget
+import com.bbh.itss.dso.portal.domain.shared.Text
 import spock.lang.Specification
 
 import java.time.Instant
@@ -92,14 +93,29 @@ class ProductionChangeSpec extends Specification {
                 lots)
 
         then:
-        summary.length() <= ProductionChange.SHORT_DESCRIPTION_MAX
+        Text.bytes(summary) <= ProductionChange.SHORT_DESCRIPTION_MAX
         summary.endsWith('...')
-        text.length() <= ProductionChange.DESCRIPTION_MAX
+        Text.bytes(text) <= ProductionChange.DESCRIPTION_MAX
         text.contains('more issues in Jira.')
         text.endsWith('About CertScanner:\nWatches TLS certificates.')
         ProductionChange.shortDescriptionOf(product, []) == 'CertScanner production release'
-        ProductionChange.abbreviate('abcdef', 6) == 'abcdef'
-        ProductionChange.abbreviate('abc  defgh', 8) == 'abc...'
+    }
+
+    def "texts with accented Jira summaries still fit the bytes of their Oracle columns"() {
+        given:
+        def many = (1..60).collect { epic("CERT-$it", "Épique numéro $it – résumé très détaillé " + 'é' * 20) }
+        def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'ż' * 60, 'CERT-1') }
+
+        when:
+        def summary = ProductionChange.shortDescriptionOf(product, many)
+        def text = ProductionChange.descriptionOf(product, 'Custody', product.services(), template(), WINDOW, many,
+                lots)
+
+        then:
+        Text.bytes(summary) <= ProductionChange.SHORT_DESCRIPTION_MAX
+        Text.bytes(text) <= ProductionChange.DESCRIPTION_MAX
+        text.contains('more issues in Jira.')
+        text.endsWith('About CertScanner:\nWatches TLS certificates.')
     }
 
     def "a raised change takes its number, the numbers of its tasks in order and its link"() {

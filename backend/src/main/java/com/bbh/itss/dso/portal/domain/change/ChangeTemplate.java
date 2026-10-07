@@ -39,10 +39,14 @@ public record ChangeTemplate(String jiraProjectKey, String configurationItem, St
         testPlan = Text.trimToNull(testPlan);
     }
 
+    public static final int GROUP_MAX = 200;
+    public static final int TEXT_MAX = 2000;
+
     public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam, String description) {
-        return new ChangeTemplate(jiraKeyOf(code), name, Text.orDefault(ownerTeam, name + " Support"), Type.NORMAL,
-                "Software", Risk.LOW, Impact.LOW, null, List.of(), description, IMPLEMENTATION_PLAN, BACKOUT_PLAN,
-                TEST_PLAN);
+        return new ChangeTemplate(jiraKeyOf(code), name,
+                Text.abbreviate(Text.orDefault(ownerTeam, name + " Support"), GROUP_MAX), Type.NORMAL, "Software",
+                Risk.LOW, Impact.LOW, null, List.of(), Text.abbreviate(description, TEXT_MAX), IMPLEMENTATION_PLAN,
+                BACKOUT_PLAN, TEST_PLAN);
     }
 
     public ChangeTemplate assessed(Risk risk, Impact impact, String riskAssessment, List<String> approvers) {

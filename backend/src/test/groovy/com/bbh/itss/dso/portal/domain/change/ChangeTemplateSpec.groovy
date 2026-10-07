@@ -60,10 +60,9 @@ class ChangeTemplateSpec extends Specification {
         expect:
         ChangeProfile.create(4L, template()) == new ChangeProfile(4L, template(), 0, null)
         stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, Instant.EPOCH)
-        stored.change(null, template()) == stored
 
         when:
-        stored.change(1L, template())
+        stored.change(version, template())
 
         then:
         thrown(ConflictException)
@@ -73,6 +72,20 @@ class ChangeTemplateSpec extends Specification {
 
         then:
         thrown(NullPointerException)
+
+        where:
+        version << [1L, null]
+    }
+
+    def "the suggested template fits the columns of a long description and a long product name"() {
+        when:
+        def suggested = ChangeTemplate.suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
+
+        then:
+        suggested.assignmentGroup().getBytes('UTF-8').length <= ChangeTemplate.GROUP_MAX
+        suggested.assignmentGroup().endsWith('...')
+        suggested.description().getBytes('UTF-8').length <= ChangeTemplate.TEXT_MAX
+        suggested.description().endsWith('...')
     }
 
     def "a date range is refused when #problem"() {
