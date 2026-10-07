@@ -1,28 +1,45 @@
 package com.bbh.itss.dso.portal.domain.change
 
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Approvers
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedAccess
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedUser
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.RiskAssessment
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.shared.ConflictException
-import com.bbh.itss.dso.portal.domain.shared.InvalidRequestException
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
 
 import java.time.Instant
 import java.time.LocalDate
 
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.at
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.risk
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
 
 class ChangeTemplateSpec extends Specification {
 
-    def "a template trims its texts, upper-cases the Jira key and keeps each approver once"() {
+    def "a template trims its texts to null, upper-cases the Jira key and fills in the optional sections"() {
         when:
-        def trimmed = new ChangeTemplate(' cert ', ' CertScanner ', ' TA ', ChangeTemplate.Type.NORMAL, ' ',
-                ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW, ' ', [' Ann ', 'Ann', ' ', 'Bob'], '', ' a ',
-                null, ' c ')
+        def trimmed = new ChangeTemplate(' cert ', ' TA ', ' ', ChangeTemplate.Type.NORMAL, ' CertScanner ', ' ',
+                ' INC0012345 ', '', ' Clients ', ' About ', new Approvers(' Ann ', ' ', null), null,
+                new Timing(' 18:00 ', 2, 1), new Planning(' t ', 'i', ' ', 'b', 'f'),
+                new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]),
+                new RiskAssessment(1, null, null, null, null, ' Low ', ' ', null, null, null))
+        def empty = new ChangeTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null)
 
         then:
-        trimmed == new ChangeTemplate('CERT', 'CertScanner', 'TA', ChangeTemplate.Type.NORMAL, null,
-                ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW, null, ['Ann', 'Bob'], null, 'a', null, 'c')
-        new ChangeTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null)
-                .approvers() == []
+        trimmed == new ChangeTemplate('CERT', 'TA', null, ChangeTemplate.Type.NORMAL, 'CertScanner', null,
+                'INC0012345', null, 'Clients', 'About', new Approvers('Ann', null, null), false,
+                new Timing('18:00', 2, 1), new Planning('t', 'i', null, 'b', 'f'),
+                new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]),
+                new RiskAssessment(1, null, null, null, null, 'Low', null, null, null, null))
+        [empty.jiraProjectKey(), empty.timing(), empty.planning()] == [null, null, null]
+        [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment()] ==
+                [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.NONE]
     }
 
     def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
@@ -30,27 +47,68 @@ class ChangeTemplateSpec extends Specification {
         def suggested = ChangeTemplate.suggestedFor(code, 'Product', owner, 'About it')
 
         then:
-        suggested.jiraProjectKey() == key
-        suggested.configurationItem() == 'Product'
-        suggested.assignmentGroup() == group
-        [suggested.type(), suggested.category(), suggested.risk(), suggested.impact()] ==
-                [ChangeTemplate.Type.NORMAL, 'Software', ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW]
-        [suggested.riskAssessment(), suggested.approvers(), suggested.description()] == [null, [], 'About it']
-        [suggested.implementationPlan(), suggested.backoutPlan(), suggested.testPlan()] ==
-                [ChangeTemplate.IMPLEMENTATION_PLAN, ChangeTemplate.BACKOUT_PLAN, ChangeTemplate.TEST_PLAN]
+        suggested == new ChangeTemplate(key, group, 'Software', ChangeTemplate.Type.NORMAL, 'Product', null, null,
+                null, null, 'About it', Approvers.NONE, false, new Timing('18:00', 2, 1), Planning.SUGGESTED,
+                new PrivilegedAccess(false, []), RiskAssessment.NONE)
+        Planning.SUGGESTED == new Planning(ChangeTemplate.TEST_SUMMARY, ChangeTemplate.IMPLEMENTATION_PLAN,
+                ChangeTemplate.VALIDATION_PLAN, ChangeTemplate.BACKOUT_PLAN, ChangeTemplate.FIRST_USE_PLAN)
+        ChangeTemplate.VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
+                ' check the monitoring of each service.'
+        ChangeTemplate.FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
+        problems(suggested) == []
 
         where:
-        code          | owner        || key      | group
-        'CERTSCANNER' | 'TA'         || 'CERT'   | 'TA'
-        'PAYHUB'      | null         || 'PAYHUB' | 'Product Support'
-        'fx-rates_2'  | ' '          || 'FXRA'   | 'Product Support'
+        code          | owner || key      | group
+        'CERTSCANNER' | 'TA'  || 'CERT'   | 'TA'
+        'PAYHUB'      | null  || 'PAYHUB' | 'Product Support'
+        'fx-rates_2'  | ' '   || 'FXRA'   | 'Product Support'
     }
 
-    def "an assessed template changes only its risk, impact, assessment and approvers"() {
+    def "the suggested template fits the columns of a long description and a long product name"() {
+        when:
+        def suggested = ChangeTemplate.suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
+
+        then:
+        suggested.assignmentGroup().getBytes('UTF-8').length <= ChangeTemplate.GROUP_MAX
+        suggested.assignmentGroup().endsWith('...')
+        suggested.description().getBytes('UTF-8').length <= ChangeTemplate.TEXT_MAX
+        suggested.description().endsWith('...')
+    }
+
+    def "a raised template takes the FixVersion as its release unless it names one"() {
         expect:
-        template().assessed(ChangeTemplate.Risk.HIGH, ChangeTemplate.Impact.HIGH, 'Big', ['Zoe']) ==
-                template(risk: ChangeTemplate.Risk.HIGH, impact: ChangeTemplate.Impact.HIGH, riskAssessment: 'Big',
-                        approvers: ['Zoe'])
+        template().releasedAs('CERT 4.2') == template(release: 'CERT 4.2')
+        template(release: 'R42').releasedAs('CERT 4.2') == template(release: 'R42')
+    }
+
+    def "a complete template has no problems, also with privileged access for up to seven users"() {
+        expect:
+        problems(template()) == []
+        problems(template(privilegedAccess: privileged(1))) == []
+        problems(template(privilegedAccess: privileged(7))) == []
+        problems(template(approvers: null, riskAssessment: null)) == []
+    }
+
+    def "a template is refused when #problem"() {
+        expect:
+        problems(template(edits)) == expected
+
+        where:
+        problem                                  | edits                                                       || expected
+        'it misses its required texts'           | [jiraProjectKey: ' ', assignmentGroup: null, category: '', type: null, configurationItem: ' '] || ['template.jiraProjectKey is required', 'template.assignmentGroup is required', 'template.category is required', 'template.type is required', 'template.configurationItem is required']
+        'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey ' + ChangeTemplate.JIRA_KEY_MESSAGE]
+        'it has no timing and no planning'       | [timing: null, planning: null]                              || ['template.timing is required', 'template.planning is required']
+        'a planning text is missing'             | [planning: new Planning('t', ' ', 'v', null, 'f')]          || ['template.planning.implementationPlan is required', 'template.planning.backoutPlan is required']
+        'the installation starts at no time'     | [timing: new Timing('6pm', 2, 1)]                           || ['template.timing.installationStart must be a time of day such as 18:00']
+        'the timing is missing'                  | [timing: new Timing(null, null, null)]                      || ['template.timing.installationStart is required', 'template.timing.installationHours is required', 'template.timing.validationHours is required']
+        'the installation takes no time'         | [timing: new Timing('24:00', 0, 0)]                         || ['template.timing.installationStart must be a time of day such as 18:00', 'template.timing.installationHours must be between 1 and 72 hours']
+        'the hours exceed three days'            | [timing: new Timing('23:59', 73, 73)]                       || ['template.timing.installationHours must be between 1 and 72 hours', 'template.timing.validationHours must be between 0 and 72 hours']
+        'the validation hours are negative'      | [timing: new Timing('00:00', 72, -1)]                       || ['template.timing.validationHours must be between 0 and 72 hours']
+        'privileged access names no user'        | [privilegedAccess: new PrivilegedAccess(true, [])]          || ['template.privilegedAccess.users add the users who need privileged access']
+        'users are named without privileged access' | [privilegedAccess: new PrivilegedAccess(false, privileged(1).users())] || ['template.privilegedAccess.users must be empty when the change needs no privileged access']
+        'eight users need privileged access'     | [privilegedAccess: privileged(8)]                           || ['template.privilegedAccess.users may list at most 7 users']
+        'a privileged user is incomplete'        | [privilegedAccess: new PrivilegedAccess(true, [new PrivilegedUser('Ann', 'adm_ann'), null, new PrivilegedUser(' ', null)])] || ['template.privilegedAccess.users[1] is required', 'template.privilegedAccess.users[2].user is required', 'template.privilegedAccess.users[2].account is required']
+        'the risk numbers are negative'          | [riskAssessment: risk(bbhWorkgroups: -1, bbhUsers: -2, bbhApplications: -3, clients: -4, clientsOutsideBbh: -5)] || ['bbhWorkgroups', 'bbhUsers', 'bbhApplications', 'clients', 'clientsOutsideBbh'].collect { "template.riskAssessment.$it must not be negative".toString() }
     }
 
     def "a profile is created at version 0 and changed only at the version it was read at"() {
@@ -77,84 +135,75 @@ class ChangeTemplateSpec extends Specification {
         version << [1L, null]
     }
 
-    def "the suggested template fits the columns of a long description and a long product name"() {
-        when:
-        def suggested = ChangeTemplate.suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
-
-        then:
-        suggested.assignmentGroup().getBytes('UTF-8').length <= ChangeTemplate.GROUP_MAX
-        suggested.assignmentGroup().endsWith('...')
-        suggested.description().getBytes('UTF-8').length <= ChangeTemplate.TEXT_MAX
-        suggested.description().endsWith('...')
-    }
-
-    def "a date range is refused when #problem"() {
-        when:
-        new DateRange(from, to)
-
-        then:
-        def e = thrown(InvalidRequestException)
-        e.problems*.field == [field]
-        e.message == message
-
-        where:
-        problem                  | from                | to                  || field  | message
-        'the start is missing'   | null                | day('2026-10-01')   || 'from' | 'choose a date'
-        'the end is missing'     | day('2026-10-01')   | null                || 'to'   | 'choose a date'
-        'it ends before it starts' | day('2026-10-02') | day('2026-10-01')   || 'to'   | 'must not be before the start date 2026-10-02'
-        'it spans over a year'   | day('2025-01-01')   | day('2026-01-03')   || 'to'   | 'the range may span at most 366 days'
-    }
-
-    def "a date range holds its first and last day"() {
-        given:
-        def range = new DateRange(day('2026-09-01'), day('2026-09-30'))
-
-        expect:
-        ['2026-09-01', '2026-09-15', '2026-09-30'].every { range.contains(day(it)) }
-        !range.contains(day('2026-08-31'))
-        !range.contains(day('2026-10-01'))
-    }
-
-    def "a change window is checked against the clock: #expected"() {
+    def "a schedule is checked for presence and order: #expected"() {
         given:
         def problems = new ValidationProblems()
 
         when:
-        new ChangeWindow(start, end).check(Instant.parse('2026-10-07T12:00:00Z'), problems)
+        schedule(edits).check(problems.at('schedule'))
 
         then:
         problems.list().collect { "$it.field $it.message".toString() } == expected
 
         where:
-        start                         | end                           || expected
-        at('2026-10-10T06:00:00Z')    | at('2026-10-10T10:00:00Z')    || []
-        null                          | null                          || ['start choose when the change starts', 'end choose when the change ends']
-        at('2026-10-07T12:00:00Z')    | at('2026-10-07T13:00:00Z')    || ['start must be in the future']
-        at('2026-10-10T06:00:00Z')    | at('2026-10-10T06:00:00Z')    || ['end must be after the start']
-        at('2026-10-10T06:00:00Z')    | at('2026-10-17T06:00:01Z')    || ['end a change window may last at most 7 days']
+        edits                                                                        || expected
+        [:]                                                                          || []
+        [validationStart: '2026-10-10T10:00:00Z', validationEnd: '2026-10-10T10:00:00Z', firstUsage: '2026-10-10T10:00:00Z'] || []
+        [installationStart: null, installationEnd: null, validationStart: null, validationEnd: null, firstUsage: null] || ['schedule.installationStart choose when the installation starts', 'schedule.installationEnd choose when the installation ends', 'schedule.validationStart choose when the post-install validation starts', 'schedule.validationEnd choose when the post-install validation ends', 'schedule.firstUsage choose when the release is first used']
+        [installationEnd: '2026-10-10T06:00:00Z', validationStart: '2026-10-10T06:00:00Z'] || ['schedule.installationEnd must be after the installation start']
+        [validationStart: '2026-10-10T09:59:00Z']                                    || ['schedule.validationStart must not be before the installation end']
+        [validationEnd: '2026-10-10T09:59:00Z']                                      || ['schedule.validationEnd must not be before the validation start']
+        [firstUsage: '2026-10-10T10:59:00Z']                                         || ['schedule.firstUsage must not be before the validation end']
+        [installationStart: null, validationEnd: null]                               || ['schedule.installationStart choose when the installation starts', 'schedule.validationEnd choose when the post-install validation ends']
     }
 
-    def "a change window reads as #text"() {
-        expect:
-        new ChangeWindow(at(start), at(end)).text() == text
+    def "only a schedule that starts after #now is upcoming"() {
+        given:
+        def problems = new ValidationProblems()
+
+        when:
+        schedule().checkUpcoming(at(now), problems)
+
+        then:
+        problems.list()*.field == fields
 
         where:
-        start                  | end                    || text
-        '2026-10-10T06:00:00Z' | '2026-10-10T10:00:00Z' || '2026-10-10 06:00 to 10:00 UTC'
-        '2026-10-10T22:00:00Z' | '2026-10-11T02:30:00Z' || '2026-10-10 22:00 to 2026-10-11 02:30 UTC'
+        now                    || fields
+        '2026-10-10T05:59:59Z' || []
+        '2026-10-10T06:00:00Z' || ['installationStart']
+        '2026-10-11T00:00:00Z' || ['installationStart']
+    }
+
+    def "a schedule reads as its installation, validation and first usage"() {
+        expect:
+        schedule().text() == 'Installation 2026-10-10 06:00 to 10:00 UTC, post-install validation 2026-10-10 10:00' +
+                ' to 11:00 UTC, first usage 2026-10-12 08:00 UTC'
+        schedule(installationStart: '2026-10-10T22:00:00Z', installationEnd: '2026-10-11T02:30:00Z')
+                .installationText() == '2026-10-10 22:00 to 2026-10-11 02:30 UTC'
     }
 
     def "a Jira issue reads as its key, summary and status"() {
         expect:
-        new JiraIssue('CERT-1', 'Alerts', 'Done', null, day('2026-10-01')).line() == 'CERT-1 Alerts (Done)'
-        new JiraIssue('CERT-2', 'Mails', null, 'CERT-1', day('2026-10-01')).line() == 'CERT-2 Mails'
+        new JiraIssue('CERT-1', 'Alerts', 'Done', null, LocalDate.parse('2026-10-01')).line() == 'CERT-1 Alerts (Done)'
+        new JiraIssue('CERT-2', 'Mails', null, 'CERT-1', LocalDate.parse('2026-10-01')).line() == 'CERT-2 Mails'
     }
 
-    private static LocalDate day(String text) {
-        LocalDate.parse(text)
+    def "FixVersions are ordered unreleased first, then released, each newest first"() {
+        given:
+        def versions = [new JiraVersion('CERT 4.0', true, LocalDate.parse('2026-07-01')),
+                        new JiraVersion('CERT 4.2', false, LocalDate.parse('2026-10-20')),
+                        new JiraVersion('CERT 4.1', true, LocalDate.parse('2026-09-01')),
+                        new JiraVersion('CERT 4.3', false, null),
+                        new JiraVersion('CERT 3.9', true, null)]
+
+        expect:
+        versions.sort(false, JiraVersion.UNRELEASED_NEWEST_FIRST)*.name() ==
+                ['CERT 4.3', 'CERT 4.2', 'CERT 3.9', 'CERT 4.1', 'CERT 4.0']
     }
 
-    private static Instant at(String text) {
-        Instant.parse(text)
+    private static List<String> problems(ChangeTemplate template) {
+        def problems = new ValidationProblems()
+        template.validate(problems.at('template'))
+        problems.list().collect { "$it.field $it.message".toString() }
     }
 }
