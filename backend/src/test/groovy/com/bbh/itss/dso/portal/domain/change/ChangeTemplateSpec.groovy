@@ -1,6 +1,5 @@
 package com.bbh.itss.dso.portal.domain.change
 
-import com.bbh.itss.dso.portal.domain.shared.ConflictException
 import com.bbh.itss.dso.portal.domain.shared.InvalidRequestException
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
@@ -65,7 +64,7 @@ class ChangeTemplateSpec extends Specification {
         stored.change(version, template())
 
         then:
-        thrown(ConflictException)
+        thrown(IllegalStateException)
 
         when:
         new ChangeProfile(4L, null, 0, null)
@@ -94,7 +93,7 @@ class ChangeTemplateSpec extends Specification {
 
         then:
         def e = thrown(InvalidRequestException)
-        e.problems*.field == [field]
+        e.problems()*.field == [field]
         e.message == message
 
         where:

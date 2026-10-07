@@ -5,6 +5,10 @@ import com.bbh.itss.dso.portal.domain.shared.Text;
 import java.util.List;
 import java.util.Locale;
 
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+import static org.apache.commons.lang3.StringUtils.trim;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
+
 public record ChangeTemplate(String jiraProjectKey, String configurationItem, String assignmentGroup, Type type,
                              String category, Risk risk, Impact impact, String riskAssessment, List<String> approvers,
                              String description, String implementationPlan, String backoutPlan, String testPlan) {
@@ -28,15 +32,15 @@ public record ChangeTemplate(String jiraProjectKey, String configurationItem, St
 
     public ChangeTemplate {
         jiraProjectKey = jiraProjectKey == null ? null : jiraProjectKey.trim().toUpperCase(Locale.ROOT);
-        configurationItem = Text.trimToNull(configurationItem);
-        assignmentGroup = Text.trimToNull(assignmentGroup);
-        category = Text.trimToNull(category);
-        riskAssessment = Text.trimToNull(riskAssessment);
+        configurationItem = trimToNull(configurationItem);
+        assignmentGroup = trimToNull(assignmentGroup);
+        category = trimToNull(category);
+        riskAssessment = trimToNull(riskAssessment);
         approvers = Text.clean(approvers);
-        description = Text.trimToNull(description);
-        implementationPlan = Text.trimToNull(implementationPlan);
-        backoutPlan = Text.trimToNull(backoutPlan);
-        testPlan = Text.trimToNull(testPlan);
+        description = trimToNull(description);
+        implementationPlan = trimToNull(implementationPlan);
+        backoutPlan = trimToNull(backoutPlan);
+        testPlan = trimToNull(testPlan);
     }
 
     public static final int GROUP_MAX = 200;
@@ -44,8 +48,8 @@ public record ChangeTemplate(String jiraProjectKey, String configurationItem, St
 
     public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam, String description) {
         return new ChangeTemplate(jiraKeyOf(code), name,
-                Text.abbreviate(Text.orDefault(ownerTeam, name + " Support"), GROUP_MAX), Type.NORMAL, "Software",
-                Risk.LOW, Impact.LOW, null, List.of(), Text.abbreviate(description, TEXT_MAX), IMPLEMENTATION_PLAN,
+                Text.abbreviateBytes(defaultIfBlank(trim(ownerTeam), name + " Support"), GROUP_MAX), Type.NORMAL, "Software",
+                Risk.LOW, Impact.LOW, null, List.of(), Text.abbreviateBytes(description, TEXT_MAX), IMPLEMENTATION_PLAN,
                 BACKOUT_PLAN, TEST_PLAN);
     }
 
