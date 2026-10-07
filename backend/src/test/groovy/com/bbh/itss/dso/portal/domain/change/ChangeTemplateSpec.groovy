@@ -1,6 +1,6 @@
 package com.bbh.itss.dso.portal.domain.change
 
-import com.bbh.itss.dso.portal.domain.shared.ConflictException
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Impact
 import com.bbh.itss.dso.portal.domain.shared.InvalidRequestException
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
@@ -8,36 +8,44 @@ import spock.lang.Specification
 import java.time.Instant
 import java.time.LocalDate
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.BACKOUT_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.GROUP_MAX
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.IMPLEMENTATION_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Risk.HIGH
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Risk.LOW
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEST_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEXT_MAX
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.suggestedFor
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
+import static java.time.Instant.EPOCH
 
 class ChangeTemplateSpec extends Specification {
 
     def "a template trims its texts, upper-cases the Jira key and keeps each approver once"() {
         when:
-        def trimmed = new ChangeTemplate(' cert ', ' CertScanner ', ' TA ', ChangeTemplate.Type.NORMAL, ' ',
-                ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW, ' ', [' Ann ', 'Ann', ' ', 'Bob'], '', ' a ',
-                null, ' c ')
+        def trimmed = new ChangeTemplate(' cert ', ' CertScanner ', ' TA ', NORMAL, ' ', LOW, Impact.LOW, ' ',
+                [' Ann ', 'Ann', ' ', 'Bob'], '', ' a ', null, ' c ')
 
         then:
-        trimmed == new ChangeTemplate('CERT', 'CertScanner', 'TA', ChangeTemplate.Type.NORMAL, null,
-                ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW, null, ['Ann', 'Bob'], null, 'a', null, 'c')
-        new ChangeTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null)
-                .approvers() == []
+        trimmed == new ChangeTemplate('CERT', 'CertScanner', 'TA', NORMAL, null, LOW, Impact.LOW, null, ['Ann', 'Bob'],
+                null, 'a', null, 'c')
+        ChangeTemplate.builder().build().approvers() == []
     }
 
     def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
         when:
-        def suggested = ChangeTemplate.suggestedFor(code, 'Product', owner, 'About it')
+        def suggested = suggestedFor(code, 'Product', owner, 'About it')
 
         then:
         suggested.jiraProjectKey() == key
         suggested.configurationItem() == 'Product'
         suggested.assignmentGroup() == group
         [suggested.type(), suggested.category(), suggested.risk(), suggested.impact()] ==
-                [ChangeTemplate.Type.NORMAL, 'Software', ChangeTemplate.Risk.LOW, ChangeTemplate.Impact.LOW]
+                [NORMAL, 'Software', LOW, Impact.LOW]
         [suggested.riskAssessment(), suggested.approvers(), suggested.description()] == [null, [], 'About it']
         [suggested.implementationPlan(), suggested.backoutPlan(), suggested.testPlan()] ==
-                [ChangeTemplate.IMPLEMENTATION_PLAN, ChangeTemplate.BACKOUT_PLAN, ChangeTemplate.TEST_PLAN]
+                [IMPLEMENTATION_PLAN, BACKOUT_PLAN, TEST_PLAN]
 
         where:
         code          | owner        || key      | group
@@ -48,24 +56,23 @@ class ChangeTemplateSpec extends Specification {
 
     def "an assessed template changes only its risk, impact, assessment and approvers"() {
         expect:
-        template().assessed(ChangeTemplate.Risk.HIGH, ChangeTemplate.Impact.HIGH, 'Big', ['Zoe']) ==
-                template(risk: ChangeTemplate.Risk.HIGH, impact: ChangeTemplate.Impact.HIGH, riskAssessment: 'Big',
-                        approvers: ['Zoe'])
+        template().assessed(HIGH, Impact.HIGH, 'Big', ['Zoe']) ==
+                template(risk: HIGH, impact: Impact.HIGH, riskAssessment: 'Big', approvers: ['Zoe'])
     }
 
     def "a profile is created at version 0 and changed only at the version it was read at"() {
         given:
-        def stored = new ChangeProfile(4L, template(), 2, Instant.EPOCH)
+        def stored = new ChangeProfile(4L, template(), 2, EPOCH)
 
         expect:
         ChangeProfile.create(4L, template()) == new ChangeProfile(4L, template(), 0, null)
-        stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, Instant.EPOCH)
+        stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, EPOCH)
 
         when:
         stored.change(version, template())
 
         then:
-        thrown(ConflictException)
+        thrown(IllegalStateException)
 
         when:
         new ChangeProfile(4L, null, 0, null)
@@ -79,12 +86,12 @@ class ChangeTemplateSpec extends Specification {
 
     def "the suggested template fits the columns of a long description and a long product name"() {
         when:
-        def suggested = ChangeTemplate.suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
+        def suggested = suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
 
         then:
-        suggested.assignmentGroup().getBytes('UTF-8').length <= ChangeTemplate.GROUP_MAX
+        suggested.assignmentGroup().getBytes('UTF-8').length <= GROUP_MAX
         suggested.assignmentGroup().endsWith('...')
-        suggested.description().getBytes('UTF-8').length <= ChangeTemplate.TEXT_MAX
+        suggested.description().getBytes('UTF-8').length <= TEXT_MAX
         suggested.description().endsWith('...')
     }
 
@@ -94,7 +101,7 @@ class ChangeTemplateSpec extends Specification {
 
         then:
         def e = thrown(InvalidRequestException)
-        e.problems*.field == [field]
+        e.problems()*.field == [field]
         e.message == message
 
         where:
