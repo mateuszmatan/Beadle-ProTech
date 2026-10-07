@@ -1,5 +1,6 @@
 package com.bbh.itss.dso.portal.domain.change;
 
+import com.bbh.itss.dso.portal.domain.shared.ConflictException;
 import com.bbh.itss.dso.portal.domain.shared.Versions;
 
 import java.time.Instant;
@@ -16,6 +17,9 @@ public record ChangeProfile(long productId, ChangeTemplate template, long versio
     }
 
     public ChangeProfile change(Long expectedVersion, ChangeTemplate template) {
+        if (expectedVersion == null) {
+            throw ConflictException.staleVersion();
+        }
         Versions.requireCurrent(expectedVersion, version);
         return new ChangeProfile(productId, template, version, updatedAt);
     }
