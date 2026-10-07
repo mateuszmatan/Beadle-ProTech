@@ -2,6 +2,7 @@ package com.bbh.itss.dso.portal.domain.change;
 
 import com.bbh.itss.dso.portal.domain.catalog.Product;
 import com.bbh.itss.dso.portal.domain.catalog.Service;
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -17,12 +18,15 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 
 @Builder(toBuilder = true)
 public record ProductionChange(Long id, String number, Long productId, String productCode, String productName,
-                               String departmentName, ChangeWindow window, String shortDescription,
-                               String description, ChangeTemplate template, List<String> epicKeys,
-                               List<String> storyKeys, List<ChangeTask> tasks, String url, Instant createdAt) {
+                               String departmentName, String fixVersion, ChangeSchedule schedule,
+                               String shortDescription, String description, ChangeTemplate template,
+                               List<String> epicKeys, List<String> storyKeys, List<ChangeTask> tasks, String url,
+                               Instant createdAt) {
 
+    public static final int FIX_VERSION_MAX = 100;
     public static final int SHORT_DESCRIPTION_MAX = 160;
     public static final int DESCRIPTION_MAX = 4000;
+    static final int SECTION_MAX = 300;
 
     public ProductionChange {
         epicKeys = List.copyOf(epicKeys);
@@ -31,16 +35,19 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     }
 
     public static ProductionChange draft(Product product, String departmentName, List<Service> services,
-                                         ChangeTemplate template, ChangeWindow window, List<JiraIssue> epics,
-                                         List<JiraIssue> stories, String shortDescription, String description) {
-        String summary = isBlank(shortDescription) ? shortDescriptionOf(product, epics) : shortDescription.trim();
+                                         String fixVersion, ChangeSchedule schedule, ChangeTemplate template,
+                                         List<JiraIssue> epics, List<JiraIssue> stories, String shortDescription,
+                                         String description) {
+        ChangeTemplate raised = template.releasedAs(fixVersion);
+        String summary = isBlank(shortDescription) ? shortDescriptionOf(product, fixVersion, epics)
+                : shortDescription.trim();
         String text = isBlank(description)
-                ? descriptionOf(product, departmentName, services, template, window, epics, stories)
+                ? descriptionOf(product, departmentName, services, fixVersion, schedule, raised, epics, stories)
                 : description.trim();
-        List<ChangeTask> tasks = services.stream().map(service -> taskOf(product, service, window)).toList();
+        List<ChangeTask> tasks = services.stream().map(service -> taskOf(product, service, schedule)).toList();
         return builder().productId(product.id()).productCode(product.code()).productName(product.name())
-                .departmentName(departmentName).window(window).shortDescription(summary).description(text)
-                .template(template).epicKeys(epics.stream().map(JiraIssue::key).toList())
+                .departmentName(departmentName).fixVersion(fixVersion).schedule(schedule).shortDescription(summary)
+                .description(text).template(raised).epicKeys(epics.stream().map(JiraIssue::key).toList())
                 .storyKeys(stories.stream().map(JiraIssue::key).toList()).tasks(tasks).build();
     }
 
@@ -50,22 +57,24 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return toBuilder().number(number).tasks(numberedTasks).url(url).build();
     }
 
-    static String shortDescriptionOf(Product product, List<JiraIssue> epics) {
-        String text = epics.isEmpty() ? product.name() + " production release"
-                : product.name() + " release: " + epics.stream().map(JiraIssue::summary).collect(joining("; "));
+    static String shortDescriptionOf(Product product, String fixVersion, List<JiraIssue> epics) {
+        String release = product.name() + " " + fixVersion;
+        String text = epics.isEmpty() ? release + " production release"
+                : release + ": " + epics.stream().map(JiraIssue::summary).collect(joining("; "));
         return abbreviateBytes(text, SHORT_DESCRIPTION_MAX);
     }
 
-    static String descriptionOf(Product product, String departmentName, List<Service> services,
-                                ChangeTemplate template, ChangeWindow window, List<JiraIssue> epics,
+    static String descriptionOf(Product product, String departmentName, List<Service> services, String fixVersion,
+                                ChangeSchedule schedule, ChangeTemplate template, List<JiraIssue> epics,
                                 List<JiraIssue> stories) {
-        String head = "Production release of " + product.name() + " (" + product.code() + ")"
-                + (departmentName == null ? "" : " in " + departmentName) + ", " + window.text() + ".\n\n"
+        String head = "Production release " + fixVersion + " of " + product.name() + " (" + product.code() + ")"
+                + (departmentName == null ? "" : " in " + departmentName) + ".\n"
+                + schedule.text() + ". "
+                + (template.downtime() ? "Downtime expected during the installation." : "No downtime.") + "\n\n"
                 + "Change tasks, one per service: "
                 + services.stream().map(Service::name).collect(joining(", ")) + ".\n\n"
-                + "Scope from Jira project " + template.jiraProjectKey() + ":\n";
-        String tail = template.description() == null ? ""
-                : "\nAbout " + product.name() + ":\n" + template.description() + "\n";
+                + "Scope from Jira project " + template.jiraProjectKey() + ", FixVersion " + fixVersion + ":\n";
+        String tail = "\n" + detailsOf(product, template);
         List<String> lines = new ArrayList<>();
         for (JiraIssue epic : epics) {
             lines.add(epic.line());
@@ -86,12 +95,32 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return abbreviateBytes(text.append(tail).toString().strip(), DESCRIPTION_MAX);
     }
 
-    static ChangeTask taskOf(Product product, Service service, ChangeWindow window) {
+    private static String detailsOf(Product product, ChangeTemplate template) {
+        Planning planning = template.planning();
+        List<String> risks = template.riskAssessment().lines().stream()
+                .map(line -> abbreviateBytes(line, SECTION_MAX)).toList();
+        return section("Test summary", planning.testSummary())
+                + section("Implementation plan", planning.implementationPlan())
+                + section("Validation plan", planning.validationPlan())
+                + section("Backout plan", planning.backoutPlan())
+                + section("First use plan", planning.firstUsePlan())
+                + abbreviateBytes(template.privilegedAccess().text(), SECTION_MAX) + "\n\n"
+                + "Risk assessment:\n" + (risks.isEmpty() ? "Not assessed." : String.join("\n", risks)) + "\n"
+                + (template.description() == null ? ""
+                : "\n" + section("About " + product.name(), template.description()));
+    }
+
+    private static String section(String title, String text) {
+        return title + ":\n" + abbreviateBytes(text, SECTION_MAX) + "\n\n";
+    }
+
+    static ChangeTask taskOf(Product product, Service service, ChangeSchedule schedule) {
         String how = service.settings().deployment().target() == OPENSHIFT
                 ? "Roll out its new image on OpenShift" : "Install it on the virtual machines with UrbanCode Deploy";
         String description = "Deploy " + service.name() + " of " + product.name()
                 + (service.description() == null ? "" : " (" + service.description() + ")") + ", "
-                + window.text() + ". " + how + ", then run its smoke tests and confirm the result in this task.";
+                + schedule.installationText() + ". " + how
+                + ", then run its smoke tests and confirm the result in this task.";
         return new ChangeTask(null, service.name(),
                 abbreviateBytes("Deploy " + service.name() + " of " + product.name() + " to production",
                         SHORT_DESCRIPTION_MAX), abbreviateBytes(description, DESCRIPTION_MAX));

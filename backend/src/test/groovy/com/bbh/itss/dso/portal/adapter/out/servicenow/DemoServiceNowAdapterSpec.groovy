@@ -1,10 +1,11 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow
 
 import com.bbh.itss.dso.portal.domain.change.ChangeTask
-import com.bbh.itss.dso.portal.domain.change.ChangeWindow
 import com.bbh.itss.dso.portal.domain.change.ProductionChange
 import spock.lang.Specification
 
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.FIX_VERSION
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
 
 class DemoServiceNowAdapterSpec extends Specification {
@@ -29,7 +30,7 @@ class DemoServiceNowAdapterSpec extends Specification {
 
     static ProductionChange change(List<String> services) {
         ProductionChange.builder().productId(1L).productCode('CERT').productName('CertScanner')
-                .window(new ChangeWindow(null, null)).shortDescription('Release').description('Release')
+                .fixVersion(FIX_VERSION).schedule(schedule()).shortDescription('Release').description('Release')
                 .template(template()).epicKeys(['CERT-1']).storyKeys([])
                 .tasks(services.collect { new ChangeTask(null, it, 'Deploy', 'Deploy') }).build()
     }
