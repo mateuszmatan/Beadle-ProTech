@@ -6,7 +6,8 @@ import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
+
+import static java.util.stream.IntStream.range;
 
 @Component
 class DemoServiceNowAdapter implements ServiceNowPort {
@@ -22,7 +23,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     @Override
     public RaisedChange raise(ProductionChange change) {
         return new RaisedChange("CHG%07d".formatted(changes.incrementAndGet()),
-                IntStream.range(0, change.tasks().size())
+                range(0, change.tasks().size())
                         .mapToObj(index -> "CTASK%07d".formatted(tasks.incrementAndGet())).toList(), null);
     }
 }

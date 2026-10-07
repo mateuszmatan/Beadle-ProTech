@@ -1,11 +1,16 @@
 package com.bbh.itss.dso.portal.domain.change
 
-import com.bbh.itss.dso.portal.domain.catalog.DeployTarget
-import com.bbh.itss.dso.portal.domain.shared.Text
 import spock.lang.Specification
 
 import java.time.Instant
 
+import static com.bbh.itss.dso.portal.domain.catalog.DeployTarget.OPENSHIFT
+import static com.bbh.itss.dso.portal.domain.change.ProductionChange.DESCRIPTION_MAX
+import static com.bbh.itss.dso.portal.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX
+import static com.bbh.itss.dso.portal.domain.change.ProductionChange.descriptionOf
+import static com.bbh.itss.dso.portal.domain.change.ProductionChange.draft
+import static com.bbh.itss.dso.portal.domain.change.ProductionChange.shortDescriptionOf
+import static com.bbh.itss.dso.portal.domain.shared.Text.bytes
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.epic
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
@@ -19,7 +24,7 @@ class ProductionChangeSpec extends Specification {
 
     def product = product(code: 'CERTSCANNER', services: [
             [id: 10, name: 'gui', description: 'Angular front end'],
-            [id: 11, name: 'backend-api', deployment: deployment(target: DeployTarget.OPENSHIFT, appName: 'api',
+            [id: 11, name: 'backend-api', deployment: deployment(target: OPENSHIFT, appName: 'api',
                     artifactName: 'api')]])
     def epics = [epic('CERT-1', 'Expiry alerts'), epic('CERT-5', 'Audit trail')]
     def stories = [story('CERT-2', 'E-mail the owner', 'CERT-1'), story('CERT-6', 'Record each change', 'CERT-5'),
@@ -27,8 +32,8 @@ class ProductionChangeSpec extends Specification {
 
     def "a draft writes the short description, the description and a task per service from Jira"() {
         when:
-        def change = ProductionChange.draft(product, 'Corporate Technology', product.services(), template(), WINDOW,
-                epics, stories, ' ', null)
+        def change = draft(product, 'Corporate Technology', product.services(), template(), WINDOW, epics, stories,
+                ' ', null)
 
         then:
         [change.id(), change.number(), change.url(), change.createdAt()] == [null] * 4
@@ -66,14 +71,13 @@ class ProductionChangeSpec extends Specification {
 
     def "texts typed by the user replace the generated ones"() {
         when:
-        def change = ProductionChange.draft(product, null, product.services().take(1), template(description: null),
-                WINDOW, epics, [], ' Mine ', ' My description ')
+        def change = draft(product, null, product.services().take(1), template(description: null), WINDOW, epics, [],
+                ' Mine ', ' My description ')
 
         then:
         change.shortDescription() == 'Mine'
         change.description() == 'My description'
-        ProductionChange.descriptionOf(product, null, product.services(), template(description: null), WINDOW,
-                epics.take(1), []) == '''\
+        descriptionOf(product, null, product.services(), template(description: null), WINDOW, epics.take(1), []) == '''\
                 Production release of CertScanner (CERTSCANNER), 2026-10-10 06:00 to 10:00 UTC.
 
                 Change tasks, one per service: gui, backend-api.
@@ -88,17 +92,16 @@ class ProductionChangeSpec extends Specification {
         def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'x' * 60, 'CERT-1') }
 
         when:
-        def summary = ProductionChange.shortDescriptionOf(product, many)
-        def text = ProductionChange.descriptionOf(product, 'Custody', product.services(), template(), WINDOW, many,
-                lots)
+        def summary = shortDescriptionOf(product, many)
+        def text = descriptionOf(product, 'Custody', product.services(), template(), WINDOW, many, lots)
 
         then:
-        Text.bytes(summary) <= ProductionChange.SHORT_DESCRIPTION_MAX
+        bytes(summary) <= SHORT_DESCRIPTION_MAX
         summary.endsWith('...')
-        Text.bytes(text) <= ProductionChange.DESCRIPTION_MAX
+        bytes(text) <= DESCRIPTION_MAX
         text.contains('more issues in Jira.')
         text.endsWith('About CertScanner:\nWatches TLS certificates.')
-        ProductionChange.shortDescriptionOf(product, []) == 'CertScanner production release'
+        shortDescriptionOf(product, []) == 'CertScanner production release'
     }
 
     def "texts with accented Jira summaries still fit the bytes of their Oracle columns"() {
@@ -107,30 +110,29 @@ class ProductionChangeSpec extends Specification {
         def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'ż' * 60, 'CERT-1') }
 
         when:
-        def summary = ProductionChange.shortDescriptionOf(product, many)
-        def text = ProductionChange.descriptionOf(product, 'Custody', product.services(), template(), WINDOW, many,
-                lots)
+        def summary = shortDescriptionOf(product, many)
+        def text = descriptionOf(product, 'Custody', product.services(), template(), WINDOW, many, lots)
 
         then:
-        Text.bytes(summary) <= ProductionChange.SHORT_DESCRIPTION_MAX
-        Text.bytes(text) <= ProductionChange.DESCRIPTION_MAX
+        bytes(summary) <= SHORT_DESCRIPTION_MAX
+        bytes(text) <= DESCRIPTION_MAX
         text.contains('more issues in Jira.')
         text.endsWith('About CertScanner:\nWatches TLS certificates.')
     }
 
     def "a raised change takes its number, the numbers of its tasks in order and its link"() {
         given:
-        def draft = ProductionChange.draft(product, null, product.services(), template(), WINDOW, epics, [], null, null)
+        def drafted = draft(product, null, product.services(), template(), WINDOW, epics, [], null, null)
 
         when:
-        def raised = draft.numbered('CHG0001', ['CTASK0001', 'CTASK0002'], 'https://snow/CHG0001')
+        def raised = drafted.numbered('CHG0001', ['CTASK0001', 'CTASK0002'], 'https://snow/CHG0001')
 
         then:
         raised.number() == 'CHG0001'
         raised.url() == 'https://snow/CHG0001'
         raised.tasks()*.number() == ['CTASK0001', 'CTASK0002']
         raised.tasks()*.serviceName() == ['gui', 'backend-api']
-        raised.shortDescription() == draft.shortDescription()
-        raised.description() == draft.description()
+        raised.shortDescription() == drafted.shortDescription()
+        raised.description() == drafted.description()
     }
 }

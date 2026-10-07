@@ -28,8 +28,9 @@ class DemoServiceNowAdapterSpec extends Specification {
     }
 
     static ProductionChange change(List<String> services) {
-        new ProductionChange(null, null, 1L, 'CERT', 'CertScanner', null, new ChangeWindow(null, null), 'Release',
-                'Release', template(), ['CERT-1'], [], services.collect { new ChangeTask(null, it, 'Deploy', 'Deploy') },
-                null, null)
+        ProductionChange.builder().productId(1L).productCode('CERT').productName('CertScanner')
+                .window(new ChangeWindow(null, null)).shortDescription('Release').description('Release')
+                .template(template()).epicKeys(['CERT-1']).storyKeys([])
+                .tasks(services.collect { new ChangeTask(null, it, 'Deploy', 'Deploy') }).build()
     }
 }
