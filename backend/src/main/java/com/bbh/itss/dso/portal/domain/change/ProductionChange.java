@@ -1,20 +1,22 @@
 package com.bbh.itss.dso.portal.domain.change;
 
-import com.bbh.itss.dso.portal.domain.catalog.DeployTarget;
 import com.bbh.itss.dso.portal.domain.catalog.Product;
 import com.bbh.itss.dso.portal.domain.catalog.Service;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning;
+import lombok.Builder;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.IntStream;
 
-import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviate;
+import static com.bbh.itss.dso.portal.domain.catalog.DeployTarget.OPENSHIFT;
+import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviateBytes;
 import static com.bbh.itss.dso.portal.domain.shared.Text.bytes;
-import static com.bbh.itss.dso.portal.domain.shared.Text.isBlank;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.IntStream.range;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
+@Builder(toBuilder = true)
 public record ProductionChange(Long id, String number, Long productId, String productCode, String productName,
                                String departmentName, String fixVersion, ChangeSchedule schedule,
                                String shortDescription, String description, ChangeTemplate template,
@@ -43,24 +45,23 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 ? descriptionOf(product, departmentName, services, fixVersion, schedule, raised, epics, stories)
                 : description.trim();
         List<ChangeTask> tasks = services.stream().map(service -> taskOf(product, service, schedule)).toList();
-        return new ProductionChange(null, null, product.id(), product.code(), product.name(), departmentName,
-                fixVersion, schedule, summary, text, raised, epics.stream().map(JiraIssue::key).toList(),
-                stories.stream().map(JiraIssue::key).toList(), tasks, null, null);
+        return builder().productId(product.id()).productCode(product.code()).productName(product.name())
+                .departmentName(departmentName).fixVersion(fixVersion).schedule(schedule).shortDescription(summary)
+                .description(text).template(raised).epicKeys(epics.stream().map(JiraIssue::key).toList())
+                .storyKeys(stories.stream().map(JiraIssue::key).toList()).tasks(tasks).build();
     }
 
     public ProductionChange numbered(String number, List<String> taskNumbers, String url) {
-        List<ChangeTask> numberedTasks = IntStream.range(0, tasks.size())
+        List<ChangeTask> numberedTasks = range(0, tasks.size())
                 .mapToObj(index -> tasks.get(index).numbered(taskNumbers.get(index))).toList();
-        return new ProductionChange(id, number, productId, productCode, productName, departmentName, fixVersion,
-                schedule, shortDescription, description, template, epicKeys, storyKeys, numberedTasks, url,
-                createdAt);
+        return toBuilder().number(number).tasks(numberedTasks).url(url).build();
     }
 
     static String shortDescriptionOf(Product product, String fixVersion, List<JiraIssue> epics) {
         String release = product.name() + " " + fixVersion;
         String text = epics.isEmpty() ? release + " production release"
                 : release + ": " + epics.stream().map(JiraIssue::summary).collect(joining("; "));
-        return abbreviate(text, SHORT_DESCRIPTION_MAX);
+        return abbreviateBytes(text, SHORT_DESCRIPTION_MAX);
     }
 
     static String descriptionOf(Product product, String departmentName, List<Service> services, String fixVersion,
@@ -91,37 +92,37 @@ public record ProductionChange(Long id, String number, Long productId, String pr
             room -= size;
             text.append(lines.get(index)).append('\n');
         }
-        return abbreviate(text.append(tail).toString().strip(), DESCRIPTION_MAX);
+        return abbreviateBytes(text.append(tail).toString().strip(), DESCRIPTION_MAX);
     }
 
     private static String detailsOf(Product product, ChangeTemplate template) {
         Planning planning = template.planning();
-        List<String> risks = template.riskAssessment().lines().stream().map(line -> abbreviate(line, SECTION_MAX))
-                .toList();
+        List<String> risks = template.riskAssessment().lines().stream()
+                .map(line -> abbreviateBytes(line, SECTION_MAX)).toList();
         return section("Test summary", planning.testSummary())
                 + section("Implementation plan", planning.implementationPlan())
                 + section("Validation plan", planning.validationPlan())
                 + section("Backout plan", planning.backoutPlan())
                 + section("First use plan", planning.firstUsePlan())
-                + abbreviate(template.privilegedAccess().text(), SECTION_MAX) + "\n\n"
+                + abbreviateBytes(template.privilegedAccess().text(), SECTION_MAX) + "\n\n"
                 + "Risk assessment:\n" + (risks.isEmpty() ? "Not assessed." : String.join("\n", risks)) + "\n"
                 + (template.description() == null ? ""
                 : "\n" + section("About " + product.name(), template.description()));
     }
 
     private static String section(String title, String text) {
-        return title + ":\n" + abbreviate(text, SECTION_MAX) + "\n\n";
+        return title + ":\n" + abbreviateBytes(text, SECTION_MAX) + "\n\n";
     }
 
     static ChangeTask taskOf(Product product, Service service, ChangeSchedule schedule) {
-        String how = service.settings().deployment().target() == DeployTarget.OPENSHIFT
+        String how = service.settings().deployment().target() == OPENSHIFT
                 ? "Roll out its new image on OpenShift" : "Install it on the virtual machines with UrbanCode Deploy";
         String description = "Deploy " + service.name() + " of " + product.name()
                 + (service.description() == null ? "" : " (" + service.description() + ")") + ", "
                 + schedule.installationText() + ". " + how
                 + ", then run its smoke tests and confirm the result in this task.";
         return new ChangeTask(null, service.name(),
-                abbreviate("Deploy " + service.name() + " of " + product.name() + " to production",
-                        SHORT_DESCRIPTION_MAX), abbreviate(description, DESCRIPTION_MAX));
+                abbreviateBytes("Deploy " + service.name() + " of " + product.name() + " to production",
+                        SHORT_DESCRIPTION_MAX), abbreviateBytes(description, DESCRIPTION_MAX));
     }
 }

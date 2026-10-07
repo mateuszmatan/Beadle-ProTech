@@ -3,15 +3,17 @@ package com.bbh.itss.dso.portal.domain.change;
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+
+import static java.time.ZoneOffset.UTC;
+import static java.time.format.DateTimeFormatter.ofPattern;
+import static org.apache.commons.lang3.ObjectUtils.allNotNull;
 
 public record ChangeSchedule(Instant installationStart, Instant installationEnd, Instant validationStart,
                              Instant validationEnd, Instant firstUsage) {
 
-    private static final DateTimeFormatter DAY_AND_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-            .withZone(ZoneOffset.UTC);
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter DAY_AND_TIME = ofPattern("yyyy-MM-dd HH:mm").withZone(UTC);
+    private static final DateTimeFormatter TIME = ofPattern("HH:mm").withZone(UTC);
 
     public void check(ValidationProblems problems) {
         problems.require("installationStart", installationStart, "choose when the installation starts")
@@ -19,7 +21,7 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
                 .require("validationStart", validationStart, "choose when the post-install validation starts")
                 .require("validationEnd", validationEnd, "choose when the post-install validation ends")
                 .require("firstUsage", firstUsage, "choose when the release is first used");
-        if (installationStart != null && installationEnd != null && !installationEnd.isAfter(installationStart)) {
+        if (allNotNull(installationStart, installationEnd) && !installationEnd.isAfter(installationStart)) {
             problems.add("installationEnd", "must be after the installation start");
         }
         notBefore(problems, "validationStart", validationStart, installationEnd, "the installation end");
@@ -44,7 +46,7 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
 
     private static void notBefore(ValidationProblems problems, String field, Instant value, Instant earliest,
                                   String what) {
-        if (value != null && earliest != null && value.isBefore(earliest)) {
+        if (allNotNull(value, earliest) && value.isBefore(earliest)) {
             problems.add(field, "must not be before " + what);
         }
     }

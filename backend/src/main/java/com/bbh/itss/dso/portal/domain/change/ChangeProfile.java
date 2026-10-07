@@ -1,15 +1,15 @@
 package com.bbh.itss.dso.portal.domain.change;
 
-import com.bbh.itss.dso.portal.domain.shared.ConflictException;
-import com.bbh.itss.dso.portal.domain.shared.Versions;
-
 import java.time.Instant;
-import java.util.Objects;
+
+import static com.bbh.itss.dso.portal.domain.shared.Failures.staleVersion;
+import static com.bbh.itss.dso.portal.domain.shared.Versions.requireCurrent;
+import static java.util.Objects.requireNonNull;
 
 public record ChangeProfile(long productId, ChangeTemplate template, long version, Instant updatedAt) {
 
     public ChangeProfile {
-        Objects.requireNonNull(template, "a change profile needs its template");
+        requireNonNull(template, "a change profile needs its template");
     }
 
     public static ChangeProfile create(long productId, ChangeTemplate template) {
@@ -18,9 +18,9 @@ public record ChangeProfile(long productId, ChangeTemplate template, long versio
 
     public ChangeProfile change(Long expectedVersion, ChangeTemplate template) {
         if (expectedVersion == null) {
-            throw ConflictException.staleVersion();
+            throw staleVersion();
         }
-        Versions.requireCurrent(expectedVersion, version);
+        requireCurrent(expectedVersion, version);
         return new ChangeProfile(productId, template, version, updatedAt);
     }
 }

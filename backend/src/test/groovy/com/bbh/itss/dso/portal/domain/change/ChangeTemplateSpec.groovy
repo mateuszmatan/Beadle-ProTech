@@ -6,37 +6,46 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedAccess
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedUser
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.RiskAssessment
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
-import com.bbh.itss.dso.portal.domain.shared.ConflictException
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
 
-import java.time.Instant
 import java.time.LocalDate
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.BACKOUT_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.FIRST_USE_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.GROUP_MAX
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.IMPLEMENTATION_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.JIRA_KEY_MESSAGE
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEST_SUMMARY
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEXT_MAX
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.VALIDATION_PLAN
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.suggestedFor
+import static com.bbh.itss.dso.portal.domain.change.JiraVersion.UNRELEASED_NEWEST_FIRST
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.at
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.risk
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
+import static java.time.Instant.EPOCH
 
 class ChangeTemplateSpec extends Specification {
 
     def "a template trims its texts to null, upper-cases the Jira key and fills in the optional sections"() {
         when:
-        def trimmed = new ChangeTemplate(' cert ', ' TA ', ' ', ChangeTemplate.Type.NORMAL, ' CertScanner ', ' ',
+        def trimmed = new ChangeTemplate(' cert ', ' TA ', ' ', NORMAL, ' CertScanner ', ' ',
                 ' INC0012345 ', '', ' Clients ', ' About ', new Approvers(' Ann ', ' ', null), null,
                 new Timing(' 18:00 ', 2, 1), new Planning(' t ', 'i', ' ', 'b', 'f'),
                 new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]),
-                new RiskAssessment(1, null, null, null, null, ' Low ', ' ', null, null, null))
-        def empty = new ChangeTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null)
+                RiskAssessment.builder().bbhWorkgroups(1).businessImpact(' Low ').changeComplexity(' ').build())
+        def empty = ChangeTemplate.builder().build()
 
         then:
-        trimmed == new ChangeTemplate('CERT', 'TA', null, ChangeTemplate.Type.NORMAL, 'CertScanner', null,
+        trimmed == new ChangeTemplate('CERT', 'TA', null, NORMAL, 'CertScanner', null,
                 'INC0012345', null, 'Clients', 'About', new Approvers('Ann', null, null), false,
                 new Timing('18:00', 2, 1), new Planning('t', 'i', null, 'b', 'f'),
                 new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]),
-                new RiskAssessment(1, null, null, null, null, 'Low', null, null, null, null))
+                RiskAssessment.builder().bbhWorkgroups(1).businessImpact('Low').build())
         [empty.jiraProjectKey(), empty.timing(), empty.planning()] == [null, null, null]
         [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment()] ==
                 [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.NONE]
@@ -44,17 +53,17 @@ class ChangeTemplateSpec extends Specification {
 
     def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
         when:
-        def suggested = ChangeTemplate.suggestedFor(code, 'Product', owner, 'About it')
+        def suggested = suggestedFor(code, 'Product', owner, 'About it')
 
         then:
-        suggested == new ChangeTemplate(key, group, 'Software', ChangeTemplate.Type.NORMAL, 'Product', null, null,
+        suggested == new ChangeTemplate(key, group, 'Software', NORMAL, 'Product', null, null,
                 null, null, 'About it', Approvers.NONE, false, new Timing('18:00', 2, 1), Planning.SUGGESTED,
                 new PrivilegedAccess(false, []), RiskAssessment.NONE)
-        Planning.SUGGESTED == new Planning(ChangeTemplate.TEST_SUMMARY, ChangeTemplate.IMPLEMENTATION_PLAN,
-                ChangeTemplate.VALIDATION_PLAN, ChangeTemplate.BACKOUT_PLAN, ChangeTemplate.FIRST_USE_PLAN)
-        ChangeTemplate.VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
+        Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
+                FIRST_USE_PLAN)
+        VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
                 ' check the monitoring of each service.'
-        ChangeTemplate.FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
+        FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
         problems(suggested) == []
 
         where:
@@ -66,12 +75,12 @@ class ChangeTemplateSpec extends Specification {
 
     def "the suggested template fits the columns of a long description and a long product name"() {
         when:
-        def suggested = ChangeTemplate.suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
+        def suggested = suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
 
         then:
-        suggested.assignmentGroup().getBytes('UTF-8').length <= ChangeTemplate.GROUP_MAX
+        suggested.assignmentGroup().getBytes('UTF-8').length <= GROUP_MAX
         suggested.assignmentGroup().endsWith('...')
-        suggested.description().getBytes('UTF-8').length <= ChangeTemplate.TEXT_MAX
+        suggested.description().getBytes('UTF-8').length <= TEXT_MAX
         suggested.description().endsWith('...')
     }
 
@@ -96,7 +105,7 @@ class ChangeTemplateSpec extends Specification {
         where:
         problem                                  | edits                                                       || expected
         'it misses its required texts'           | [jiraProjectKey: ' ', assignmentGroup: null, category: '', type: null, configurationItem: ' '] || ['template.jiraProjectKey is required', 'template.assignmentGroup is required', 'template.category is required', 'template.type is required', 'template.configurationItem is required']
-        'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey ' + ChangeTemplate.JIRA_KEY_MESSAGE]
+        'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey ' + JIRA_KEY_MESSAGE]
         'it has no timing and no planning'       | [timing: null, planning: null]                              || ['template.timing is required', 'template.planning is required']
         'a planning text is missing'             | [planning: new Planning('t', ' ', 'v', null, 'f')]          || ['template.planning.implementationPlan is required', 'template.planning.backoutPlan is required']
         'the installation starts at no time'     | [timing: new Timing('6pm', 2, 1)]                           || ['template.timing.installationStart must be a time of day such as 18:00']
@@ -115,17 +124,17 @@ class ChangeTemplateSpec extends Specification {
 
     def "a profile is created at version 0 and changed only at the version it was read at"() {
         given:
-        def stored = new ChangeProfile(4L, template(), 2, Instant.EPOCH)
+        def stored = new ChangeProfile(4L, template(), 2, EPOCH)
 
         expect:
         ChangeProfile.create(4L, template()) == new ChangeProfile(4L, template(), 0, null)
-        stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, Instant.EPOCH)
+        stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, EPOCH)
 
         when:
         stored.change(version, template())
 
         then:
-        thrown(ConflictException)
+        thrown(IllegalStateException)
 
         when:
         new ChangeProfile(4L, null, 0, null)
@@ -199,7 +208,7 @@ class ChangeTemplateSpec extends Specification {
                         new JiraVersion('CERT 3.9', true, null)]
 
         expect:
-        versions.sort(false, JiraVersion.UNRELEASED_NEWEST_FIRST)*.name() ==
+        versions.sort(false, UNRELEASED_NEWEST_FIRST)*.name() ==
                 ['CERT 4.3', 'CERT 4.2', 'CERT 3.9', 'CERT 4.1', 'CERT 4.0']
     }
 

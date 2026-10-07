@@ -13,20 +13,24 @@ import com.bbh.itss.dso.portal.domain.change.JiraIssue
 import java.time.Instant
 import java.time.LocalDate
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.support.Fixtures.copy
+
 class ChangeFixtures {
 
     static final String FIX_VERSION = 'CERT 4.2'
 
     static ChangeTemplate template(Map changes = [:]) {
-        Fixtures.copy(changes, new ChangeTemplate('CERT', 'Technology Architecture', 'Software',
-                ChangeTemplate.Type.NORMAL, 'CertScanner', null, null, null, null, 'Watches TLS certificates.',
-                new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'), false, Timing.SUGGESTED,
-                Planning.SUGGESTED, PrivilegedAccess.NONE, risk()))
+        copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
+                .category('Software').type(NORMAL).configurationItem('CertScanner')
+                .description('Watches TLS certificates.')
+                .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'))
+                .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
     }
 
     static RiskAssessment risk(Map changes = [:]) {
-        Fixtures.copy(changes, new RiskAssessment(1, 10, 1, 0, 0, 'Low', 'Low', 'Low',
-                'Tested on QC, about 15 minutes', 'Existing platform'))
+        copy(changes, new RiskAssessment(1, 10, 1, 0, 0, 'Low', 'Low', 'Low', 'Tested on QC, about 15 minutes',
+                'Existing platform'))
     }
 
     static PrivilegedAccess privileged(int users = 2) {
@@ -34,7 +38,7 @@ class ChangeFixtures {
     }
 
     static ChangeSchedule schedule(Map changes = [:]) {
-        Fixtures.copy(changes.collectEntries { key, value -> [key, value instanceof String ? at(value) : value] },
+        copy(changes.collectEntries { key, value -> [key, value instanceof String ? at(value) : value] },
                 new ChangeSchedule(at('2026-10-10T06:00:00Z'), at('2026-10-10T10:00:00Z'),
                         at('2026-10-10T10:00:00Z'), at('2026-10-10T11:00:00Z'), at('2026-10-12T08:00:00Z')))
     }
