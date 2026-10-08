@@ -1,26 +1,29 @@
 package com.bbh.itss.dso.portal.domain.change;
 
 import java.time.Instant;
+import java.util.List;
 
 import static com.bbh.itss.dso.portal.domain.shared.Failures.staleVersion;
 import static com.bbh.itss.dso.portal.domain.shared.Versions.requireCurrent;
 import static java.util.Objects.requireNonNull;
 
-public record ChangeProfile(long productId, ChangeTemplate template, long version, Instant updatedAt) {
+public record ChangeProfile(long productId, ChangeTemplate template, List<TaskText> tasks, long version,
+                            Instant updatedAt) {
 
     public ChangeProfile {
         requireNonNull(template, "a change profile needs its template");
+        tasks = List.copyOf(tasks);
     }
 
-    public static ChangeProfile create(long productId, ChangeTemplate template) {
-        return new ChangeProfile(productId, template, 0, null);
+    public static ChangeProfile create(long productId, ChangeTemplate template, List<TaskText> tasks) {
+        return new ChangeProfile(productId, template, tasks, 0, null);
     }
 
-    public ChangeProfile change(Long expectedVersion, ChangeTemplate template) {
+    public ChangeProfile change(Long expectedVersion, ChangeTemplate template, List<TaskText> tasks) {
         if (expectedVersion == null) {
             throw staleVersion();
         }
         requireCurrent(expectedVersion, version);
-        return new ChangeProfile(productId, template, version, updatedAt);
+        return new ChangeProfile(productId, template, tasks, version, updatedAt);
     }
 }

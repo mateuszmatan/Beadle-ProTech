@@ -19,6 +19,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.JIRA_KEY_MESS
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEST_SUMMARY
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEXT_MAX
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.VALIDATION_PLAN
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.suggestedFor
 import static com.bbh.itss.dso.portal.domain.change.JiraVersion.UNRELEASED_NEWEST_FIRST
@@ -26,6 +27,7 @@ import static com.bbh.itss.dso.portal.support.ChangeFixtures.at
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.risk
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.tasks
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
 import static java.time.Instant.EPOCH
 
@@ -62,7 +64,7 @@ class ChangeTemplateSpec extends Specification {
         Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
                 FIRST_USE_PLAN)
         VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
-                ' check the monitoring of each service.'
+                ' check the monitoring of the product.'
         FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
         problems(suggested) == []
 
@@ -122,28 +124,39 @@ class ChangeTemplateSpec extends Specification {
         'its texts fill their columns'           | [assignmentGroup: 'ł' * 100, incident: 'é' * 20, approvers: new Approvers('ż' * 100, 'ż' * 100, 'ż' * 100), riskAssessment: risk(businessImpact: 'ö' * 50)] || []
     }
 
-    def "a profile is created at version 0 and changed only at the version it was read at"() {
+    def "a profile is created at version 0 with its tasks and changed only at the version it was read at"() {
         given:
-        def stored = new ChangeProfile(4L, template(), 2, EPOCH)
+        def stored = new ChangeProfile(4L, template(), tasks(), 2, EPOCH)
 
         expect:
-        ChangeProfile.create(4L, template()) == new ChangeProfile(4L, template(), 0, null)
-        stored.change(2L, template(category: 'Apps')) == new ChangeProfile(4L, template(category: 'Apps'), 2, EPOCH)
+        ChangeProfile.create(4L, template(), tasks(1)) == new ChangeProfile(4L, template(), tasks(1), 0, null)
+        stored.change(2L, template(category: 'Apps'), tasks(3)) ==
+                new ChangeProfile(4L, template(category: 'Apps'), tasks(3), 2, EPOCH)
 
         when:
-        stored.change(version, template())
+        stored.change(version, template(), tasks())
 
         then:
         thrown(IllegalStateException)
 
         when:
-        new ChangeProfile(4L, null, 0, null)
+        new ChangeProfile(4L, null, tasks(), 0, null)
 
         then:
         thrown(NullPointerException)
 
         where:
         version << [1L, null]
+    }
+
+    def "an edit of a raised template keeps its Jira project, its type and its timing"() {
+        given:
+        def raised = template(release: 'CERT 4.2')
+        def edits = template(jiraProjectKey: 'OTHER', type: STANDARD, timing: new Timing('20:00', 5, 5),
+                category: 'Apps', release: 'CERT 4.3', downtime: true)
+
+        expect:
+        raised.edited(edits) == template(category: 'Apps', release: 'CERT 4.3', downtime: true)
     }
 
     def "a schedule is checked for presence and order: #expected"() {

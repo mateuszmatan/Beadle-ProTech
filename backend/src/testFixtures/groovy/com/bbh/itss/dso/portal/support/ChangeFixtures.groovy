@@ -1,6 +1,7 @@
 package com.bbh.itss.dso.portal.support
 
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule
+import com.bbh.itss.dso.portal.domain.change.ChangeTask
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Approvers
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning
@@ -9,16 +10,22 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedUser
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.RiskAssessment
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.change.JiraIssue
+import com.bbh.itss.dso.portal.domain.change.ProductionChange
+import com.bbh.itss.dso.portal.domain.change.TaskText
+import com.bbh.itss.dso.portal.domain.change.WorkflowStep
 
 import java.time.Instant
 import java.time.LocalDate
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
 import static com.bbh.itss.dso.portal.support.Fixtures.copy
 
 class ChangeFixtures {
 
     static final String FIX_VERSION = 'CERT 4.2'
+    static final Instant RAISED = Instant.parse('2026-10-05T09:00:00Z')
 
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
@@ -41,6 +48,28 @@ class ChangeFixtures {
         copy(changes.collectEntries { key, value -> [key, value instanceof String ? at(value) : value] },
                 new ChangeSchedule(at('2026-10-10T06:00:00Z'), at('2026-10-10T10:00:00Z'),
                         at('2026-10-10T10:00:00Z'), at('2026-10-10T11:00:00Z'), at('2026-10-12T08:00:00Z')))
+    }
+
+    static List<TaskText> tasks(int count = 2) {
+        (1..count).collect { new TaskText("Task $it of the CertScanner release", "Step $it of the CertScanner release.") }
+    }
+
+    static List<Map> tasksJson(int count = 2) {
+        tasks(count).collect { [shortDescription: it.shortDescription(), description: it.description()] }
+    }
+
+    static ProductionChange raised(Map changes = [:]) {
+        copy(changes, ProductionChange.builder().id(7L).number('CHG0031001').productId(1L).productCode('CERTSCANNER')
+                .productName('CertScanner').departmentId(3L).departmentName('Corporate Technology')
+                .fixVersion(FIX_VERSION).schedule(schedule()).shortDescription('CertScanner CERT 4.2: Expiry alerts')
+                .description('Production release CERT 4.2 of CertScanner.').template(template(release: FIX_VERSION))
+                .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
+                .tasks([new ChangeTask('CTASK0041001', 'Task 1 of the CertScanner release',
+                        'Step 1 of the CertScanner release.', OPEN),
+                        new ChangeTask('CTASK0041002', 'Task 2 of the CertScanner release',
+                                'Step 2 of the CertScanner release.', OPEN)])
+                .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)]).syncedAt(RAISED).version(0L)
+                .createdAt(RAISED).build())
     }
 
     static JiraIssue epic(String key, String summary, String updated = '2026-09-20') {

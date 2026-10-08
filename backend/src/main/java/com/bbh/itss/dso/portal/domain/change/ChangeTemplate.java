@@ -44,15 +44,15 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
             Unit, smoke, regression and performance tests and the security scans of the DevSecOps \
             pipeline passed on QC; Change Evidence in the DevSecOps portal holds the results.""";
     public static final String IMPLEMENTATION_PLAN = """
-            1. Deploy each service with its change task, in the order listed.
+            1. Carry out the change tasks in the order listed.
             2. Run the smoke tests of the DevSecOps pipeline against production.
             3. Confirm with the business owner and close the change tasks.""";
     public static final String VALIDATION_PLAN = """
-            Run the smoke tests of the DevSecOps pipeline against production and check the monitoring of each \
-            service.""";
+            Run the smoke tests of the DevSecOps pipeline against production and check the monitoring of the \
+            product.""";
     public static final String BACKOUT_PLAN = """
-            Redeploy the previous release of each service from Nexus with the same deployment job \
-            and confirm with the smoke tests.""";
+            Redeploy the previous release from Nexus with the same deployment job and confirm with the \
+            smoke tests.""";
     public static final String FIRST_USE_PLAN = "The business owner confirms the first use of the release in"
             + " production.";
 
@@ -96,6 +96,10 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
 
     public ChangeTemplate releasedAs(String fixVersion) {
         return release != null ? this : toBuilder().release(fixVersion).build();
+    }
+
+    public ChangeTemplate edited(ChangeTemplate changes) {
+        return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).build();
     }
 
     public void validate(ValidationProblems problems) {
