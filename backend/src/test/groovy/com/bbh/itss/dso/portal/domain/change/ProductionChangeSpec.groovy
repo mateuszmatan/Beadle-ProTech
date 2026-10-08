@@ -356,7 +356,7 @@ class ProductionChangeSpec extends Specification {
         when:
         def edited = stored.edited(' New ', ' Text ', schedule(firstUsage: '2026-10-13T08:00:00Z'), edit,
                 [new ChangeTask('CTASK3', 'Three', 'Third.', OPEN), new ChangeTask(null, ' Four ', 'Fourth.', CLOSED),
-                 new ChangeTask('CTASK1', 'One more', 'First again.', CLOSED)], NOW)
+                 new ChangeTask('CTASK1', 'One more', 'First again.', CLOSED)], NOW).rebasedOn(stored)
 
         then:
         edited == stored.toBuilder().shortDescription('New').description('Text')
@@ -379,7 +379,7 @@ class ProductionChangeSpec extends Specification {
 
         when:
         stored.edited(values.shortDescription, values.description, values.schedule, values.template, values.tasks,
-                Instant.parse('2026-10-10T07:00:00Z'))
+                Instant.parse('2026-10-10T07:00:00Z')).rebasedOn(stored)
 
         then:
         def refused = thrown(InvalidRequestException)
@@ -399,7 +399,7 @@ class ProductionChangeSpec extends Specification {
         'downtime without its window'  | [template: template(downtime: true)]            || ['schedule.downtimeStart: choose when the downtime starts', 'schedule.downtimeEnd: choose when the downtime ends']
         'a window without downtime'    | [schedule: schedule(downtimeStart: '2026-10-10T06:00:00Z', downtimeEnd: '2026-10-10T08:00:00Z')] || ['schedule.downtimeStart: must be empty without downtime', 'schedule.downtimeEnd: must be empty without downtime']
         'a category off the list'      | [template: template(category: 'Software')]      || ['template.category: must be one of Application, Hardware, Infrastructure, System Software, Network, Telecom, Data Amendment, Desktop Software, Storage, Facilities, Other, Database']
-        'no tasks'                     | [tasks: []]                                     || ['tasks: add at least one change task', 'tasks: CTASK3 is closed in ProTech and cannot be removed']
+        'no tasks'                     | [tasks: []]                                     || ['tasks: add at least one change task']
         'a task without texts'         | [tasks: [new ChangeTask(null, ' ', 'x' * 4001, null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].shortDescription: is required', 'tasks[0].description: is too long: it may take at most 4000 bytes']
         'a task of another change'     | [tasks: [new ChangeTask('CTASK9', 'Nine', 'Ninth.', null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].number: is not a change task of CHG0031001']
         'a task listed twice'          | [tasks: [new ChangeTask('CTASK1', 'One', 'First.', null), new ChangeTask('CTASK1', 'One', 'First.', null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[1].number: is listed more than once']
@@ -407,6 +407,32 @@ class ProductionChangeSpec extends Specification {
         'a closed task changed'        | [tasks: [new ChangeTask('CTASK3', 'Three', 'Changed.', null)]] || ['tasks[0].number: is closed in ProTech and cannot be changed']
         'a closed task removed'        | [tasks: [new ChangeTask('CTASK1', 'One', 'First.', null)]] || ['tasks: CTASK3 is closed in ProTech and cannot be removed']
         'too many tasks'               | [tasks: (1..50).collect { new ChangeTask(null, "T$it", 'Text.', null) } + new ChangeTask('CTASK3', 'Three', 'Third.', null)] || ['tasks: may list at most 50 change tasks']
+    }
+
+    def "an edit is checked against the tasks ProTech holds now and takes the rest of the change from there"() {
+        given:
+        def stored = raised(tasks: [new ChangeTask('CTASK1', 'One', 'First.', OPEN)])
+        def current = stored.toBuilder().state(IMPLEMENTATION).version(3L)
+                .tasks([new ChangeTask('CTASK1', 'One', 'First.', CLOSED)]).build()
+        def kept = stored.edited('New', 'Text', schedule(), template(), [new ChangeTask('CTASK1', 'One', 'First.', null)],
+                NOW)
+        def changed = stored.edited('New', 'Text', schedule(), template(),
+                [new ChangeTask('CTASK1', 'One', 'Changed.', null)], NOW)
+
+        when:
+        def rebased = kept.rebasedOn(current)
+
+        then:
+        rebased == current.toBuilder().shortDescription('New').description('Text').template(template(release: FIX_VERSION))
+                .build()
+
+        when:
+        changed.rebasedOn(current)
+
+        then:
+        def refused = thrown(InvalidRequestException)
+        refused.problems()*.field() == ['tasks[0].number']
+        changed.rebasedOn(stored).tasks() == [new ChangeTask('CTASK1', 'One', 'Changed.', OPEN)]
     }
 
     def "an edit without a release releases the change as its FixVersion"() {

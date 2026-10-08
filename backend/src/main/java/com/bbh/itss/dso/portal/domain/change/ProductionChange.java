@@ -130,10 +130,18 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         boolean moved = schedule != null
                 && !Objects.equals(schedule.installationStart(), this.schedule.installationStart());
         checkTemplateAndSchedule(edited, schedule, moved ? now : null, problems);
-        List<ChangeTask> requested = editedTasks(tasks, problems);
+        validateTasks(tasks.stream().map(ChangeTask::text).toList(), problems);
         problems.throwIfAny();
         return toBuilder().shortDescription(summary).description(text).schedule(schedule).template(edited)
-                .tasks(requested).build();
+                .tasks(tasks).build();
+    }
+
+    public ProductionChange rebasedOn(ProductionChange current) {
+        ValidationProblems problems = new ValidationProblems();
+        List<ChangeTask> edited = current.editedTasks(tasks, problems);
+        problems.throwIfAny();
+        return current.toBuilder().shortDescription(shortDescription).description(description).schedule(schedule)
+                .template(template).tasks(edited).build();
     }
 
     public static void checkTemplate(ChangeTemplate template, ValidationProblems problems) {
@@ -219,7 +227,6 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     }
 
     private List<ChangeTask> editedTasks(List<ChangeTask> requested, ValidationProblems problems) {
-        validateTasks(requested.stream().map(ChangeTask::text).toList(), problems);
         Map<String, ChangeTask> stored = tasks.stream().filter(task -> task.number() != null)
                 .collect(toMap(ChangeTask::number, identity(), (first, second) -> first));
         Set<String> listed = new HashSet<>();
