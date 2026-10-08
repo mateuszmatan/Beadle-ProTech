@@ -12,7 +12,7 @@ import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 public record ChangeUpdate(Status status, Instant requestedAt, String departmentName, List<String> fields,
                            String message, Instant checkedAt) {
 
-    public static final String NOT_APPLIED_MESSAGE = "ProTech did not apply the update within a minute";
+    public static final String NOT_APPLIED_MESSAGE = "A minute later ProTech still held its own values, so Beadle shows those.";
 
     public enum Status { PENDING, APPLIED, NOT_APPLIED }
 

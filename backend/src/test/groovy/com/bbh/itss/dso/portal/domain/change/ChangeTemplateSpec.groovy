@@ -64,7 +64,7 @@ class ChangeTemplateSpec extends Specification {
         Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
                 FIRST_USE_PLAN)
         VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
-                ' check the monitoring of each service.'
+                ' check the monitoring of the product.'
         FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
         problems(suggested) == []
 
