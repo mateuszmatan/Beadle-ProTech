@@ -1,18 +1,33 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow;
 
+import com.bbh.itss.dso.portal.application.catalog.port.out.DepartmentRepositoryPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ProTechLookupPort;
+import com.bbh.itss.dso.portal.application.user.port.in.SignedInUserUseCase;
+import com.bbh.itss.dso.portal.domain.catalog.Department;
 import com.bbh.itss.dso.portal.domain.change.ChangeProduct;
 import com.bbh.itss.dso.portal.domain.change.Lookup;
 import com.bbh.itss.dso.portal.domain.change.LookupKind;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.GROUP_MAX;
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.NAME_MAX;
+import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviateBytes;
+import static com.bbh.itss.dso.portal.domain.shared.Text.bytes;
+import static java.lang.Math.floorMod;
+import static java.lang.String.CASE_INSENSITIVE_ORDER;
 import static java.util.Locale.ROOT;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.IntStream.range;
 import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 import static org.apache.commons.lang3.StringUtils.trim;
@@ -82,7 +97,13 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Westbrook Emerging Markets Fund", "Fund administration"),
             new Lookup("Willow Creek Municipal Plan", "Custody"));
 
+    private static final Map<String, String> COST_CENTRES = DEPARTMENTS.stream()
+            .collect(toMap(Lookup::value, Lookup::detail, (first, second) -> first,
+                    () -> new TreeMap<>(CASE_INSENSITIVE_ORDER)));
+
     private final ChangeProductsPort products;
+    private final DepartmentRepositoryPort departments;
+    private final SignedInUserUseCase users;
 
     @Override
     public List<Lookup> find(LookupKind kind, String query, int limit) {
@@ -91,13 +112,17 @@ class DemoProTechLookups implements ProTechLookupPort {
 
     private Stream<Lookup> lookups(LookupKind kind) {
         return switch (kind) {
-            case USERS -> USERS.stream().map(name -> new Lookup(name, emailOf(name)));
-            case DEPARTMENTS -> DEPARTMENTS.stream();
+            case USERS -> once(Stream.concat(USERS.stream(), Stream.of(users.signedInUser().name())))
+                    .map(name -> new Lookup(abbreviateBytes(name, GROUP_MAX), emailOf(name)));
+            case DEPARTMENTS -> once(Stream.concat(departments.findAll().stream().map(Department::name),
+                    COST_CENTRES.keySet().stream()))
+                    .map(name -> new Lookup(abbreviateBytes(name, NAME_MAX), costCentreOf(name)));
             case ASSIGNMENT_GROUPS -> Stream.concat(catalogue().map(product -> new Lookup(
-                    defaultIfBlank(trim(product.ownerTeam()), product.name()) + SUPPORT, product.departmentName())),
-                    INFRASTRUCTURE_GROUPS.stream()).distinct();
+                    fitted(defaultIfBlank(trim(product.ownerTeam()), product.name()), SUPPORT, GROUP_MAX),
+                    product.departmentName())), INFRASTRUCTURE_GROUPS.stream()).distinct();
             case RELEASES -> catalogue().flatMap(DemoProTechLookups::releasesOf);
-            case CONFIGURATION_ITEMS -> catalogue().map(product -> new Lookup(product.name(),
+            case CONFIGURATION_ITEMS -> catalogue().map(product -> new Lookup(
+                    abbreviateBytes(product.name(), GROUP_MAX),
                     defaultIfBlank(trim(product.ownerTeam()), product.departmentName())));
             case INCIDENTS -> INCIDENTS.stream();
             case PROBLEMS -> PROBLEMS.stream();
@@ -109,12 +134,26 @@ class DemoProTechLookups implements ProTechLookupPort {
         return products.findAll().stream();
     }
 
+    private static Stream<String> once(Stream<String> names) {
+        return names.filter(StringUtils::isNotBlank).map(String::trim)
+                .collect(toCollection(() -> new TreeSet<>(CASE_INSENSITIVE_ORDER))).stream();
+    }
+
+    private static String costCentreOf(String department) {
+        return COST_CENTRES.getOrDefault(department,
+                "Cost centre %d".formatted(4900 + floorMod(department.toLowerCase(ROOT).hashCode(), 100)));
+    }
+
+    private static String fitted(String head, String tail, int maxBytes) {
+        return abbreviateBytes(head, maxBytes - bytes(tail)) + tail;
+    }
+
     private static Stream<Lookup> releasesOf(ChangeProduct product) {
         Random random = new Random(product.code().hashCode());
         int major = 1 + random.nextInt(5);
         int minor = random.nextInt(4);
-        return range(minor, minor + 3).mapToObj(next -> new Lookup(product.name() + " " + major + "." + next,
-                product.code()));
+        return range(minor, minor + 3).mapToObj(next -> new Lookup(
+                fitted(product.name(), " " + major + "." + next, NAME_MAX), product.code()));
     }
 
     private static String emailOf(String name) {
