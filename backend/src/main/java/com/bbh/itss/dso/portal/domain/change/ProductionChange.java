@@ -38,7 +38,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                                String shortDescription, String description, ChangeTemplate template,
                                List<String> epicKeys, List<String> storyKeys, List<ChangeTask> tasks, String url,
                                ChangeState state, List<WorkflowStep> workflow, Instant syncedAt, String syncProblem,
-                               ChangeUpdate update, Long version, Instant createdAt) {
+                               ChangeUpdate update, Long version, Long editedVersion, Instant createdAt) {
 
     public static final int FIX_VERSION_MAX = 100;
     public static final int SHORT_DESCRIPTION_MAX = 160;
@@ -52,6 +52,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         tasks = List.copyOf(tasks);
         state = getIfNull(state, DRAFT);
         workflow = List.copyOf(emptyIfNull(workflow));
+        editedVersion = getIfNull(editedVersion, version);
     }
 
     public static ProductionChange draft(Product product, Long departmentId, String departmentName,
@@ -89,23 +90,30 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         String summary = trimToNull(shortDescription);
         String text = trimToNull(description);
         problems.require("shortDescription", summary, REQUIRED).fits("shortDescription", summary, SHORT_DESCRIPTION_MAX)
-                .require("description", text, REQUIRED).fits("description", text, DESCRIPTION_MAX)
-                .require("template", template, "fill in the ProTech fields of the change")
-                .require("schedule", schedule, "choose when the change is installed, validated and first used");
+                .require("description", text, REQUIRED).fits("description", text, DESCRIPTION_MAX);
         ChangeTemplate edited = template == null ? null : this.template.edited(template).releasedAs(fixVersion);
-        if (edited != null) {
-            edited.validate(problems.at("template"));
-        }
-        if (schedule != null) {
-            schedule.check(problems.at("schedule"));
-            if (!Objects.equals(schedule.installationStart(), this.schedule.installationStart())) {
-                schedule.checkUpcoming(now, problems.at("schedule"));
-            }
-        }
+        boolean moved = schedule != null
+                && !Objects.equals(schedule.installationStart(), this.schedule.installationStart());
+        checkTemplateAndSchedule(edited, schedule, moved ? now : null, problems);
         List<ChangeTask> requested = editedTasks(tasks, problems);
         problems.throwIfAny();
         return toBuilder().shortDescription(summary).description(text).schedule(schedule).template(edited)
                 .tasks(requested).build();
+    }
+
+    public static void checkTemplateAndSchedule(ChangeTemplate template, ChangeSchedule schedule, Instant upcomingFrom,
+                                                ValidationProblems problems) {
+        problems.require("template", template, "fill in the ProTech fields of the change");
+        if (template != null) {
+            template.validate(problems.at("template"));
+        }
+        problems.require("schedule", schedule, "choose when the change is installed, validated and first used");
+        if (schedule != null) {
+            schedule.check(problems.at("schedule"));
+            if (upcomingFrom != null) {
+                schedule.checkUpcoming(upcomingFrom, problems.at("schedule"));
+            }
+        }
     }
 
     public List<String> unappliedIn(ProductionChange remote) {

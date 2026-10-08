@@ -54,7 +54,7 @@ class DemoProTechChangesSpec extends Specification {
     ProductionChangeRepositoryPort repository = Mock()
     def clock = fixed(NOW, UTC)
     def seeder = new DemoProTechChanges(products, profiles, changes, repository, new DemoServiceNowAdapter(clock,
-            ofSeconds(3)), clock)
+            new DemoProTechProperties(ofSeconds(3))), clock)
     List<ProductionChange> stored = []
 
     def setup() {

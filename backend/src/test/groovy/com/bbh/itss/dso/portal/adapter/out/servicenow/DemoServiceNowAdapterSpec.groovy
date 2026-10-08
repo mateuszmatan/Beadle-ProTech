@@ -39,7 +39,7 @@ class DemoServiceNowAdapterSpec extends Specification {
     static final ChangeTask CHECK = new ChangeTask(null, 'Check the audit trail', 'Open the audit trail.', null)
 
     MutableClock clock = new MutableClock(RAISED)
-    def serviceNow = new DemoServiceNowAdapter(clock, ofSeconds(3))
+    def serviceNow = new DemoServiceNowAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
 
     def "each raised change gets a new CHG number and a new CTASK number per task"() {
         when:

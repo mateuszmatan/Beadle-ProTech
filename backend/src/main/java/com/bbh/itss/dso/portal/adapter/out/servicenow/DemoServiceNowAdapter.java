@@ -7,7 +7,7 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTask;
 import com.bbh.itss.dso.portal.domain.change.ProductionChange;
 import com.bbh.itss.dso.portal.domain.change.TaskState;
 import com.bbh.itss.dso.portal.domain.change.WorkflowStep;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -36,6 +36,7 @@ import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS;
 import static com.bbh.itss.dso.portal.domain.shared.Timestamps.now;
+import static java.time.Duration.between;
 import static java.time.Duration.ofHours;
 import static java.time.Duration.ofMinutes;
 import static java.time.Instant.MAX;
@@ -45,6 +46,7 @@ import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
 @Component
+@RequiredArgsConstructor
 class DemoServiceNowAdapter implements ServiceNowPort {
 
     static final Duration STAGE = ofMinutes(2);
@@ -56,12 +58,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     private final AtomicInteger tasks = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final Map<String, Held> held = new ConcurrentHashMap<>();
     private final Clock clock;
-    private final Duration applyDelay;
-
-    DemoServiceNowAdapter(Clock clock, @Value("${dso.demo.protech-apply-delay:PT3S}") Duration applyDelay) {
-        this.clock = clock;
-        this.applyDelay = applyDelay;
-    }
+    private final DemoProTechProperties properties;
 
     @Override
     public boolean connected() {
@@ -83,7 +80,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         Map<String, ProductionChange> copies = new LinkedHashMap<>();
         for (ProductionChange change : known) {
             Held current = held.compute(change.number(), (number, found) ->
-                    applied(found == null ? adopted(change, now) : found, now));
+                    applied(getIfNull(found, () -> adopted(change, now)), now));
             copies.put(change.number(), current.copyFor(change, now));
         }
         return copies;
@@ -100,13 +97,13 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             if (current.stateAt(now) == CLOSED) {
                 throw new IllegalStateException(CLOSED_REFUSAL);
             }
-            return current.queued(new Queued(now.plus(applyDelay), change));
+            return current.queued(new Queued(now.plus(properties.protechApplyDelay()), change));
         });
     }
 
     static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant now) {
         Instant approved = raisedAt.plus(STAGE.multipliedBy(5));
-        boolean shortNotice = Duration.between(approved, schedule.installationStart()).compareTo(SHORT_NOTICE) < 0;
+        boolean shortNotice = between(approved, schedule.installationStart()).compareTo(SHORT_NOTICE) < 0;
         Instant implementation = shortNotice
                 ? max(approved.plus(STAGE), schedule.installationStart().minus(ESCALATED_LEAD)) : approved;
         Map<ChangeState, Instant> stages = new EnumMap<>(ChangeState.class);
@@ -166,7 +163,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
                 .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
         List<ChangeTask> changed = new ArrayList<>();
         for (ChangeTask task : requested.tasks()) {
-            ChangeTask mine = task.number() == null ? null : heldTasks.remove(task.number());
+            ChangeTask mine = heldTasks.remove(task.number());
             changed.add(mine == null ? task.numbered(null).in(OPEN)
                     : mine.state().frozen() ? mine : task.in(mine.state()));
         }
