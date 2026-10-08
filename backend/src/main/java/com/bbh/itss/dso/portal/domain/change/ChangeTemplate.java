@@ -2,12 +2,13 @@ package com.bbh.itss.dso.portal.domain.change;
 
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems;
 import lombok.Builder;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL;
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD;
 import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviateBytes;
 import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.joining;
@@ -21,11 +22,13 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
 import static org.apache.commons.lang3.StringUtils.upperCase;
 
 @Builder(toBuilder = true)
-public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, String category, Type type,
-                             String configurationItem, String release, String incident, String problem,
-                             String affectedClients, String description, Approvers approvers, Boolean downtime,
-                             Timing timing, Planning planning, PrivilegedAccess privilegedAccess,
-                             RiskAssessment riskAssessment) {
+public record ChangeTemplate(String jiraProjectKey, String requestedFor, String requestedBy, String department,
+                             String assignmentGroup, String category, String assignedTo, Type type, String release,
+                             String configurationItem, String incident, String directBusinessService, String problem,
+                             String risk, String affectedClients, String usersAffected, String description,
+                             Approvers approvers, Boolean downtime, Timing timing, Planning planning,
+                             PrivilegedAccess privilegedAccess, RiskAssessment riskAssessment,
+                             String secureCodingTicket) {
 
     public static final String JIRA_KEY = "^[A-Z][A-Z0-9_]{0,9}$";
     public static final String JIRA_KEY_MESSAGE = "must be a Jira project key such as CERT: up to 10 upper case"
@@ -39,6 +42,9 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
     public static final int MAX_HOURS = 72;
     public static final int MAX_PRIVILEGED_USERS = 7;
     public static final String REQUIRED = "is required";
+    public static final List<String> CATEGORIES = List.of("Application", "Hardware", "Infrastructure",
+            "System Software", "Network", "Telecom", "Data Amendment", "Desktop Software", "Storage", "Facilities",
+            "Other", "Database");
 
     public static final String TEST_SUMMARY = """
             Unit, smoke, regression and performance tests and the security scans of the DevSecOps \
@@ -59,28 +65,42 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
     private static final Pattern JIRA_KEY_PATTERN = Pattern.compile(JIRA_KEY);
     private static final Pattern TIME_OF_DAY_PATTERN = Pattern.compile(TIME_OF_DAY);
 
-    public enum Type { NORMAL, STANDARD, EMERGENCY }
+    @Getter
+    @RequiredArgsConstructor
+    public enum Type {
+        STANDARD("Standard"), EMERGENCY("Emergency"), BUSINESS_CRITICAL("Business Critical"), MODEL("Model");
+
+        private final String label;
+    }
 
     public ChangeTemplate {
         jiraProjectKey = upperCase(trimToNull(jiraProjectKey), ROOT);
+        requestedFor = trimToNull(requestedFor);
+        requestedBy = trimToNull(requestedBy);
+        department = trimToNull(department);
         assignmentGroup = trimToNull(assignmentGroup);
         category = trimToNull(category);
-        configurationItem = trimToNull(configurationItem);
+        assignedTo = trimToNull(assignedTo);
         release = trimToNull(release);
+        configurationItem = trimToNull(configurationItem);
         incident = trimToNull(incident);
+        directBusinessService = trimToNull(directBusinessService);
         problem = trimToNull(problem);
         affectedClients = trimToNull(affectedClients);
+        usersAffected = trimToNull(usersAffected);
         description = trimToNull(description);
         approvers = getIfNull(approvers, Approvers.NONE);
         downtime = isTrue(downtime);
         privilegedAccess = getIfNull(privilegedAccess, PrivilegedAccess.NONE);
         riskAssessment = getIfNull(riskAssessment, RiskAssessment.NONE);
+        risk = riskAssessment.risk();
+        secureCodingTicket = trimToNull(secureCodingTicket);
     }
 
     public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam, String description) {
         return builder().jiraProjectKey(jiraKeyOf(code))
                 .assignmentGroup(abbreviateBytes(defaultIfBlank(trim(ownerTeam), name + " Support"), GROUP_MAX))
-                .category("Software").type(NORMAL).configurationItem(name)
+                .category(CATEGORIES.getFirst()).type(STANDARD).configurationItem(name)
                 .description(abbreviateBytes(description, TEXT_MAX)).timing(Timing.SUGGESTED)
                 .planning(Planning.SUGGESTED).build();
     }
@@ -98,6 +118,11 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
         return release != null ? this : toBuilder().release(fixVersion).build();
     }
 
+    public ChangeTemplate openedBy(String user, String departmentName) {
+        return toBuilder().requestedFor(getIfNull(requestedFor, user)).requestedBy(getIfNull(requestedBy, user))
+                .department(getIfNull(department, departmentName)).assignedTo(getIfNull(assignedTo, user)).build();
+    }
+
     public ChangeTemplate edited(ChangeTemplate changes) {
         return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).build();
     }
@@ -113,14 +138,23 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
         if (jiraProjectKey != null && !isJiraKey(jiraProjectKey)) {
             problems.add("jiraProjectKey", JIRA_KEY_MESSAGE);
         }
-        problems.fits("assignmentGroup", assignmentGroup, GROUP_MAX)
-                .fits("category", category, NAME_MAX)
-                .fits("configurationItem", configurationItem, GROUP_MAX)
+        if (category != null && !CATEGORIES.contains(category)) {
+            problems.add("category", "must be one of " + String.join(", ", CATEGORIES));
+        }
+        problems.fits("requestedFor", requestedFor, GROUP_MAX)
+                .fits("requestedBy", requestedBy, GROUP_MAX)
+                .fits("department", department, NAME_MAX)
+                .fits("assignmentGroup", assignmentGroup, GROUP_MAX)
+                .fits("assignedTo", assignedTo, GROUP_MAX)
                 .fits("release", release, NAME_MAX)
+                .fits("configurationItem", configurationItem, GROUP_MAX)
                 .fits("incident", incident, NUMBER_MAX)
+                .fits("directBusinessService", directBusinessService, GROUP_MAX)
                 .fits("problem", problem, NUMBER_MAX)
                 .fits("affectedClients", affectedClients, TEXT_MAX)
-                .fits("description", description, TEXT_MAX);
+                .fits("usersAffected", usersAffected, TEXT_MAX)
+                .fits("description", description, TEXT_MAX)
+                .fits("secureCodingTicket", secureCodingTicket, NUMBER_MAX);
         approvers.validate(problems.at("approvers"));
         if (timing != null) {
             timing.validate(problems.at("timing"));
@@ -250,62 +284,6 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
 
         String text() {
             return user + " (" + account + ")";
-        }
-    }
-
-    @Builder
-    public record RiskAssessment(Integer bbhWorkgroups, Integer bbhUsers, Integer bbhApplications, Integer clients,
-                                 Integer clientsOutsideBbh, String businessImpact, String changeComplexity,
-                                 String validationComplexity, String backoutTesting, String platformStatus) {
-
-        public static final RiskAssessment NONE = builder().build();
-
-        public RiskAssessment {
-            businessImpact = trimToNull(businessImpact);
-            changeComplexity = trimToNull(changeComplexity);
-            validationComplexity = trimToNull(validationComplexity);
-            backoutTesting = trimToNull(backoutTesting);
-            platformStatus = trimToNull(platformStatus);
-        }
-
-        void validate(ValidationProblems problems) {
-            notNegative(problems, "bbhWorkgroups", bbhWorkgroups);
-            notNegative(problems, "bbhUsers", bbhUsers);
-            notNegative(problems, "bbhApplications", bbhApplications);
-            notNegative(problems, "clients", clients);
-            notNegative(problems, "clientsOutsideBbh", clientsOutsideBbh);
-            problems.fits("businessImpact", businessImpact, NAME_MAX)
-                    .fits("changeComplexity", changeComplexity, NAME_MAX)
-                    .fits("validationComplexity", validationComplexity, NAME_MAX)
-                    .fits("backoutTesting", backoutTesting, TEXT_MAX)
-                    .fits("platformStatus", platformStatus, NAME_MAX);
-        }
-
-        List<String> lines() {
-            List<String> lines = new ArrayList<>();
-            line(lines, "BBH workgroups impacted", bbhWorkgroups);
-            line(lines, "BBH users impacted", bbhUsers);
-            line(lines, "BBH applications impacted", bbhApplications);
-            line(lines, "Impacted clients", clients);
-            line(lines, "Impacted clients outside BBH", clientsOutsideBbh);
-            line(lines, "Business impact", businessImpact);
-            line(lines, "Complexity of change", changeComplexity);
-            line(lines, "Complexity of validation", validationComplexity);
-            line(lines, "Backout testing and duration", backoutTesting);
-            line(lines, "Platform status", platformStatus);
-            return lines;
-        }
-
-        private static void notNegative(ValidationProblems problems, String field, Integer value) {
-            if (value != null && value < 0) {
-                problems.add(field, "must not be negative");
-            }
-        }
-
-        private static void line(List<String> lines, String label, Object value) {
-            if (value != null) {
-                lines.add(label + ": " + value);
-            }
         }
     }
 }

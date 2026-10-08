@@ -280,6 +280,6 @@ class DemoServiceNowAdapterSpec extends Specification {
 
     static ChangeSchedule scheduleFrom(Instant start) {
         new ChangeSchedule(start, start.plus(ofHours(2)), start.plus(ofHours(2)), start.plus(ofHours(3)),
-                start.plus(ofHours(10)))
+                start.plus(ofHours(10)), null, null)
     }
 }

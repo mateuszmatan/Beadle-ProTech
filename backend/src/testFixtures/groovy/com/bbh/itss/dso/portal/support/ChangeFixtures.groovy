@@ -7,10 +7,10 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Approvers
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedAccess
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedUser
-import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.RiskAssessment
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.change.JiraIssue
 import com.bbh.itss.dso.portal.domain.change.ProductionChange
+import com.bbh.itss.dso.portal.domain.change.RiskAssessment
 import com.bbh.itss.dso.portal.domain.change.TaskText
 import com.bbh.itss.dso.portal.domain.change.WorkflowStep
 
@@ -18,7 +18,7 @@ import java.time.Instant
 import java.time.LocalDate
 
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT
-import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
 import static com.bbh.itss.dso.portal.support.Fixtures.copy
 
@@ -29,15 +29,15 @@ class ChangeFixtures {
 
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
-                .category('Software').type(NORMAL).configurationItem('CertScanner')
+                .category('Application').type(STANDARD).configurationItem('CertScanner')
                 .description('Watches TLS certificates.')
                 .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'))
                 .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
     }
 
     static RiskAssessment risk(Map changes = [:]) {
-        copy(changes, new RiskAssessment(1, 10, 1, 0, 0, 'Low', 'Low', 'Low', 'Tested on QC, about 15 minutes',
-                'Existing platform'))
+        copy(changes, new RiskAssessment('Single', 'Simple', '5-25', 'Simple', 'Single', 'Less than 30 minutes',
+                'No clients', 'Existing', 'Low'))
     }
 
     static PrivilegedAccess privileged(int users = 2) {
@@ -47,7 +47,8 @@ class ChangeFixtures {
     static ChangeSchedule schedule(Map changes = [:]) {
         copy(changes.collectEntries { key, value -> [key, value instanceof String ? at(value) : value] },
                 new ChangeSchedule(at('2026-10-10T06:00:00Z'), at('2026-10-10T10:00:00Z'),
-                        at('2026-10-10T10:00:00Z'), at('2026-10-10T11:00:00Z'), at('2026-10-12T08:00:00Z')))
+                        at('2026-10-10T10:00:00Z'), at('2026-10-10T11:00:00Z'), at('2026-10-12T08:00:00Z'), null,
+                        null))
     }
 
     static List<TaskText> tasks(int count = 2) {
@@ -81,23 +82,26 @@ class ChangeFixtures {
     }
 
     static Map templateJson(Map changes = [:]) {
-        Map json = [jiraProjectKey   : 'CERT', assignmentGroup: 'Technology Architecture', category: 'Software',
-                    type             : 'NORMAL', configurationItem: 'CertScanner', release: null, incident: null,
-                    problem          : null, affectedClients: null, description: 'Watches TLS certificates.',
-                    approvers        : [l1Manager: 'Olivia Bennett', l2Manager: 'James Carter',
-                                        businessApprover: 'Rebecca Lawson'],
-                    downtime         : false,
-                    timing           : [installationStart: '18:00', installationHours: 2, validationHours: 1],
-                    planning         : [testSummary       : 'Pipeline tests passed on QC.',
-                                        implementationPlan: 'Deploy the services.',
-                                        validationPlan    : 'Run the smoke tests.',
-                                        backoutPlan       : 'Redeploy the previous release.',
-                                        firstUsePlan      : 'The business owner confirms the first use.'],
-                    privilegedAccess : [required: false, users: []],
-                    riskAssessment   : [bbhWorkgroups: 1, bbhUsers: 10, bbhApplications: 1, clients: 0,
-                                        clientsOutsideBbh: 0, businessImpact: 'Low', changeComplexity: 'Low',
-                                        validationComplexity: 'Low', backoutTesting: 'Tested on QC, about 15 minutes',
-                                        platformStatus: 'Existing platform']]
+        Map json = [jiraProjectKey    : 'CERT', requestedFor: null, requestedBy: null, department: null,
+                    assignmentGroup   : 'Technology Architecture', category: 'Application', assignedTo: null,
+                    type              : 'STANDARD', release: null, configurationItem: 'CertScanner',
+                    incident          : null, directBusinessService: null, problem: null, risk: 'Moderate',
+                    affectedClients   : null, usersAffected: null, description: 'Watches TLS certificates.',
+                    approvers         : [l1Manager: 'Olivia Bennett', l2Manager: 'James Carter',
+                                         businessApprover: 'Rebecca Lawson'],
+                    downtime          : false,
+                    timing            : [installationStart: '18:00', installationHours: 2, validationHours: 1],
+                    planning          : [testSummary       : 'Pipeline tests passed on QC.',
+                                         implementationPlan: 'Deploy the services.',
+                                         validationPlan    : 'Run the smoke tests.',
+                                         backoutPlan       : 'Redeploy the previous release.',
+                                         firstUsePlan      : 'The business owner confirms the first use.'],
+                    privilegedAccess  : [required: false, users: []],
+                    riskAssessment    : [bbhWorkgroups: 'Single', changeComplexity: 'Simple', bbhUsers: '5-25',
+                                         validationComplexity: 'Simple', bbhApplications: 'Single',
+                                         backoutTesting: 'Less than 30 minutes', clientsOutsideBbh: 'No clients',
+                                         platformStatus: 'Existing', businessImpact: 'Low'],
+                    secureCodingTicket: null]
         changes.each { String path, value ->
             List<String> keys = path.tokenize('.')
             Map target = keys.init().inject(json) { Map map, String key -> map[key] as Map }
@@ -106,11 +110,13 @@ class ChangeFixtures {
         json
     }
 
-    static Map scheduleJson(Instant installationStart) {
+    static Map scheduleJson(Instant installationStart, boolean downtime = false) {
         [installationStart: installationStart.toString(), installationEnd: installationStart.plusSeconds(7200).toString(),
          validationStart  : installationStart.plusSeconds(7200).toString(),
          validationEnd    : installationStart.plusSeconds(10800).toString(),
-         firstUsage       : installationStart.plusSeconds(54000).toString()]
+         firstUsage       : installationStart.plusSeconds(54000).toString(),
+         downtimeStart    : downtime ? installationStart.toString() : null,
+         downtimeEnd      : downtime ? installationStart.plusSeconds(5400).toString() : null]
     }
 
     static Instant at(String text) {
