@@ -1,5 +1,6 @@
 package com.bbh.itss.dso.portal.support
 
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule
 import com.bbh.itss.dso.portal.domain.change.ChangeTask
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate
@@ -26,6 +27,11 @@ class ChangeFixtures {
 
     static final String FIX_VERSION = 'CERT 4.2'
     static final Instant RAISED = Instant.parse('2026-10-05T09:00:00Z')
+
+    static ChangeProduct changeProduct(Map changes = [:]) {
+        copy(changes, new ChangeProduct(1L, 'CERTSCANNER', 'CertScanner', 'Watches TLS certificates.',
+                'Technology Architecture', 3L, 'Corporate Technology', null))
+    }
 
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')

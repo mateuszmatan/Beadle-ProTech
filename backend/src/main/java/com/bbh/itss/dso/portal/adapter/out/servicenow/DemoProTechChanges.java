@@ -1,13 +1,13 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow;
 
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductSummaryView;
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductsUseCase;
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeCommand;
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeProfileView;
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeProfilesUseCase;
 import com.bbh.itss.dso.portal.application.change.port.in.ProductionChangesUseCase;
+import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ProductionChangeRepositoryPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ServiceNowPort.RaisedChange;
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct;
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing;
@@ -40,8 +40,6 @@ import static java.time.Duration.ofHours;
 import static java.time.Duration.ofMinutes;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Comparator.comparing;
-import static java.util.Comparator.nullsLast;
-import static java.util.Comparator.naturalOrder;
 import static java.util.stream.Collectors.toSet;
 
 @Component
@@ -66,7 +64,7 @@ class DemoProTechChanges {
     static final List<String> MOVED_SCHEDULE = List.of("schedule.installationEnd", "schedule.validationStart",
             "schedule.validationEnd", "schedule.firstUsage");
 
-    private final ProductsUseCase products;
+    private final ChangeProductsPort products;
     private final ChangeProfilesUseCase profiles;
     private final ProductionChangesUseCase changes;
     private final ProductionChangeRepositoryPort repository;
@@ -76,9 +74,8 @@ class DemoProTechChanges {
     @EventListener(ApplicationReadyEvent.class)
     @Order(2)
     void store() {
-        List<ProductSummaryView> catalogue = products.list(null).stream()
-                .sorted(comparing(ProductSummaryView::departmentName, nullsLast(naturalOrder()))
-                        .thenComparing(ProductSummaryView::name)).toList();
+        List<ChangeProduct> catalogue = products.findAll().stream().filter(product -> product.departmentId() != null)
+                .sorted(comparing(ChangeProduct::departmentName).thenComparing(ChangeProduct::name)).toList();
         if (catalogue.isEmpty()) {
             return;
         }
@@ -86,7 +83,7 @@ class DemoProTechChanges {
         Instant now = now(clock);
         int stored = 0;
         for (int index = 0; index < SCENES.size(); index++) {
-            ProductSummaryView product = catalogue.get(index % catalogue.size());
+            ChangeProduct product = catalogue.get(index % catalogue.size());
             if (!withChanges.contains(product.id())) {
                 repository.save(staged(product, SCENES.get(index), now));
                 stored++;
@@ -97,7 +94,7 @@ class DemoProTechChanges {
         }
     }
 
-    private ProductionChange staged(ProductSummaryView product, Scene scene, Instant now) {
+    private ProductionChange staged(ChangeProduct product, Scene scene, Instant now) {
         ProductionChange draft = drafted(product, scene, now).raisedAt(now.minus(scene.raisedAgo()));
         RaisedChange raised = serviceNow.raise(draft);
         ProductionChange numbered = draft.numbered(raised.number(), raised.taskNumbers(), raised.url());
@@ -105,7 +102,7 @@ class DemoProTechChanges {
         return synced.toBuilder().update(scene.update() == null ? null : updateOf(scene.update(), synced)).build();
     }
 
-    private ProductionChange drafted(ProductSummaryView product, Scene scene, Instant now) {
+    private ProductionChange drafted(ChangeProduct product, Scene scene, Instant now) {
         ChangeProfileView profile = profiles.get(product.id());
         List<JiraVersion> versions = changes.versions(product.id(), null);
         String fixVersion = versions.stream().filter(version -> version.released() == scene.startIn().isNegative())

@@ -1,12 +1,12 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow
 
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductSummaryView
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductsUseCase
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeCommand
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeProfileView
 import com.bbh.itss.dso.portal.application.change.port.in.ChangeProfilesUseCase
 import com.bbh.itss.dso.portal.application.change.port.in.ProductionChangesUseCase
+import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort
 import com.bbh.itss.dso.portal.application.change.port.out.ProductionChangeRepositoryPort
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate
 import com.bbh.itss.dso.portal.domain.change.JiraVersion
 import com.bbh.itss.dso.portal.domain.change.ProductionChange
@@ -32,6 +32,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.NOT_APPL
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CLOSED as TASK_CLOSED
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.changeProduct
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.epic
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
@@ -47,12 +48,13 @@ import static java.time.ZoneOffset.UTC
 class DemoProTechChangesSpec extends Specification {
 
     static final Instant NOW = Instant.parse('2026-10-08T12:00:00Z')
-    static final List<ProductSummaryView> CATALOGUE = [summary(2, 'Payments', 'Custody', 4L),
-                                                       summary(4, 'Orphan', null, null),
-                                                       summary(1, 'CertScanner', 'Corporate Technology', 3L),
-                                                       summary(3, 'Atlas', 'Corporate Technology', 3L)]
+    static final List<ChangeProduct> CATALOGUE = [summary(2, 'Payments', 'Custody', 4L),
+                                                  summary(4, 'Orphan', null, null),
+                                                  summary(1, 'CertScanner', 'Corporate Technology', 3L),
+                                                  summary(5, 'Treasury Hub', 'Fund Services', 5L),
+                                                  summary(3, 'Atlas', 'Corporate Technology', 3L)]
 
-    ProductsUseCase products = Stub()
+    ChangeProductsPort products = Stub()
     ChangeProfilesUseCase profiles = Stub()
     ProductionChangesUseCase changes = Stub()
     ProductionChangeRepositoryPort repository = Mock()
@@ -62,7 +64,7 @@ class DemoProTechChangesSpec extends Specification {
     List<ProductionChange> stored = []
 
     def setup() {
-        profiles.get(_) >> { long id -> ChangeProfileView.builder().productId(id).template(template(downtime: id == 4L))
+        profiles.get(_) >> { long id -> ChangeProfileView.builder().productId(id).template(template(downtime: id == 5L))
                 .tasks(tasks()).build() }
         changes.versions(_, null) >> [new JiraVersion('CERT 4.3', false, LocalDate.parse('2026-11-01')),
                                       new JiraVersion('CERT 4.2', true, LocalDate.parse('2026-09-01'))]
@@ -70,17 +72,18 @@ class DemoProTechChangesSpec extends Specification {
                                       epic('CERT-9', 'Reports')]
         changes.stories(_, _, ['CERT-1', 'CERT-5'], null) >> [story('CERT-2', 'E-mail the owner', 'CERT-1')]
         changes.preview(_) >> { ChangeCommand command ->
-            ProductionChange.draft(product(id: command.productId(), name: "Product ${command.productId()}".toString()),
-                    3L, 'Corporate Technology', 'Mateusz Matan', command.tasks(), command.fixVersion(),
-                    command.schedule(), command.template(), command.epicKeys().collect { epic(it, it) },
-                    command.storyKeys().collect { story(it, it, 'CERT-1') }, null, null)
+            ProductionChange.draft(changeProduct(id: command.productId(),
+                    name: "Product ${command.productId()}".toString()), 'Mateusz Matan', command.tasks(),
+                    command.fixVersion(), command.schedule(), command.template(),
+                    command.epicKeys().collect { epic(it, it) }, command.storyKeys().collect { story(it, it, 'CERT-1') },
+                    null, null)
         }
     }
 
-    def "the demo changes spread over the whole ProTech workflow with an applied and a not applied update"() {
+    def "the demo changes spread over the whole ProTech workflow of the products in a department"() {
         given:
         repository.findAll() >> []
-        products.list(null) >> CATALOGUE
+        products.findAll() >> CATALOGUE
 
         when:
         seeder.store()
@@ -93,7 +96,7 @@ class DemoProTechChangesSpec extends Specification {
         stored*.state() == [CLOSED, CLOSED, CLOSED, IMPLEMENTATION, IMPLEMENTATION, IMPLEMENTATION,
                             ESCALATED_APPROVAL, CTASK_APPROVAL, SECONDARY_APPROVAL, PRIMARY_APPROVAL,
                             BUSINESS_APPROVAL, DRAFT]
-        stored*.productId() == [3L, 1L, 2L, 4L] * 3
+        stored*.productId() == [3L, 1L, 2L, 5L] * 3
         stored*.number().every { it ==~ /CHG\d{7}/ }
         stored*.number().toSet().size() == 12
         stored.every { it.tasks().size() == 2 && it.tasks()*.number().every { number -> number ==~ /CTASK\d{7}/ } }
@@ -112,16 +115,16 @@ class DemoProTechChangesSpec extends Specification {
                 'Corporate Technology', [], null, stored[4].createdAt().plus(ofHours(5)).plusSeconds(3))
         stored.findAll { it.update() != null }.size() == 2
         stored.every { it.openedBy() == 'Mateusz Matan' }
-        stored.findAll { it.productId() == 4L }*.schedule().every {
+        stored.findAll { it.productId() == 5L }*.schedule().every {
             it.downtimeStart() == it.installationStart() && it.downtimeEnd() == it.installationEnd()
         }
-        stored.findAll { it.productId() != 4L }*.schedule().every { it.downtimeStart() == null && it.downtimeEnd() == null }
+        stored.findAll { it.productId() != 5L }*.schedule().every { it.downtimeStart() == null && it.downtimeEnd() == null }
     }
 
     def "a database from an earlier version gets the demo changes of the products that have none"() {
         given:
         repository.findAll() >> [raised(productId: 3L), raised(productId: 2L), raised(productId: null)]
-        products.list(null) >> CATALOGUE
+        products.findAll() >> CATALOGUE
 
         when:
         seeder.store()
@@ -131,14 +134,14 @@ class DemoProTechChangesSpec extends Specification {
             stored << change
             change
         }
-        stored*.productId() == [1L, 4L] * 3
+        stored*.productId() == [1L, 5L] * 3
         stored*.createdAt() == [1, 3, 5, 7, 9, 11].collect { NOW.minus(SCENES[it].raisedAgo()) }
     }
 
     def "no demo change is stored when #reason"() {
         given:
         repository.findAll() >> listed
-        products.list(null) >> catalogue
+        products.findAll() >> catalogue
 
         when:
         seeder.store()
@@ -150,9 +153,10 @@ class DemoProTechChangesSpec extends Specification {
         reason                          | listed                  | catalogue
         'every product has a change'    | [raised(productId: 1L)] | [summary(1, 'CertScanner', 'Corporate Technology', 3L)]
         'the catalogue is empty'        | []                      | []
+        'no product has a department'   | []                      | [summary(4, 'Orphan', null, null)]
     }
 
-    static ProductSummaryView summary(long id, String name, String department, Long departmentId) {
-        new ProductSummaryView(id, name.toUpperCase(), name, null, null, departmentId, department, 1, 1, 1, null)
+    static ChangeProduct summary(long id, String name, String department, Long departmentId) {
+        new ChangeProduct(id, name.toUpperCase(), name, null, null, departmentId, department, null)
     }
 }

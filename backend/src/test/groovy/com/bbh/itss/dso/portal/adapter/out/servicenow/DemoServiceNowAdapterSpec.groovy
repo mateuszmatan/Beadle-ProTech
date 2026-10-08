@@ -259,9 +259,34 @@ class DemoServiceNowAdapterSpec extends Specification {
         again.tasks() == copy.tasks()
     }
 
-    def "a change without a raise time is adopted as raised now"() {
+    def "a rescheduled change adopted by a restarted ProTech keeps the stages it reached and goes on from there"() {
         given:
-        def known = raised(createdAt: null)
+        def implementing = raise(change(1))
+        clock.instant = RAISED.plus(ofMinutes(30))
+        def moved = scheduleFrom(RAISED.plus(ofHours(6)))
+        serviceNow.update(implementing.toBuilder().schedule(moved).build())
+        clock.instant = RAISED.plus(ofMinutes(31))
+        def copy = serviceNow.read([implementing])[implementing.number()]
+        def restarted = new DemoServiceNowAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
+
+        when:
+        clock.instant = RAISED.plus(ofHours(1))
+        def adopted = restarted.read([copy])[copy.number()]
+        clock.instant = moved.validationEnd()
+        def closed = restarted.read([copy])[copy.number()]
+
+        then:
+        copy.schedule() == moved
+        copy.state() == IMPLEMENTATION
+        workflowOf(RAISED, moved, RAISED.plus(ofHours(1))).last().state() == ESCALATED_APPROVAL
+        adopted.workflow() == copy.workflow()
+        adopted.state() == IMPLEMENTATION
+        closed.workflow() == copy.workflow() + new WorkflowStep(CLOSED, moved.validationEnd())
+    }
+
+    def "a change without a raise time or a workflow is adopted as raised now"() {
+        given:
+        def known = raised(createdAt: null, workflow: [])
         clock.instant = RAISED.plus(ofHours(1))
 
         expect:

@@ -132,8 +132,9 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     }
 
     private Held adopted(ProductionChange known, Instant now) {
-        return new Held(known.toBuilder().tasks(numbered(known.tasks())).build(),
-                getIfNull(known.createdAt(), now), List.of(), List.of(), null);
+        List<WorkflowStep> reached = known.workflow();
+        return new Held(known.toBuilder().tasks(numbered(known.tasks())).build(), getIfNull(known.createdAt(), now),
+                List.of(), reached, reached.isEmpty() ? null : reached.getLast().enteredAt());
     }
 
     private List<ChangeTask> numbered(List<ChangeTask> changed) {
