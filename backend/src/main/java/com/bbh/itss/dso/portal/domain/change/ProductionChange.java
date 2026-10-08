@@ -226,7 +226,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         List<ChangeTask> edited = new ArrayList<>();
         for (int index = 0; index < requested.size(); index++) {
             ChangeTask task = requested.get(index);
-            ChangeTask known = task.number() == null ? null : stored.get(task.number());
+            ChangeTask known = stored.get(task.number());
             String field = "tasks[" + index + "].number";
             if (task.number() != null && known == null) {
                 problems.add(field, "is not a change task of " + number);
