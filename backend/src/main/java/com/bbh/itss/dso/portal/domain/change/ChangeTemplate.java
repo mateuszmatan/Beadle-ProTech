@@ -98,6 +98,10 @@ public record ChangeTemplate(String jiraProjectKey, String assignmentGroup, Stri
         return release != null ? this : toBuilder().release(fixVersion).build();
     }
 
+    public ChangeTemplate edited(ChangeTemplate changes) {
+        return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).build();
+    }
+
     public void validate(ValidationProblems problems) {
         problems.require("jiraProjectKey", jiraProjectKey, REQUIRED)
                 .require("assignmentGroup", assignmentGroup, REQUIRED)
