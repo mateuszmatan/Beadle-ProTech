@@ -32,6 +32,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.NOT_APPL
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CLOSED as TASK_CLOSED
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.changeProduct
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.epic
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
@@ -70,10 +71,11 @@ class DemoProTechChangesSpec extends Specification {
                                       epic('CERT-9', 'Reports')]
         changes.stories(_, _, ['CERT-1', 'CERT-5'], null) >> [story('CERT-2', 'E-mail the owner', 'CERT-1')]
         changes.preview(_) >> { ChangeCommand command ->
-            ProductionChange.draft(product(id: command.productId(), name: "Product ${command.productId()}".toString()),
-                    3L, 'Corporate Technology', 'Mateusz Matan', command.tasks(), command.fixVersion(),
-                    command.schedule(), command.template(), command.epicKeys().collect { epic(it, it) },
-                    command.storyKeys().collect { story(it, it, 'CERT-1') }, null, null)
+            ProductionChange.draft(changeProduct(id: command.productId(),
+                    name: "Product ${command.productId()}".toString()), 'Mateusz Matan', command.tasks(),
+                    command.fixVersion(), command.schedule(), command.template(),
+                    command.epicKeys().collect { epic(it, it) }, command.storyKeys().collect { story(it, it, 'CERT-1') },
+                    null, null)
         }
     }
 

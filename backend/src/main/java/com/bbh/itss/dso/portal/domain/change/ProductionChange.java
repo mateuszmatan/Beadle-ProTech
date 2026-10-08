@@ -1,6 +1,5 @@
 package com.bbh.itss.dso.portal.domain.change;
 
-import com.bbh.itss.dso.portal.domain.catalog.Product;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning;
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems;
 import lombok.Builder;
@@ -90,18 +89,19 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         editedVersion = getIfNull(editedVersion, version);
     }
 
-    public static ProductionChange draft(Product product, Long departmentId, String departmentName, String openedBy,
-                                         List<TaskText> tasks, String fixVersion, ChangeSchedule schedule,
-                                         ChangeTemplate template, List<JiraIssue> epics, List<JiraIssue> stories,
-                                         String shortDescription, String description) {
-        ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, departmentName);
+    public static ProductionChange draft(ChangeProduct product, String openedBy, List<TaskText> tasks,
+                                         String fixVersion, ChangeSchedule schedule, ChangeTemplate template,
+                                         List<JiraIssue> epics, List<JiraIssue> stories, String shortDescription,
+                                         String description) {
+        ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, product.departmentName());
         String summary = isBlank(shortDescription) ? shortDescriptionOf(product, fixVersion, epics)
                 : shortDescription.trim();
         String text = isBlank(description)
-                ? descriptionOf(product, departmentName, tasks, fixVersion, schedule, raised, epics, stories)
+                ? descriptionOf(product, tasks, fixVersion, schedule, raised, epics, stories)
                 : description.trim();
         return builder().productId(product.id()).productCode(product.code()).productName(product.name())
-                .departmentId(departmentId).departmentName(departmentName).openedBy(openedBy).fixVersion(fixVersion)
+                .departmentId(product.departmentId()).departmentName(product.departmentName()).openedBy(openedBy)
+                .fixVersion(fixVersion)
                 .schedule(schedule).shortDescription(summary).description(text).template(raised)
                 .epicKeys(epics.stream().map(JiraIssue::key).toList())
                 .storyKeys(stories.stream().map(JiraIssue::key).toList())
@@ -182,18 +182,18 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return !toBuilder().syncedAt(stored.syncedAt).syncProblem(stored.syncProblem).build().equals(stored);
     }
 
-    static String shortDescriptionOf(Product product, String fixVersion, List<JiraIssue> epics) {
+    static String shortDescriptionOf(ChangeProduct product, String fixVersion, List<JiraIssue> epics) {
         String release = product.name() + " " + fixVersion;
         String text = epics.isEmpty() ? release + " production release"
                 : release + ": " + epics.stream().map(JiraIssue::summary).collect(joining("; "));
         return abbreviateBytes(text, SHORT_DESCRIPTION_MAX);
     }
 
-    static String descriptionOf(Product product, String departmentName, List<TaskText> tasks, String fixVersion,
+    static String descriptionOf(ChangeProduct product, List<TaskText> tasks, String fixVersion,
                                 ChangeSchedule schedule, ChangeTemplate template, List<JiraIssue> epics,
                                 List<JiraIssue> stories) {
         String head = "Production release " + fixVersion + " of " + product.name() + " (" + product.code() + ")"
-                + (departmentName == null ? "" : " in " + departmentName) + ".\n"
+                + (product.departmentName() == null ? "" : " in " + product.departmentName()) + ".\n"
                 + schedule.text() + "\n\n"
                 + "Change tasks: " + tasks.stream().map(TaskText::shortDescription).collect(joining("; ")) + ".\n\n"
                 + "Scope from Jira project " + template.jiraProjectKey() + ", FixVersion " + fixVersion + ":\n";
@@ -255,7 +255,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return tasks.stream().map(task -> task.in(states.getOrDefault(task.number(), task.state()))).toList();
     }
 
-    private static String detailsOf(Product product, ChangeTemplate template) {
+    private static String detailsOf(ChangeProduct product, ChangeTemplate template) {
         Planning planning = template.planning();
         String risk = Stream.concat(Stream.of("Risk: " + getIfNull(template.risk(), "not assessed")),
                 template.riskAssessment().lines().stream()).collect(joining("\n"));

@@ -1,7 +1,7 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow
 
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductSummaryView
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductsUseCase
+import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct
 import com.bbh.itss.dso.portal.domain.change.Lookup
 import com.bbh.itss.dso.portal.domain.change.LookupKind
 import spock.lang.Specification
@@ -17,8 +17,8 @@ import static com.bbh.itss.dso.portal.domain.change.LookupKind.USERS
 
 class DemoProTechLookupsSpec extends Specification {
 
-    ProductsUseCase products = Stub() {
-        list(null) >> [summary('NAVCALC', 'NAV Calculator', 'Fund Accounting', 'Fund Services'),
+    ChangeProductsPort products = Stub() {
+        findAll() >> [summary('NAVCALC', 'NAV Calculator', 'Fund Accounting', 'Fund Services'),
                        summary('PAYHUB', 'Payments Hub', 'Payments Engineering', 'Fund Services'),
                        summary('LEDGER', 'Ledger', ' ', 'Custody')]
     }
@@ -92,7 +92,7 @@ class DemoProTechLookupsSpec extends Specification {
         }
     }
 
-    static ProductSummaryView summary(String code, String name, String ownerTeam, String department) {
-        new ProductSummaryView(1L, code, name, null, ownerTeam, 3L, department, 1, 1, 1, null)
+    static ChangeProduct summary(String code, String name, String ownerTeam, String department) {
+        new ChangeProduct(1L, code, name, null, ownerTeam, 3L, department, null)
     }
 }

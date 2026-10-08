@@ -31,6 +31,7 @@ import static com.bbh.itss.dso.portal.domain.shared.Text.bytes
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.FIX_VERSION
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.RAISED
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.at
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.changeProduct
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.epic
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
@@ -38,7 +39,6 @@ import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.tasks
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
-import static com.bbh.itss.dso.portal.support.Fixtures.product
 
 class ProductionChangeSpec extends Specification {
 
@@ -46,15 +46,15 @@ class ProductionChangeSpec extends Specification {
             'Run the smoke tests.', 'Redeploy the previous release.', 'The owner confirms the first use.')
     static final Instant NOW = Instant.parse('2026-10-07T10:00:00Z')
 
-    def product = product(code: 'CERTSCANNER')
+    def product = changeProduct()
     def epics = [epic('CERT-1', 'Expiry alerts'), epic('CERT-5', 'Audit trail')]
     def stories = [story('CERT-2', 'E-mail the owner', 'CERT-1'), story('CERT-6', 'Record each change', 'CERT-5'),
                    story('CERT-3', 'Teams alert', 'CERT-1')]
 
     def "a draft writes the short description, the description and the change tasks of its template from Jira"() {
         when:
-        def change = draft(product, 3L, 'Corporate Technology', 'Mateusz Matan', tasks(), FIX_VERSION, schedule(),
-                template(planning: PLANNING), epics, stories, ' ', null)
+        def change = draft(product, 'Mateusz Matan', tasks(), FIX_VERSION, schedule(), template(planning: PLANNING),
+                epics, stories, ' ', null)
 
         then:
         [change.id(), change.number(), change.url(), change.createdAt(), change.version()] == [null] * 5
@@ -119,7 +119,7 @@ class ProductionChangeSpec extends Specification {
 
     def "the description names the downtime, the privileged users, a missing risk assessment and the new fields"() {
         when:
-        def text = descriptionOf(product, null, tasks(1), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
+        def text = descriptionOf(changeProduct(departmentName: null), tasks(1), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
                 downtimeEnd: '2026-10-10T08:00:00Z'), template(description: null, downtime: true,
                 privilegedAccess: privileged(2), riskAssessment: RiskAssessment.NONE,
                 usersAffected: 'Fund accountants', secureCodingTicket: 'APPSEC-1234'), epics.take(1), [])
@@ -135,8 +135,8 @@ class ProductionChangeSpec extends Specification {
 
     def "texts typed by the user replace the generated ones and a given release is kept"() {
         when:
-        def change = draft(product, null, null, 'Mateusz Matan', tasks(1), FIX_VERSION, schedule(),
-                template(release: 'Release 42'), epics, [], ' Mine ', ' My description ')
+        def change = draft(changeProduct(departmentId: null, departmentName: null), 'Mateusz Matan', tasks(1),
+                FIX_VERSION, schedule(), template(release: 'Release 42'), epics, [], ' Mine ', ' My description ')
 
         then:
         change.shortDescription() == 'Mine'
@@ -149,13 +149,14 @@ class ProductionChangeSpec extends Specification {
         given:
         def many = (1..60).collect { epic("CERT-$it", "Epic number $it with a long summary that goes on and on") }
         def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'x' * 60, 'CERT-1') }
+        def custody = changeProduct(departmentName: 'Custody')
         def wordy = template(planning: new Planning(*(['p' * 2000] * 5)), description: 'd' * 2000,
                 usersAffected: 'u' * 2000, secureCodingTicket: 's' * 40)
 
         when:
         def summary = shortDescriptionOf(product, FIX_VERSION, many)
-        def text = descriptionOf(product, 'Custody', tasks(), FIX_VERSION, schedule(), template(), many, lots)
-        def longest = descriptionOf(product, 'Custody', tasks(), FIX_VERSION, schedule(), wordy, many, lots)
+        def text = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), template(), many, lots)
+        def longest = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), wordy, many, lots)
 
         then:
         bytes(summary) <= SHORT_DESCRIPTION_MAX
@@ -172,10 +173,11 @@ class ProductionChangeSpec extends Specification {
         given:
         def many = (1..60).collect { epic("CERT-$it", "Épique numéro $it – résumé très détaillé " + 'é' * 20) }
         def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'ż' * 60, 'CERT-1') }
+        def custody = changeProduct(departmentName: 'Custody')
 
         when:
         def summary = shortDescriptionOf(product, FIX_VERSION, many)
-        def text = descriptionOf(product, 'Custody', tasks(), FIX_VERSION, schedule(), template(), many, lots)
+        def text = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), template(), many, lots)
 
         then:
         bytes(summary) <= SHORT_DESCRIPTION_MAX
@@ -186,8 +188,8 @@ class ProductionChangeSpec extends Specification {
 
     def "a raised change is a draft of its raise time with its number, the numbers of its tasks in order and its link"() {
         given:
-        def drafted = draft(product, 3L, null, null, tasks(), FIX_VERSION, schedule(), template(), epics, [], null,
-                null)
+        def drafted = draft(changeProduct(departmentName: null), null, tasks(), FIX_VERSION, schedule(), template(),
+                epics, [], null, null)
 
         when:
         def raised = drafted.raisedAt(RAISED).numbered('CHG0001', ['CTASK0001', 'CTASK0002'], 'https://snow/CHG0001')

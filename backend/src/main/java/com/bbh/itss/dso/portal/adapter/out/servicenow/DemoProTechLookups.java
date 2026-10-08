@@ -1,8 +1,8 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow;
 
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductSummaryView;
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductsUseCase;
+import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ProTechLookupPort;
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct;
 import com.bbh.itss.dso.portal.domain.change.Lookup;
 import com.bbh.itss.dso.portal.domain.change.LookupKind;
 import lombok.RequiredArgsConstructor;
@@ -82,7 +82,7 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Westbrook Emerging Markets Fund", "Fund administration"),
             new Lookup("Willow Creek Municipal Plan", "Custody"));
 
-    private final ProductsUseCase products;
+    private final ChangeProductsPort products;
 
     @Override
     public List<Lookup> find(LookupKind kind, String query, int limit) {
@@ -105,11 +105,11 @@ class DemoProTechLookups implements ProTechLookupPort {
         };
     }
 
-    private Stream<ProductSummaryView> catalogue() {
-        return products.list(null).stream();
+    private Stream<ChangeProduct> catalogue() {
+        return products.findAll().stream();
     }
 
-    private static Stream<Lookup> releasesOf(ProductSummaryView product) {
+    private static Stream<Lookup> releasesOf(ChangeProduct product) {
         Random random = new Random(product.code().hashCode());
         int major = 1 + random.nextInt(5);
         int minor = random.nextInt(4);
