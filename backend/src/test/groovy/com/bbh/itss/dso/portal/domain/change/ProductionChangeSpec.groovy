@@ -388,6 +388,12 @@ class ProductionChangeSpec extends Specification {
         'too many tasks'               | [tasks: (1..50).collect { new ChangeTask(null, "T$it", 'Text.', null) } + new ChangeTask('CTASK3', 'Three', 'Third.', null)] || ['tasks: may list at most 50 change tasks']
     }
 
+    def "an edit without a release releases the change as its FixVersion"() {
+        expect:
+        raised().edited('Short', 'Text', schedule(), template(release: ' '), raised().tasks(), NOW)
+                .template().release() == raised().fixVersion()
+    }
+
     def "an edit keeps an installation start that has passed when it does not move it"() {
         expect:
         raised().edited('Short', 'Text', schedule(), template(), raised().tasks(), Instant.parse('2026-10-11T00:00:00Z'))

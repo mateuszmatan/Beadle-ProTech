@@ -92,7 +92,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 .require("description", text, REQUIRED).fits("description", text, DESCRIPTION_MAX)
                 .require("template", template, "fill in the ProTech fields of the change")
                 .require("schedule", schedule, "choose when the change is installed, validated and first used");
-        ChangeTemplate edited = template == null ? null : this.template.edited(template);
+        ChangeTemplate edited = template == null ? null : this.template.edited(template).releasedAs(fixVersion);
         if (edited != null) {
             edited.validate(problems.at("template"));
         }
