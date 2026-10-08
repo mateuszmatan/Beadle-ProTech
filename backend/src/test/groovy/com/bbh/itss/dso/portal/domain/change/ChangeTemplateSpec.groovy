@@ -4,7 +4,6 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Approvers
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedAccess
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.PrivilegedUser
-import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.RiskAssessment
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
@@ -18,7 +17,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.IMPLEMENTATIO
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.JIRA_KEY_MESSAGE
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEST_SUMMARY
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEXT_MAX
-import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.NORMAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.VALIDATION_PLAN
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.suggestedFor
@@ -35,22 +34,38 @@ class ChangeTemplateSpec extends Specification {
 
     def "a template trims its texts to null, upper-cases the Jira key and fills in the optional sections"() {
         when:
-        def trimmed = new ChangeTemplate(' cert ', ' TA ', ' ', NORMAL, ' CertScanner ', ' ',
-                ' INC0012345 ', '', ' Clients ', ' About ', new Approvers(' Ann ', ' ', null), null,
-                new Timing(' 18:00 ', 2, 1), new Planning(' t ', 'i', ' ', 'b', 'f'),
-                new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]),
-                RiskAssessment.builder().bbhWorkgroups(1).businessImpact(' Low ').changeComplexity(' ').build())
+        def trimmed = ChangeTemplate.builder().jiraProjectKey(' cert ').requestedFor(' Ann Lee ').requestedBy(' ')
+                .department(' Custody ').assignmentGroup(' TA ').category(' Application ').assignedTo(' Jane Smith ')
+                .type(STANDARD).release(' ').configurationItem(' CertScanner ').incident(' INC0012345 ')
+                .directBusinessService(' Certificates ').problem('').affectedClients(' Clients ')
+                .usersAffected(' Operators ').description(' About ').approvers(new Approvers(' Ann ', ' ', null))
+                .timing(new Timing(' 18:00 ', 2, 1)).planning(new Planning(' t ', 'i', ' ', 'b', 'f'))
+                .privilegedAccess(new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]))
+                .riskAssessment(RiskAssessment.builder().bbhWorkgroups(' 2-3 ').businessImpact(' Low ')
+                        .changeComplexity(' ').build())
+                .secureCodingTicket(' APPSEC-1 ').build()
         def empty = ChangeTemplate.builder().build()
 
         then:
-        trimmed == new ChangeTemplate('CERT', 'TA', null, NORMAL, 'CertScanner', null,
-                'INC0012345', null, 'Clients', 'About', new Approvers('Ann', null, null), false,
-                new Timing('18:00', 2, 1), new Planning('t', 'i', null, 'b', 'f'),
-                new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]),
-                RiskAssessment.builder().bbhWorkgroups(1).businessImpact('Low').build())
-        [empty.jiraProjectKey(), empty.timing(), empty.planning()] == [null, null, null]
+        trimmed == ChangeTemplate.builder().jiraProjectKey('CERT').requestedFor('Ann Lee').department('Custody')
+                .assignmentGroup('TA').category('Application').assignedTo('Jane Smith').type(STANDARD)
+                .configurationItem('CertScanner').incident('INC0012345').directBusinessService('Certificates')
+                .affectedClients('Clients').usersAffected('Operators').description('About')
+                .approvers(new Approvers('Ann', null, null)).downtime(false).timing(new Timing('18:00', 2, 1))
+                .planning(new Planning('t', 'i', null, 'b', 'f'))
+                .privilegedAccess(new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]))
+                .riskAssessment(RiskAssessment.builder().bbhWorkgroups('2-3').businessImpact('Low').build())
+                .secureCodingTicket('APPSEC-1').build()
+        trimmed.risk() == 'Moderate'
+        [empty.jiraProjectKey(), empty.timing(), empty.planning(), empty.risk()] == [null, null, null, null]
         [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment()] ==
                 [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.NONE]
+    }
+
+    def "a template computes its risk from the assessment and ignores the risk it is given"() {
+        expect:
+        template(risk: 'High').risk() == 'Moderate'
+        template(riskAssessment: null, risk: 'Low').risk() == null
     }
 
     def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
@@ -58,9 +73,10 @@ class ChangeTemplateSpec extends Specification {
         def suggested = suggestedFor(code, 'Product', owner, 'About it')
 
         then:
-        suggested == new ChangeTemplate(key, group, 'Software', NORMAL, 'Product', null, null,
-                null, null, 'About it', Approvers.NONE, false, new Timing('18:00', 2, 1), Planning.SUGGESTED,
-                new PrivilegedAccess(false, []), RiskAssessment.NONE)
+        suggested == ChangeTemplate.builder().jiraProjectKey(key).assignmentGroup(group).category('Application')
+                .type(STANDARD).configurationItem('Product').description('About it')
+                .timing(new Timing('18:00', 2, 1)).planning(Planning.SUGGESTED).build()
+        suggested.risk() == null
         Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
                 FIRST_USE_PLAN)
         VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
@@ -92,6 +108,16 @@ class ChangeTemplateSpec extends Specification {
         template(release: 'R42').releasedAs('CERT 4.2') == template(release: 'R42')
     }
 
+    def "a raised template names the signed-in user for its empty people and the product's department"() {
+        expect:
+        template().openedBy('Mateusz Matan', 'Custody') == template(requestedFor: 'Mateusz Matan',
+                requestedBy: 'Mateusz Matan', department: 'Custody', assignedTo: 'Mateusz Matan')
+        template(requestedFor: 'Ann Lee', requestedBy: 'Jane Smith', department: 'AI Lab', assignedTo: 'Grace Turner')
+                .openedBy('Mateusz Matan', 'Custody') == template(requestedFor: 'Ann Lee', requestedBy: 'Jane Smith',
+                department: 'AI Lab', assignedTo: 'Grace Turner')
+        template().openedBy('Mateusz Matan', null).department() == null
+    }
+
     def "a complete template has no problems, also with privileged access for up to seven users"() {
         expect:
         problems(template()) == []
@@ -119,9 +145,10 @@ class ChangeTemplateSpec extends Specification {
         'users are named without privileged access' | [privilegedAccess: new PrivilegedAccess(false, privileged(1).users())] || ['template.privilegedAccess.users must be empty when the change needs no privileged access']
         'eight users need privileged access'     | [privilegedAccess: privileged(8)]                           || ['template.privilegedAccess.users may list at most 7 users']
         'a privileged user is incomplete'        | [privilegedAccess: new PrivilegedAccess(true, [new PrivilegedUser('Ann', 'adm_ann'), null, new PrivilegedUser(' ', null)])] || ['template.privilegedAccess.users[1] is required', 'template.privilegedAccess.users[2].user is required', 'template.privilegedAccess.users[2].account is required']
-        'the risk numbers are negative'          | [riskAssessment: risk(bbhWorkgroups: -1, bbhUsers: -2, bbhApplications: -3, clients: -4, clientsOutsideBbh: -5)] || ['bbhWorkgroups', 'bbhUsers', 'bbhApplications', 'clients', 'clientsOutsideBbh'].collect { "template.riskAssessment.$it must not be negative".toString() }
-        'its texts fit in characters but not in bytes' | [assignmentGroup: 'ł' * 101, incident: 'é' * 21, affectedClients: 'ą' * 1001, approvers: new Approvers(null, 'Zoë', 'ż' * 101), planning: new Planning('t', 'i', 'ś' * 1001, 'b', 'f'), privilegedAccess: new PrivilegedAccess(true, [new PrivilegedUser('Ann', 'ü' * 101)]), riskAssessment: risk(businessImpact: 'ö' * 51, backoutTesting: 'ę' * 1001)] || ['template.assignmentGroup is too long: it may take at most 200 bytes', 'template.incident is too long: it may take at most 40 bytes', 'template.affectedClients is too long: it may take at most 2000 bytes', 'template.approvers.businessApprover is too long: it may take at most 200 bytes', 'template.planning.validationPlan is too long: it may take at most 2000 bytes', 'template.privilegedAccess.users[0].account is too long: it may take at most 200 bytes', 'template.riskAssessment.businessImpact is too long: it may take at most 100 bytes', 'template.riskAssessment.backoutTesting is too long: it may take at most 2000 bytes']
-        'its texts fill their columns'           | [assignmentGroup: 'ł' * 100, incident: 'é' * 20, approvers: new Approvers('ż' * 100, 'ż' * 100, 'ż' * 100), riskAssessment: risk(businessImpact: 'ö' * 50)] || []
+        'the category is not on the list'        | [category: 'Software']                                      || ['template.category must be one of Application, Hardware, Infrastructure, System Software, Network, Telecom, Data Amendment, Desktop Software, Storage, Facilities, Other, Database']
+        'the risk answers are not on their lists' | [riskAssessment: risk(bbhWorkgroups: '1', changeComplexity: 'Low', bbhUsers: '10', validationComplexity: 'simple', bbhApplications: '2', backoutTesting: 'Tested on QC', clientsOutsideBbh: '0', platformStatus: 'Existing platform', businessImpact: 'Minor')] || ['template.riskAssessment.bbhWorkgroups must be one of Single, 2-3, More than 3', 'template.riskAssessment.changeComplexity must be one of Simple, Moderate, Very', 'template.riskAssessment.bbhUsers must be one of Less than 5, 5-25, 26-250, All users', 'template.riskAssessment.validationComplexity must be one of Simple, Moderate, Very', 'template.riskAssessment.bbhApplications must be one of Single, Two, More than 2', 'template.riskAssessment.backoutTesting must be one of Less than 30 minutes, 30 mins - 2 hours, Greater than 2 hours, Unable to test', 'template.riskAssessment.clientsOutsideBbh must be one of No clients, Single, More than one but not all, All clients', 'template.riskAssessment.platformStatus must be one of Existing, New, Decommissioned', 'template.riskAssessment.businessImpact must be one of None, Low, Medium, High']
+        'its texts fit in characters but not in bytes' | [requestedFor: 'ł' * 101, requestedBy: 'ł' * 101, department: 'é' * 51, assignmentGroup: 'ł' * 101, assignedTo: 'ł' * 101, incident: 'é' * 21, directBusinessService: 'ł' * 101, affectedClients: 'ą' * 1001, usersAffected: 'ą' * 1001, secureCodingTicket: 'é' * 21, approvers: new Approvers(null, 'Zoë', 'ż' * 101), planning: new Planning('t', 'i', 'ś' * 1001, 'b', 'f'), privilegedAccess: new PrivilegedAccess(true, [new PrivilegedUser('Ann', 'ü' * 101)])] || ['template.requestedFor is too long: it may take at most 200 bytes', 'template.requestedBy is too long: it may take at most 200 bytes', 'template.department is too long: it may take at most 100 bytes', 'template.assignmentGroup is too long: it may take at most 200 bytes', 'template.assignedTo is too long: it may take at most 200 bytes', 'template.incident is too long: it may take at most 40 bytes', 'template.directBusinessService is too long: it may take at most 200 bytes', 'template.affectedClients is too long: it may take at most 2000 bytes', 'template.usersAffected is too long: it may take at most 2000 bytes', 'template.secureCodingTicket is too long: it may take at most 40 bytes', 'template.approvers.businessApprover is too long: it may take at most 200 bytes', 'template.planning.validationPlan is too long: it may take at most 2000 bytes', 'template.privilegedAccess.users[0].account is too long: it may take at most 200 bytes']
+        'its texts fill their columns'           | [requestedFor: 'ł' * 100, department: 'é' * 50, assignmentGroup: 'ł' * 100, incident: 'é' * 20, usersAffected: 'ą' * 1000, secureCodingTicket: 'é' * 20, approvers: new Approvers('ż' * 100, 'ż' * 100, 'ż' * 100)] || []
     }
 
     def "a profile is created at version 0 with its tasks and changed only at the version it was read at"() {
@@ -130,8 +157,8 @@ class ChangeTemplateSpec extends Specification {
 
         expect:
         ChangeProfile.create(4L, template(), tasks(1)) == new ChangeProfile(4L, template(), tasks(1), 0, null)
-        stored.change(2L, template(category: 'Apps'), tasks(3)) ==
-                new ChangeProfile(4L, template(category: 'Apps'), tasks(3), 2, EPOCH)
+        stored.change(2L, template(category: 'Hardware'), tasks(3)) ==
+                new ChangeProfile(4L, template(category: 'Hardware'), tasks(3), 2, EPOCH)
 
         when:
         stored.change(version, template(), tasks())
@@ -152,11 +179,15 @@ class ChangeTemplateSpec extends Specification {
     def "an edit of a raised template keeps its Jira project, its type and its timing"() {
         given:
         def raised = template(release: 'CERT 4.2')
-        def edits = template(jiraProjectKey: 'OTHER', type: STANDARD, timing: new Timing('20:00', 5, 5),
-                category: 'Apps', release: 'CERT 4.3', downtime: true)
+        def edits = template(jiraProjectKey: 'OTHER', type: EMERGENCY, timing: new Timing('20:00', 5, 5),
+                category: 'Hardware', release: 'CERT 4.3', downtime: true, requestedFor: 'Ann Lee',
+                usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7', riskAssessment: risk(businessImpact: 'High'))
 
         expect:
-        raised.edited(edits) == template(category: 'Apps', release: 'CERT 4.3', downtime: true)
+        raised.edited(edits) == template(category: 'Hardware', release: 'CERT 4.3', downtime: true,
+                requestedFor: 'Ann Lee', usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7',
+                riskAssessment: risk(businessImpact: 'High'))
+        raised.edited(edits).risk() == 'High'
     }
 
     def "a schedule is checked for presence and order: #expected"() {
@@ -164,7 +195,7 @@ class ChangeTemplateSpec extends Specification {
         def problems = new ValidationProblems()
 
         when:
-        schedule(edits).check(problems.at('schedule'))
+        schedule(edits).check(false, problems.at('schedule'))
 
         then:
         problems.list().collect { "$it.field $it.message".toString() } == expected
@@ -179,6 +210,30 @@ class ChangeTemplateSpec extends Specification {
         [validationEnd: '2026-10-10T09:59:00Z']                                      || ['schedule.validationEnd must not be before the validation start']
         [firstUsage: '2026-10-10T10:59:00Z']                                         || ['schedule.firstUsage must not be before the validation end']
         [installationStart: null, validationEnd: null]                               || ['schedule.installationStart choose when the installation starts', 'schedule.validationEnd choose when the post-install validation ends']
+    }
+
+    def "a schedule #needs a downtime window when the template #has downtime: #expected"() {
+        given:
+        def problems = new ValidationProblems()
+
+        when:
+        schedule(edits).check(downtime, problems.at('schedule'))
+
+        then:
+        problems.list().collect { "$it.field $it.message".toString() } == expected
+
+        where:
+        downtime | edits                                                                      || expected
+        true     | [downtimeStart: '2026-10-10T06:00:00Z', downtimeEnd: '2026-10-10T08:00:00Z'] || []
+        true     | [:]                                                                        || ['schedule.downtimeStart choose when the downtime starts', 'schedule.downtimeEnd choose when the downtime ends']
+        true     | [downtimeStart: '2026-10-10T06:00:00Z']                                    || ['schedule.downtimeEnd choose when the downtime ends']
+        true     | [downtimeStart: '2026-10-10T08:00:00Z', downtimeEnd: '2026-10-10T08:00:00Z'] || ['schedule.downtimeEnd must be after the downtime start']
+        false    | [:]                                                                        || []
+        false    | [downtimeStart: '2026-10-10T06:00:00Z', downtimeEnd: '2026-10-10T08:00:00Z'] || ['schedule.downtimeStart must be empty without downtime', 'schedule.downtimeEnd must be empty without downtime']
+        false    | [downtimeEnd: '2026-10-10T08:00:00Z']                                      || ['schedule.downtimeEnd must be empty without downtime']
+
+        needs = downtime ? 'needs' : 'takes no'
+        has = downtime ? 'has' : 'has no'
     }
 
     def "only a schedule that starts after #now is upcoming"() {
@@ -198,12 +253,14 @@ class ChangeTemplateSpec extends Specification {
         '2026-10-11T00:00:00Z' || ['installationStart']
     }
 
-    def "a schedule reads as its installation, validation and first usage"() {
+    def "a schedule reads as its installation, validation, first usage and downtime"() {
         expect:
         schedule().text() == 'Installation 2026-10-10 06:00 to 10:00 UTC, post-install validation 2026-10-10 10:00' +
-                ' to 11:00 UTC, first usage 2026-10-12 08:00 UTC'
-        schedule(installationStart: '2026-10-10T22:00:00Z', installationEnd: '2026-10-11T02:30:00Z')
-                .installationText() == '2026-10-10 22:00 to 2026-10-11 02:30 UTC'
+                ' to 11:00 UTC, first usage 2026-10-12 08:00 UTC. No downtime.'
+        schedule(installationStart: '2026-10-09T22:00:00Z', downtimeStart: '2026-10-09T22:00:00Z',
+                downtimeEnd: '2026-10-10T02:30:00Z').text() == 'Installation 2026-10-09 22:00 to 2026-10-10 10:00 UTC,' +
+                ' post-install validation 2026-10-10 10:00 to 11:00 UTC, first usage 2026-10-12 08:00 UTC.' +
+                ' Downtime 2026-10-09 22:00 to 2026-10-10 02:30 UTC.'
     }
 
     def "a Jira issue reads as its key, summary and status"() {

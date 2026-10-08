@@ -9,6 +9,7 @@ import com.bbh.itss.dso.portal.application.change.port.in.ProductionChangesUseCa
 import com.bbh.itss.dso.portal.application.change.port.out.ProductionChangeRepositoryPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ServiceNowPort.RaisedChange;
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule;
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing;
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate;
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status;
@@ -103,16 +104,18 @@ class DemoProTechChanges {
                 .map(JiraIssue::key).toList();
         List<String> storyKeys = changes.stories(product.id(), fixVersion, epicKeys, null).stream()
                 .map(JiraIssue::key).toList();
-        ChangeSchedule schedule = scheduleOf(now.plus(scene.startIn()).truncatedTo(MINUTES),
-                profile.template().timing());
+        ChangeSchedule schedule = scheduleOf(now.plus(scene.startIn()).truncatedTo(MINUTES), profile.template());
         return changes.preview(new ChangeCommand(product.id(), fixVersion, epicKeys, storyKeys, schedule,
                 profile.template(), profile.tasks(), null, null));
     }
 
-    static ChangeSchedule scheduleOf(Instant start, Timing timing) {
+    static ChangeSchedule scheduleOf(Instant start, ChangeTemplate template) {
+        Timing timing = template.timing();
         Instant end = start.plus(ofHours(timing.installationHours()));
         Instant validated = end.plus(ofHours(timing.validationHours()));
-        return new ChangeSchedule(start, end, end, validated, validated.plus(ofHours(12)));
+        boolean downtime = template.downtime();
+        return new ChangeSchedule(start, end, end, validated, validated.plus(ofHours(12)), downtime ? start : null,
+                downtime ? end : null);
     }
 
     static ChangeUpdate updateOf(Status status, ProductionChange change) {

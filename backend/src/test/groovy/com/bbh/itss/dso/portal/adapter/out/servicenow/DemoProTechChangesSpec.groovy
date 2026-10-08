@@ -47,6 +47,10 @@ import static java.time.ZoneOffset.UTC
 class DemoProTechChangesSpec extends Specification {
 
     static final Instant NOW = Instant.parse('2026-10-08T12:00:00Z')
+    static final List<ProductSummaryView> CATALOGUE = [summary(2, 'Payments', 'Custody', 4L),
+                                                       summary(4, 'Orphan', null, null),
+                                                       summary(1, 'CertScanner', 'Corporate Technology', 3L),
+                                                       summary(3, 'Atlas', 'Corporate Technology', 3L)]
 
     ProductsUseCase products = Stub()
     ChangeProfilesUseCase profiles = Stub()
@@ -58,8 +62,8 @@ class DemoProTechChangesSpec extends Specification {
     List<ProductionChange> stored = []
 
     def setup() {
-        profiles.get(_) >> { long id -> ChangeProfileView.builder().productId(id).template(template()).tasks(tasks())
-                .build() }
+        profiles.get(_) >> { long id -> ChangeProfileView.builder().productId(id).template(template(downtime: id == 4L))
+                .tasks(tasks()).build() }
         changes.versions(_, null) >> [new JiraVersion('CERT 4.3', false, LocalDate.parse('2026-11-01')),
                                       new JiraVersion('CERT 4.2', true, LocalDate.parse('2026-09-01'))]
         changes.epics(_, _, null) >> [epic('CERT-1', 'Expiry alerts'), epic('CERT-5', 'Audit trail'),
@@ -67,8 +71,8 @@ class DemoProTechChangesSpec extends Specification {
         changes.stories(_, _, ['CERT-1', 'CERT-5'], null) >> [story('CERT-2', 'E-mail the owner', 'CERT-1')]
         changes.preview(_) >> { ChangeCommand command ->
             ProductionChange.draft(product(id: command.productId(), name: "Product ${command.productId()}".toString()),
-                    3L, 'Corporate Technology', command.tasks(), command.fixVersion(), command.schedule(),
-                    command.template(), command.epicKeys().collect { epic(it, it) },
+                    3L, 'Corporate Technology', 'Mateusz Matan', command.tasks(), command.fixVersion(),
+                    command.schedule(), command.template(), command.epicKeys().collect { epic(it, it) },
                     command.storyKeys().collect { story(it, it, 'CERT-1') }, null, null)
         }
     }
@@ -76,9 +80,7 @@ class DemoProTechChangesSpec extends Specification {
     def "the demo changes spread over the whole ProTech workflow with an applied and a not applied update"() {
         given:
         changes.list(null) >> []
-        products.list(null) >> [summary(2, 'Payments', 'Custody', 4L), summary(4, 'Orphan', null, null),
-                                summary(1, 'CertScanner', 'Corporate Technology', 3L),
-                                summary(3, 'Atlas', 'Corporate Technology', 3L)]
+        products.list(null) >> CATALOGUE
 
         when:
         seeder.store()
@@ -109,6 +111,11 @@ class DemoProTechChangesSpec extends Specification {
         stored[4].update() == new ChangeUpdate(APPLIED, stored[4].createdAt().plus(ofHours(5)),
                 'Corporate Technology', [], null, stored[4].createdAt().plus(ofHours(5)).plusSeconds(3))
         stored.findAll { it.update() != null }.size() == 2
+        stored.every { it.openedBy() == 'Mateusz Matan' }
+        stored.findAll { it.productId() == 4L }*.schedule().every {
+            it.downtimeStart() == it.installationStart() && it.downtimeEnd() == it.installationEnd()
+        }
+        stored.findAll { it.productId() != 4L }*.schedule().every { it.downtimeStart() == null && it.downtimeEnd() == null }
     }
 
     def "no demo change is stored when #reason"() {
