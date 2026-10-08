@@ -79,7 +79,7 @@ class DemoProTechChangesSpec extends Specification {
 
     def "the demo changes spread over the whole ProTech workflow with an applied and a not applied update"() {
         given:
-        changes.list(null) >> []
+        repository.findAll() >> []
         products.list(null) >> CATALOGUE
 
         when:
@@ -118,9 +118,26 @@ class DemoProTechChangesSpec extends Specification {
         stored.findAll { it.productId() != 4L }*.schedule().every { it.downtimeStart() == null && it.downtimeEnd() == null }
     }
 
+    def "a database from an earlier version gets the demo changes of the products that have none"() {
+        given:
+        repository.findAll() >> [raised(productId: 3L), raised(productId: 2L), raised(productId: null)]
+        products.list(null) >> CATALOGUE
+
+        when:
+        seeder.store()
+
+        then:
+        6 * repository.save(_) >> { ProductionChange change ->
+            stored << change
+            change
+        }
+        stored*.productId() == [1L, 4L] * 3
+        stored*.createdAt() == [1, 3, 5, 7, 9, 11].collect { NOW.minus(SCENES[it].raisedAgo()) }
+    }
+
     def "no demo change is stored when #reason"() {
         given:
-        changes.list(null) >> listed
+        repository.findAll() >> listed
         products.list(null) >> catalogue
 
         when:
@@ -130,9 +147,9 @@ class DemoProTechChangesSpec extends Specification {
         0 * repository.save(_)
 
         where:
-        reason                          | listed     | catalogue
-        'changes are stored already'    | [raised()] | [summary(1, 'CertScanner', 'Corporate Technology', 3L)]
-        'the catalogue is empty'        | []         | []
+        reason                          | listed                  | catalogue
+        'every product has a change'    | [raised(productId: 1L)] | [summary(1, 'CertScanner', 'Corporate Technology', 3L)]
+        'the catalogue is empty'        | []                      | []
     }
 
     static ProductSummaryView summary(long id, String name, String department, Long departmentId) {
