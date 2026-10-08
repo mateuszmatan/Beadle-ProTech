@@ -38,6 +38,7 @@ import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS;
 import static com.bbh.itss.dso.portal.domain.shared.Timestamps.now;
 import static java.time.Duration.ofHours;
 import static java.time.Duration.ofMinutes;
+import static java.time.Instant.MAX;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
@@ -72,7 +73,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         String number = "CHG%07d".formatted(changes.incrementAndGet());
         List<String> taskNumbers = change.tasks().stream().map(task -> nextTask()).toList();
         held.put(number, new Held(change.numbered(number, taskNumbers, null),
-                getIfNull(change.createdAt(), () -> now(clock)), List.of()));
+                getIfNull(change.createdAt(), () -> now(clock)), List.of(), List.of(), null));
         return new RaisedChange(number, taskNumbers, null);
     }
 
@@ -135,7 +136,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
 
     private Held adopted(ProductionChange known, Instant now) {
         return new Held(known.toBuilder().tasks(numbered(known.tasks())).build(),
-                getIfNull(known.createdAt(), now), List.of());
+                getIfNull(known.createdAt(), now), List.of(), List.of(), null);
     }
 
     private List<ChangeTask> numbered(List<ChangeTask> changed) {
@@ -147,16 +148,16 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     }
 
     private Held applied(Held found, Instant now) {
-        ProductionChange current = found.change();
+        Held current = found;
         List<Queued> waiting = new ArrayList<>();
         for (Queued update : found.queued()) {
             if (update.dueAt().isAfter(now)) {
                 waiting.add(update);
             } else {
-                current = apply(current, update.requested(), update.dueAt());
+                current = current.with(apply(current.change(), update.requested(), update.dueAt()), update.dueAt());
             }
         }
-        return new Held(current, found.raisedAt(), waiting);
+        return current.waiting(waiting);
     }
 
     private ProductionChange apply(ProductionChange current, ProductionChange requested, Instant at) {
@@ -181,18 +182,40 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     private record Queued(Instant dueAt, ProductionChange requested) {
     }
 
-    private record Held(ProductionChange change, Instant raisedAt, List<Queued> queued) {
+    private record Held(ProductionChange change, Instant raisedAt, List<Queued> queued, List<WorkflowStep> kept,
+                        Instant rescheduledAt) {
 
         Held queued(Queued update) {
-            return new Held(change, raisedAt, Stream.concat(queued.stream(), Stream.of(update)).toList());
+            return waiting(Stream.concat(queued.stream(), Stream.of(update)).toList());
+        }
+
+        Held waiting(List<Queued> waiting) {
+            return new Held(change, raisedAt, waiting, kept, rescheduledAt);
+        }
+
+        Held with(ProductionChange applied, Instant at) {
+            return applied.schedule().equals(change.schedule())
+                    ? new Held(applied, raisedAt, queued, kept, rescheduledAt)
+                    : new Held(applied, raisedAt, queued, workflowAt(at), at);
+        }
+
+        List<WorkflowStep> workflowAt(Instant now) {
+            if (kept.isEmpty()) {
+                return workflowOf(raisedAt, change.schedule(), now);
+            }
+            ChangeState reached = kept.getLast().state();
+            return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), MAX).stream()
+                    .filter(step -> step.state().compareTo(reached) > 0)
+                    .map(step -> new WorkflowStep(step.state(), max(step.enteredAt(), rescheduledAt)))
+                    .filter(step -> !step.enteredAt().isAfter(now))).toList();
         }
 
         ChangeState stateAt(Instant now) {
-            return workflowOf(raisedAt, change.schedule(), now).getLast().state();
+            return workflowAt(now).getLast().state();
         }
 
         ProductionChange copyFor(ProductionChange known, Instant now) {
-            List<WorkflowStep> workflow = workflowOf(raisedAt, change.schedule(), now);
+            List<WorkflowStep> workflow = workflowAt(now);
             ChangeState state = workflow.getLast().state();
             boolean installing = !now.isBefore(change.schedule().installationStart());
             return known.toBuilder().shortDescription(change.shortDescription()).description(change.description())

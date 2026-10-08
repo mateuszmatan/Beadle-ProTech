@@ -202,6 +202,27 @@ class DemoServiceNowAdapterSpec extends Specification {
                                          'schedule.validationStart', 'schedule.validationEnd', 'schedule.firstUsage']
     }
 
+    def "a rescheduled change keeps the stages it reached and enters the next ones no earlier than the new schedule"() {
+        given:
+        def implementing = raise(change(1))
+        def escalated = raise(change(1, SHORT_NOTICE))
+        clock.instant = RAISED.plus(ofMinutes(30))
+        def reached = serviceNow.read([implementing, escalated])
+
+        when:
+        serviceNow.update(implementing.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(6)))).build())
+        serviceNow.update(escalated.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(1)))).build())
+        clock.instant = RAISED.plus(ofMinutes(31))
+        def after = serviceNow.read([implementing, escalated])
+
+        then:
+        reached[implementing.number()].state() == IMPLEMENTATION
+        reached[escalated.number()].state() == ESCALATED_APPROVAL
+        after[implementing.number()].workflow() == reached[implementing.number()].workflow()
+        after[escalated.number()].workflow() == reached[escalated.number()].workflow() +
+                new WorkflowStep(IMPLEMENTATION, RAISED.plus(ofMinutes(30)).plusSeconds(3))
+    }
+
     def "ProTech refuses to change #refusal"() {
         given:
         def known = raise(change(1, SOON))
