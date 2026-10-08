@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT;
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.REQUIRED;
@@ -34,17 +36,50 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 @Builder(toBuilder = true)
 public record ProductionChange(Long id, String number, Long productId, String productCode, String productName,
-                               Long departmentId, String departmentName, String fixVersion, ChangeSchedule schedule,
-                               String shortDescription, String description, ChangeTemplate template,
-                               List<String> epicKeys, List<String> storyKeys, List<ChangeTask> tasks, String url,
-                               ChangeState state, List<WorkflowStep> workflow, Instant syncedAt, String syncProblem,
-                               ChangeUpdate update, Long version, Long editedVersion, Instant createdAt) {
+                               Long departmentId, String departmentName, String openedBy, String fixVersion,
+                               ChangeSchedule schedule, String shortDescription, String description,
+                               ChangeTemplate template, List<String> epicKeys, List<String> storyKeys,
+                               List<ChangeTask> tasks, String url, ChangeState state, List<WorkflowStep> workflow,
+                               Instant syncedAt, String syncProblem, ChangeUpdate update, Long version,
+                               Long editedVersion, Instant createdAt) {
 
     public static final int FIX_VERSION_MAX = 100;
     public static final int SHORT_DESCRIPTION_MAX = 160;
     public static final int DESCRIPTION_MAX = 4000;
     public static final Duration APPLY_LIMIT = ofMinutes(1);
     static final int SECTION_MAX = 300;
+
+    private static final List<Edited> EDITED = List.of(
+            new Edited("shortDescription", ProductionChange::shortDescription),
+            new Edited("description", ProductionChange::description),
+            new Edited("schedule.installationStart", change -> change.schedule.installationStart()),
+            new Edited("schedule.installationEnd", change -> change.schedule.installationEnd()),
+            new Edited("schedule.validationStart", change -> change.schedule.validationStart()),
+            new Edited("schedule.validationEnd", change -> change.schedule.validationEnd()),
+            new Edited("schedule.firstUsage", change -> change.schedule.firstUsage()),
+            new Edited("schedule.downtimeStart", change -> change.schedule.downtimeStart()),
+            new Edited("schedule.downtimeEnd", change -> change.schedule.downtimeEnd()),
+            new Edited("template.requestedFor", change -> change.template.requestedFor()),
+            new Edited("template.requestedBy", change -> change.template.requestedBy()),
+            new Edited("template.department", change -> change.template.department()),
+            new Edited("template.assignmentGroup", change -> change.template.assignmentGroup()),
+            new Edited("template.category", change -> change.template.category()),
+            new Edited("template.assignedTo", change -> change.template.assignedTo()),
+            new Edited("template.release", change -> change.template.release()),
+            new Edited("template.configurationItem", change -> change.template.configurationItem()),
+            new Edited("template.incident", change -> change.template.incident()),
+            new Edited("template.directBusinessService", change -> change.template.directBusinessService()),
+            new Edited("template.problem", change -> change.template.problem()),
+            new Edited("template.affectedClients", change -> change.template.affectedClients()),
+            new Edited("template.usersAffected", change -> change.template.usersAffected()),
+            new Edited("template.description", change -> change.template.description()),
+            new Edited("template.approvers", change -> change.template.approvers()),
+            new Edited("template.downtime", change -> change.template.downtime()),
+            new Edited("template.planning", change -> change.template.planning()),
+            new Edited("template.privilegedAccess", change -> change.template.privilegedAccess()),
+            new Edited("template.riskAssessment", change -> change.template.riskAssessment()),
+            new Edited("template.secureCodingTicket", change -> change.template.secureCodingTicket()),
+            new Edited("tasks", ProductionChange::texts));
 
     public ProductionChange {
         epicKeys = List.copyOf(epicKeys);
@@ -55,19 +90,19 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         editedVersion = getIfNull(editedVersion, version);
     }
 
-    public static ProductionChange draft(Product product, Long departmentId, String departmentName,
+    public static ProductionChange draft(Product product, Long departmentId, String departmentName, String openedBy,
                                          List<TaskText> tasks, String fixVersion, ChangeSchedule schedule,
                                          ChangeTemplate template, List<JiraIssue> epics, List<JiraIssue> stories,
                                          String shortDescription, String description) {
-        ChangeTemplate raised = template.releasedAs(fixVersion);
+        ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, departmentName);
         String summary = isBlank(shortDescription) ? shortDescriptionOf(product, fixVersion, epics)
                 : shortDescription.trim();
         String text = isBlank(description)
                 ? descriptionOf(product, departmentName, tasks, fixVersion, schedule, raised, epics, stories)
                 : description.trim();
         return builder().productId(product.id()).productCode(product.code()).productName(product.name())
-                .departmentId(departmentId).departmentName(departmentName).fixVersion(fixVersion).schedule(schedule)
-                .shortDescription(summary).description(text).template(raised)
+                .departmentId(departmentId).departmentName(departmentName).openedBy(openedBy).fixVersion(fixVersion)
+                .schedule(schedule).shortDescription(summary).description(text).template(raised)
                 .epicKeys(epics.stream().map(JiraIssue::key).toList())
                 .storyKeys(stories.stream().map(JiraIssue::key).toList())
                 .tasks(tasks.stream().map(ChangeTask::of).toList()).build();
@@ -109,7 +144,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         }
         problems.require("schedule", schedule, "choose when the change is installed, validated and first used");
         if (schedule != null) {
-            schedule.check(problems.at("schedule"));
+            schedule.check(template != null && template.downtime(), problems.at("schedule"));
             if (upcomingFrom != null) {
                 schedule.checkUpcoming(upcomingFrom, problems.at("schedule"));
             }
@@ -117,31 +152,8 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     }
 
     public List<String> unappliedIn(ProductionChange remote) {
-        List<String> paths = new ArrayList<>();
-        ChangeSchedule theirs = remote.schedule;
-        ChangeTemplate fields = remote.template;
-        differs(paths, "shortDescription", shortDescription, remote.shortDescription);
-        differs(paths, "description", description, remote.description);
-        differs(paths, "schedule.installationStart", schedule.installationStart(), theirs.installationStart());
-        differs(paths, "schedule.installationEnd", schedule.installationEnd(), theirs.installationEnd());
-        differs(paths, "schedule.validationStart", schedule.validationStart(), theirs.validationStart());
-        differs(paths, "schedule.validationEnd", schedule.validationEnd(), theirs.validationEnd());
-        differs(paths, "schedule.firstUsage", schedule.firstUsage(), theirs.firstUsage());
-        differs(paths, "template.assignmentGroup", template.assignmentGroup(), fields.assignmentGroup());
-        differs(paths, "template.category", template.category(), fields.category());
-        differs(paths, "template.configurationItem", template.configurationItem(), fields.configurationItem());
-        differs(paths, "template.release", template.release(), fields.release());
-        differs(paths, "template.incident", template.incident(), fields.incident());
-        differs(paths, "template.problem", template.problem(), fields.problem());
-        differs(paths, "template.affectedClients", template.affectedClients(), fields.affectedClients());
-        differs(paths, "template.description", template.description(), fields.description());
-        differs(paths, "template.approvers", template.approvers(), fields.approvers());
-        differs(paths, "template.downtime", template.downtime(), fields.downtime());
-        differs(paths, "template.planning", template.planning(), fields.planning());
-        differs(paths, "template.privilegedAccess", template.privilegedAccess(), fields.privilegedAccess());
-        differs(paths, "template.riskAssessment", template.riskAssessment(), fields.riskAssessment());
-        differs(paths, "tasks", texts(), remote.texts());
-        return paths;
+        return EDITED.stream().filter(field -> !Objects.equals(field.value().apply(this), field.value().apply(remote)))
+                .map(Edited::path).toList();
     }
 
     public ProductionChange synced(ProductionChange remote, Instant now) {
@@ -178,8 +190,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                                 List<JiraIssue> stories) {
         String head = "Production release " + fixVersion + " of " + product.name() + " (" + product.code() + ")"
                 + (departmentName == null ? "" : " in " + departmentName) + ".\n"
-                + schedule.text() + ". "
-                + (template.downtime() ? "Downtime expected during the installation." : "No downtime.") + "\n\n"
+                + schedule.text() + "\n\n"
                 + "Change tasks: " + tasks.stream().map(TaskText::shortDescription).collect(joining("; ")) + ".\n\n"
                 + "Scope from Jira project " + template.jiraProjectKey() + ", FixVersion " + fixVersion + ":\n";
         String tail = "\n" + detailsOf(product, template);
@@ -240,28 +251,27 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return tasks.stream().map(task -> task.in(states.getOrDefault(task.number(), task.state()))).toList();
     }
 
-    private static void differs(List<String> paths, String path, Object mine, Object theirs) {
-        if (!Objects.equals(mine, theirs)) {
-            paths.add(path);
-        }
-    }
-
     private static String detailsOf(Product product, ChangeTemplate template) {
         Planning planning = template.planning();
-        List<String> risks = template.riskAssessment().lines().stream()
-                .map(line -> abbreviateBytes(line, SECTION_MAX)).toList();
-        return section("Test summary", planning.testSummary())
-                + section("Implementation plan", planning.implementationPlan())
-                + section("Validation plan", planning.validationPlan())
-                + section("Backout plan", planning.backoutPlan())
-                + section("First use plan", planning.firstUsePlan())
-                + abbreviateBytes(template.privilegedAccess().text(), SECTION_MAX) + "\n\n"
-                + "Risk assessment:\n" + (risks.isEmpty() ? "Not assessed." : String.join("\n", risks)) + "\n"
-                + (template.description() == null ? ""
-                : "\n" + section("About " + product.name(), template.description()));
+        String risk = Stream.concat(Stream.of("Risk: " + getIfNull(template.risk(), "not assessed")),
+                template.riskAssessment().lines().stream()).collect(joining("\n"));
+        return Stream.of(section("Test summary", planning.testSummary()),
+                        section("Implementation plan", planning.implementationPlan()),
+                        section("Validation plan", planning.validationPlan()),
+                        section("Backout plan", planning.backoutPlan()),
+                        section("First use plan", planning.firstUsePlan()),
+                        abbreviateBytes(template.privilegedAccess().text(), SECTION_MAX), risk,
+                        section("Users affected", template.usersAffected()),
+                        template.secureCodingTicket() == null ? null
+                                : "Secure coding ticket: " + template.secureCodingTicket(),
+                        section("About " + product.name(), template.description()))
+                .filter(Objects::nonNull).collect(joining("\n\n"));
     }
 
     private static String section(String title, String text) {
-        return title + ":\n" + abbreviateBytes(text, SECTION_MAX) + "\n\n";
+        return text == null ? null : title + ":\n" + abbreviateBytes(text, SECTION_MAX);
+    }
+
+    private record Edited(String path, Function<ProductionChange, Object> value) {
     }
 }

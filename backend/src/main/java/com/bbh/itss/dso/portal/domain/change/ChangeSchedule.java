@@ -10,12 +10,12 @@ import static java.time.format.DateTimeFormatter.ofPattern;
 import static org.apache.commons.lang3.ObjectUtils.allNotNull;
 
 public record ChangeSchedule(Instant installationStart, Instant installationEnd, Instant validationStart,
-                             Instant validationEnd, Instant firstUsage) {
+                             Instant validationEnd, Instant firstUsage, Instant downtimeStart, Instant downtimeEnd) {
 
     private static final DateTimeFormatter DAY_AND_TIME = ofPattern("yyyy-MM-dd HH:mm").withZone(UTC);
     private static final DateTimeFormatter TIME = ofPattern("HH:mm").withZone(UTC);
 
-    public void check(ValidationProblems problems) {
+    public void check(boolean downtime, ValidationProblems problems) {
         problems.require("installationStart", installationStart, "choose when the installation starts")
                 .require("installationEnd", installationEnd, "choose when the installation ends")
                 .require("validationStart", validationStart, "choose when the post-install validation starts")
@@ -27,6 +27,16 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
         notBefore(problems, "validationStart", validationStart, installationEnd, "the installation end");
         notBefore(problems, "validationEnd", validationEnd, validationStart, "the validation start");
         notBefore(problems, "firstUsage", firstUsage, validationEnd, "the validation end");
+        if (downtime) {
+            problems.require("downtimeStart", downtimeStart, "choose when the downtime starts")
+                    .require("downtimeEnd", downtimeEnd, "choose when the downtime ends");
+            if (allNotNull(downtimeStart, downtimeEnd) && !downtimeEnd.isAfter(downtimeStart)) {
+                problems.add("downtimeEnd", "must be after the downtime start");
+            }
+        } else {
+            empty(problems, "downtimeStart", downtimeStart);
+            empty(problems, "downtimeEnd", downtimeEnd);
+        }
     }
 
     public void checkUpcoming(Instant now, ValidationProblems problems) {
@@ -35,19 +45,23 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
         }
     }
 
-    public String installationText() {
-        return text(installationStart, installationEnd);
-    }
-
     public String text() {
-        return "Installation " + installationText() + ", post-install validation "
-                + text(validationStart, validationEnd) + ", first usage " + DAY_AND_TIME.format(firstUsage) + " UTC";
+        return "Installation " + text(installationStart, installationEnd) + ", post-install validation "
+                + text(validationStart, validationEnd) + ", first usage " + DAY_AND_TIME.format(firstUsage) + " UTC. "
+                + (allNotNull(downtimeStart, downtimeEnd) ? "Downtime " + text(downtimeStart, downtimeEnd) + "."
+                : "No downtime.");
     }
 
     private static void notBefore(ValidationProblems problems, String field, Instant value, Instant earliest,
                                   String what) {
         if (allNotNull(value, earliest) && value.isBefore(earliest)) {
             problems.add(field, "must not be before " + what);
+        }
+    }
+
+    private static void empty(ValidationProblems problems, String field, Instant value) {
+        if (value != null) {
+            problems.add(field, "must be empty without downtime");
         }
     }
 

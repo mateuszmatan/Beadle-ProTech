@@ -9,6 +9,7 @@ import com.bbh.itss.dso.portal.application.change.port.in.ProductionChangesUseCa
 import com.bbh.itss.dso.portal.application.change.port.out.ProductionChangeRepositoryPort;
 import com.bbh.itss.dso.portal.application.change.port.out.ServiceNowPort.RaisedChange;
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule;
+import com.bbh.itss.dso.portal.domain.change.ChangeTemplate;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing;
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate;
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status;
@@ -27,6 +28,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.NOT_APPLIED_MESSAGE;
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.APPLIED;
@@ -40,6 +42,7 @@ import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.nullsLast;
 import static java.util.Comparator.naturalOrder;
+import static java.util.stream.Collectors.toSet;
 
 @Component
 @ConditionalOnBooleanProperty("dso.demo-data")
@@ -76,14 +79,22 @@ class DemoProTechChanges {
         List<ProductSummaryView> catalogue = products.list(null).stream()
                 .sorted(comparing(ProductSummaryView::departmentName, nullsLast(naturalOrder()))
                         .thenComparing(ProductSummaryView::name)).toList();
-        if (catalogue.isEmpty() || !changes.list(null).isEmpty()) {
+        if (catalogue.isEmpty()) {
             return;
         }
+        Set<Long> withChanges = repository.findAll().stream().map(ProductionChange::productId).collect(toSet());
         Instant now = now(clock);
+        int stored = 0;
         for (int index = 0; index < SCENES.size(); index++) {
-            repository.save(staged(catalogue.get(index % catalogue.size()), SCENES.get(index), now));
+            ProductSummaryView product = catalogue.get(index % catalogue.size());
+            if (!withChanges.contains(product.id())) {
+                repository.save(staged(product, SCENES.get(index), now));
+                stored++;
+            }
         }
-        log.info("Stored {} demo ProTech change(s)", SCENES.size());
+        if (stored > 0) {
+            log.info("Stored {} demo ProTech change(s)", stored);
+        }
     }
 
     private ProductionChange staged(ProductSummaryView product, Scene scene, Instant now) {
@@ -103,16 +114,18 @@ class DemoProTechChanges {
                 .map(JiraIssue::key).toList();
         List<String> storyKeys = changes.stories(product.id(), fixVersion, epicKeys, null).stream()
                 .map(JiraIssue::key).toList();
-        ChangeSchedule schedule = scheduleOf(now.plus(scene.startIn()).truncatedTo(MINUTES),
-                profile.template().timing());
+        ChangeSchedule schedule = scheduleOf(now.plus(scene.startIn()).truncatedTo(MINUTES), profile.template());
         return changes.preview(new ChangeCommand(product.id(), fixVersion, epicKeys, storyKeys, schedule,
                 profile.template(), profile.tasks(), null, null));
     }
 
-    static ChangeSchedule scheduleOf(Instant start, Timing timing) {
+    static ChangeSchedule scheduleOf(Instant start, ChangeTemplate template) {
+        Timing timing = template.timing();
         Instant end = start.plus(ofHours(timing.installationHours()));
         Instant validated = end.plus(ofHours(timing.validationHours()));
-        return new ChangeSchedule(start, end, end, validated, validated.plus(ofHours(12)));
+        boolean downtime = template.downtime();
+        return new ChangeSchedule(start, end, end, validated, validated.plus(ofHours(12)), downtime ? start : null,
+                downtime ? end : null);
     }
 
     static ChangeUpdate updateOf(Status status, ProductionChange change) {
