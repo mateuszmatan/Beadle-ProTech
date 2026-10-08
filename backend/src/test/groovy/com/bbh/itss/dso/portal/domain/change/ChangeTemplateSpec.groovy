@@ -263,6 +263,14 @@ class ChangeTemplateSpec extends Specification {
                 ' Downtime 2026-10-09 22:00 to 2026-10-10 02:30 UTC.'
     }
 
+    def "a schedule not planned yet reads as such"() {
+        expect:
+        ChangeSchedule.UNPLANNED.text() == 'Installation not planned yet, post-install validation not planned yet,' +
+                ' first usage not planned yet. No downtime.'
+        schedule(validationEnd: null, firstUsage: null).text() == 'Installation 2026-10-10 06:00 to 10:00 UTC,' +
+                ' post-install validation not planned yet, first usage not planned yet. No downtime.'
+    }
+
     def "a Jira issue reads as its key, summary and status"() {
         expect:
         new JiraIssue('CERT-1', 'Alerts', 'Done', null, LocalDate.parse('2026-10-01')).line() == 'CERT-1 Alerts (Done)'

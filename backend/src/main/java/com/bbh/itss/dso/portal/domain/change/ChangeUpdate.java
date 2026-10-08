@@ -40,6 +40,10 @@ public record ChangeUpdate(Status status, Instant requestedAt, String department
                 : new ChangeUpdate(NOT_APPLIED, requestedAt, departmentName, unapplied, NOT_APPLIED_MESSAGE, now);
     }
 
+    ChangeUpdate withCheckedAt(Instant at) {
+        return new ChangeUpdate(status, requestedAt, departmentName, fields, message, at);
+    }
+
     ChangeUpdate waitingFor(List<String> unapplied) {
         return new ChangeUpdate(PENDING, requestedAt, departmentName, unapplied, null, checkedAt);
     }

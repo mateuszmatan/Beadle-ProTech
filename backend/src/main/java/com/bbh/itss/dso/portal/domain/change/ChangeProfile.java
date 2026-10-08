@@ -3,8 +3,7 @@ package com.bbh.itss.dso.portal.domain.change;
 import java.time.Instant;
 import java.util.List;
 
-import static com.bbh.itss.dso.portal.domain.shared.Failures.staleVersion;
-import static com.bbh.itss.dso.portal.domain.shared.Versions.requireCurrent;
+import static com.bbh.itss.dso.portal.domain.shared.Versions.requireReadAt;
 import static java.util.Objects.requireNonNull;
 
 public record ChangeProfile(long productId, ChangeTemplate template, List<TaskText> tasks, long version,
@@ -20,10 +19,7 @@ public record ChangeProfile(long productId, ChangeTemplate template, List<TaskTe
     }
 
     public ChangeProfile change(Long expectedVersion, ChangeTemplate template, List<TaskText> tasks) {
-        if (expectedVersion == null) {
-            throw staleVersion();
-        }
-        requireCurrent(expectedVersion, version);
+        requireReadAt(expectedVersion, version);
         return new ChangeProfile(productId, template, tasks, version, updatedAt);
     }
 }

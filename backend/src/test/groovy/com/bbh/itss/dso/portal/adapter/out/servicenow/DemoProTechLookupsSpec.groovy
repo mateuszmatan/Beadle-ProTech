@@ -1,7 +1,11 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow
 
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductSummaryView
-import com.bbh.itss.dso.portal.application.catalog.port.in.ProductsUseCase
+import com.bbh.itss.dso.portal.application.catalog.port.out.DepartmentRepositoryPort
+import com.bbh.itss.dso.portal.application.change.port.out.ChangeProductsPort
+import com.bbh.itss.dso.portal.application.user.port.in.SignedInUser
+import com.bbh.itss.dso.portal.application.user.port.in.SignedInUserUseCase
+import com.bbh.itss.dso.portal.domain.catalog.Department
+import com.bbh.itss.dso.portal.domain.change.ChangeProduct
 import com.bbh.itss.dso.portal.domain.change.Lookup
 import com.bbh.itss.dso.portal.domain.change.LookupKind
 import spock.lang.Specification
@@ -14,15 +18,24 @@ import static com.bbh.itss.dso.portal.domain.change.LookupKind.INCIDENTS
 import static com.bbh.itss.dso.portal.domain.change.LookupKind.PROBLEMS
 import static com.bbh.itss.dso.portal.domain.change.LookupKind.RELEASES
 import static com.bbh.itss.dso.portal.domain.change.LookupKind.USERS
+import static com.bbh.itss.dso.portal.domain.shared.Text.bytes
 
 class DemoProTechLookupsSpec extends Specification {
 
-    ProductsUseCase products = Stub() {
-        list(null) >> [summary('NAVCALC', 'NAV Calculator', 'Fund Accounting', 'Fund Services'),
+    ChangeProductsPort products = Stub() {
+        findAll() >> [summary('NAVCALC', 'NAV Calculator', 'Fund Accounting', 'Fund Services'),
                        summary('PAYHUB', 'Payments Hub', 'Payments Engineering', 'Fund Services'),
                        summary('LEDGER', 'Ledger', ' ', 'Custody')]
     }
-    def lookups = new DemoProTechLookups(products)
+    DepartmentRepositoryPort departments = Stub() {
+        findAll() >> [new Department(1L, 'AI Lab', 0), new Department(3L, 'corporate technology', 1),
+                      new Department(9L, 'Treasury Operations', 0)]
+    }
+    String signedIn = 'Mateusz Matan'
+    SignedInUserUseCase users = Stub() {
+        signedInUser() >> { new SignedInUser(signedIn) }
+    }
+    def lookups = new DemoProTechLookups(products, departments, users)
 
     def "the users are BBH people with their e-mail, among them the signed-in user and the demo approvers"() {
         when:
@@ -35,30 +48,52 @@ class DemoProTechLookupsSpec extends Specification {
         users*.value() == users*.value().unique(false)
     }
 
-    def "the departments hold the five departments of the portal"() {
+    def "a signed-in user who is not one of ProTech's demo people is found too"() {
+        given:
+        signedIn = 'Zoë Quinn'
+
         expect:
-        lookups.find(DEPARTMENTS, null, 100)*.value().containsAll(['AI Lab', 'Capital Partners',
-                                                                   'Corporate Technology', 'Custody', 'Fund Services'])
-        lookups.find(DEPARTMENTS, null, 100).every { it.detail() ==~ /Cost centre \d{4}/ }
+        lookups.find(USERS, 'quinn', 20) == [new Lookup('Zoë Quinn', 'zo.quinn@bbh.com')]
+        lookups.find(USERS, '', 100).size() == DemoProTechLookups.USERS.size() + 1
     }
 
-    def "the configuration items, releases and assignment groups come from the product catalogue"() {
+    def "the departments are the portal's, also as added or renamed in Beadle Admin, and ProTech's others, each once"() {
         when:
-        def releases = lookups.find(RELEASES, null, 100)
+        def found = lookups.find(DEPARTMENTS, null, 100)
 
         then:
-        lookups.find(CONFIGURATION_ITEMS, null, 100) == [new Lookup('NAV Calculator', 'Fund Accounting'),
-                                                         new Lookup('Payments Hub', 'Payments Engineering'),
-                                                         new Lookup('Ledger', 'Custody')]
-        releases.size() == 9
-        releases.findAll { it.detail() == 'PAYHUB' }*.value().every { it ==~ /Payments Hub \d\.\d/ }
-        releases == lookups.find(RELEASES, null, 100)
-        lookups.find(ASSIGNMENT_GROUPS, 'support', 100).take(3) == [
-                new Lookup('Fund Accounting Application Support', 'Fund Services'),
-                new Lookup('Payments Engineering Application Support', 'Fund Services'),
-                new Lookup('Ledger Application Support', 'Custody')]
-        lookups.find(ASSIGNMENT_GROUPS, 'Database', 100) ==
-                [new Lookup('Database Administration', 'Infrastructure & Operations')]
+        found*.value() == ['AI Lab', 'Capital Partners', 'Compliance', 'corporate technology', 'Custody',
+                           'Fund Services', 'Information Security', 'Infrastructure & Operations',
+                           'Investor Services', 'Private Banking', 'Treasury', 'Treasury Operations']
+        found.find { it.value() == 'corporate technology' }.detail() == 'Cost centre 4310'
+        found.every { it.detail() ==~ /Cost centre \d{4}/ }
+        lookups.find(DEPARTMENTS, 'operations', 20)*.value() == ['Infrastructure & Operations', 'Treasury Operations']
+    }
+
+    def "the values stay within the ProTech fields they fill, however long the names in the portal are"() {
+        given:
+        def wide = new DemoProTechLookups(Stub(ChangeProductsPort) {
+            findAll() >> [new ChangeProduct(1L, 'LONG', 'Ł' * 200, null, 'Ż' * 200, 3L, 'Custody', null)]
+        }, Stub(DepartmentRepositoryPort) {
+            findAll() >> [new Department(9L, 'Ś' * 100, 0)]
+        }, Stub(SignedInUserUseCase) {
+            signedInUser() >> new SignedInUser('Ü' * 150)
+        })
+
+        when:
+        def releases = wide.find(RELEASES, null, 20)*.value()
+        def items = wide.find(CONFIGURATION_ITEMS, null, 20)*.value()
+        def groups = wide.find(ASSIGNMENT_GROUPS, 'Ż', 20)*.value()
+        def named = wide.find(DEPARTMENTS, 'Ś', 20)*.value()
+        def people = wide.find(USERS, 'Ü', 20)*.value()
+
+        then:
+        releases.size() == 3
+        releases.every { bytes(it) <= 100 && it ==~ /Ł+\.\.\. \d\.\d/ }
+        items.size() == 1 && bytes(items[0]) <= 200 && items[0] ==~ /Ł+\.\.\./
+        groups.size() == 1 && bytes(groups[0]) <= 200 && groups[0] ==~ /Ż+\.\.\. Application Support/
+        named.size() == 1 && bytes(named[0]) <= 100 && named[0] ==~ /Ś+\.\.\./
+        people.size() == 1 && bytes(people[0]) <= 200 && people[0] ==~ /Ü+\.\.\./
     }
 
     def "incidents, problems and clients are ProTech-like records with a short description"() {
@@ -92,7 +127,7 @@ class DemoProTechLookupsSpec extends Specification {
         }
     }
 
-    static ProductSummaryView summary(String code, String name, String ownerTeam, String department) {
-        new ProductSummaryView(1L, code, name, null, ownerTeam, 3L, department, 1, 1, 1, null)
+    static ChangeProduct summary(String code, String name, String ownerTeam, String department) {
+        new ChangeProduct(1L, code, name, null, ownerTeam, 3L, department, null)
     }
 }

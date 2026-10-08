@@ -1,4 +1,4 @@
-package com.bbh.itss.dso.portal.application.change.port.in;
+package com.bbh.itss.dso.portal.domain.change;
 
 import java.time.Instant;
 
