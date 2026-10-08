@@ -187,7 +187,10 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     }
 
     public boolean differsFrom(ProductionChange stored) {
-        return !toBuilder().syncedAt(stored.syncedAt).syncProblem(stored.syncProblem).build().equals(stored);
+        ChangeUpdate checked = update == null || stored.update == null ? update
+                : update.withCheckedAt(stored.update.checkedAt());
+        return !toBuilder().syncedAt(stored.syncedAt).syncProblem(stored.syncProblem).update(checked).build()
+                .equals(stored);
     }
 
     static String shortDescriptionOf(ChangeProduct product, String fixVersion, List<JiraIssue> epics) {

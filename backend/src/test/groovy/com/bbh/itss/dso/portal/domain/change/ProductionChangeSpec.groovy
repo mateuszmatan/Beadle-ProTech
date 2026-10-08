@@ -317,6 +317,21 @@ class ProductionChangeSpec extends Specification {
         'did not apply within a minute' | 60 | 'Old'      || NOT_APPLIED | ['shortDescription'] | NOT_APPLIED_MESSAGE | 'Old'
     }
 
+    def "a pending update checked again differs only when more than its check time changed"() {
+        given:
+        def stored = raised(shortDescription: 'Requested', update: requested(NOW.minusSeconds(10), 'Custody'))
+                .synced(remote(shortDescription: 'Old'), NOW.minusSeconds(5))
+
+        expect:
+        stored.update().checkedAt() == NOW.minusSeconds(5)
+        !stored.synced(remote(shortDescription: 'Old'), NOW).differsFrom(stored)
+        stored.synced(remote(shortDescription: 'Old'), NOW).update().checkedAt() == NOW
+        stored.synced(remote(shortDescription: 'Old', description: 'Other'), NOW).differsFrom(stored)
+        stored.synced(remote(shortDescription: 'Requested'), NOW).differsFrom(stored)
+        stored.synced(remote(shortDescription: 'Old', state: BUSINESS_APPROVAL), NOW).differsFrom(stored)
+        !raised().synced(raised(), NOW).differsFrom(raised())
+    }
+
     def "a pending update keeps the requested tasks with the states ProTech gives the tasks it knows"() {
         given:
         def requested = raised(update: requested(NOW, 'Custody'), tasks: raised().tasks().take(1) +
