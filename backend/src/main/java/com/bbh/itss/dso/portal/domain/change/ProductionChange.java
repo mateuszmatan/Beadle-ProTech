@@ -136,12 +136,16 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 .tasks(requested).build();
     }
 
-    public static void checkTemplateAndSchedule(ChangeTemplate template, ChangeSchedule schedule, Instant upcomingFrom,
-                                                ValidationProblems problems) {
+    public static void checkTemplate(ChangeTemplate template, ValidationProblems problems) {
         problems.require("template", template, "fill in the ProTech fields of the change");
         if (template != null) {
             template.validate(problems.at("template"));
         }
+    }
+
+    public static void checkTemplateAndSchedule(ChangeTemplate template, ChangeSchedule schedule, Instant upcomingFrom,
+                                                ValidationProblems problems) {
+        checkTemplate(template, problems);
         problems.require("schedule", schedule, "choose when the change is installed, validated and first used");
         if (schedule != null) {
             schedule.check(template != null && template.downtime(), problems.at("schedule"));

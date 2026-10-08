@@ -12,8 +12,11 @@ import static org.apache.commons.lang3.ObjectUtils.allNotNull;
 public record ChangeSchedule(Instant installationStart, Instant installationEnd, Instant validationStart,
                              Instant validationEnd, Instant firstUsage, Instant downtimeStart, Instant downtimeEnd) {
 
+    public static final ChangeSchedule UNPLANNED = new ChangeSchedule(null, null, null, null, null, null, null);
+
     private static final DateTimeFormatter DAY_AND_TIME = ofPattern("yyyy-MM-dd HH:mm").withZone(UTC);
     private static final DateTimeFormatter TIME = ofPattern("HH:mm").withZone(UTC);
+    private static final String NOT_PLANNED = "not planned yet";
 
     public void check(boolean downtime, ValidationProblems problems) {
         problems.require("installationStart", installationStart, "choose when the installation starts")
@@ -47,7 +50,7 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
 
     public String text() {
         return "Installation " + text(installationStart, installationEnd) + ", post-install validation "
-                + text(validationStart, validationEnd) + ", first usage " + DAY_AND_TIME.format(firstUsage) + " UTC. "
+                + text(validationStart, validationEnd) + ", first usage " + text(firstUsage) + ". "
                 + (allNotNull(downtimeStart, downtimeEnd) ? "Downtime " + text(downtimeStart, downtimeEnd) + "."
                 : "No downtime.");
     }
@@ -65,7 +68,14 @@ public record ChangeSchedule(Instant installationStart, Instant installationEnd,
         }
     }
 
+    private static String text(Instant at) {
+        return at == null ? NOT_PLANNED : DAY_AND_TIME.format(at) + " UTC";
+    }
+
     private static String text(Instant start, Instant end) {
+        if (!allNotNull(start, end)) {
+            return NOT_PLANNED;
+        }
         boolean sameDay = DAY_AND_TIME.format(start).regionMatches(0, DAY_AND_TIME.format(end), 0, 10);
         return DAY_AND_TIME.format(start) + " to " + (sameDay ? TIME : DAY_AND_TIME).format(end) + " UTC";
     }
