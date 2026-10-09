@@ -6,7 +6,7 @@ import java.util.List;
 import static com.bbh.itss.dso.portal.domain.shared.Versions.requireReadAt;
 import static java.util.Objects.requireNonNull;
 
-public record ChangeProfile(long productId, ChangeTemplate template, List<TaskText> tasks, long version,
+public record ChangeProfile(long productId, ChangeTemplate template, List<TaskDetails> tasks, long version,
                             Instant updatedAt) {
 
     public ChangeProfile {
@@ -14,11 +14,11 @@ public record ChangeProfile(long productId, ChangeTemplate template, List<TaskTe
         tasks = List.copyOf(tasks);
     }
 
-    public static ChangeProfile create(long productId, ChangeTemplate template, List<TaskText> tasks) {
+    public static ChangeProfile create(long productId, ChangeTemplate template, List<TaskDetails> tasks) {
         return new ChangeProfile(productId, template, tasks, 0, null);
     }
 
-    public ChangeProfile change(Long expectedVersion, ChangeTemplate template, List<TaskText> tasks) {
+    public ChangeProfile change(Long expectedVersion, ChangeTemplate template, List<TaskDetails> tasks) {
         requireReadAt(expectedVersion, version);
         return new ChangeProfile(productId, template, tasks, version, updatedAt);
     }

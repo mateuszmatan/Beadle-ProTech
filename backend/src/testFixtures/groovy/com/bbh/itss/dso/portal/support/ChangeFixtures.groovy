@@ -12,7 +12,8 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.change.JiraIssue
 import com.bbh.itss.dso.portal.domain.change.ProductionChange
 import com.bbh.itss.dso.portal.domain.change.RiskAssessment
-import com.bbh.itss.dso.portal.domain.change.TaskText
+import com.bbh.itss.dso.portal.domain.change.TaskDetails
+import com.bbh.itss.dso.portal.domain.change.TaskState
 import com.bbh.itss.dso.portal.domain.change.WorkflowStep
 
 import java.time.Instant
@@ -56,12 +57,58 @@ class ChangeFixtures {
                         null))
     }
 
-    static List<TaskText> tasks(int count = 2) {
-        (1..count).collect { new TaskText("Task $it of the CertScanner release", "Step $it of the CertScanner release.") }
+    static TaskDetails details(int index = 1, Map changes = [:]) {
+        copy(changes, TaskDetails.builder().assignmentGroup('Technology Architecture')
+                .shortDescription("Task $index of the CertScanner release")
+                .description("Step $index of the CertScanner release.").build())
+    }
+
+    static List<TaskDetails> tasks(int count = 2) {
+        (1..count).collect { details(it) }
     }
 
     static List<Map> tasksJson(int count = 2) {
-        tasks(count).collect { [shortDescription: it.shortDescription(), description: it.description()] }
+        tasks(count).collect { [assignmentGroup: it.assignmentGroup(), shortDescription: it.shortDescription(),
+                                description    : it.description()] }
+    }
+
+    static Map detailsJson(TaskDetails details) {
+        [assignmentGroup   : details.assignmentGroup(), assignedTo: details.assignedTo(),
+         configurationItem : details.configurationItem(), platform: details.platform(),
+         application       : details.application(), packages: details.packages(),
+         backoutPackages   : details.backoutPackages(), importance: details.importance(),
+         shortDescription  : details.shortDescription(), description: details.description(),
+         additionalComments: details.additionalComments()]
+    }
+
+    static Map changeTaskJson(Map details = [:], Instant start = null) {
+        [details: tasksJson(1)[0] + details, start: start?.toString()]
+    }
+
+    static List<Map> changeTasksJson(int count = 2) {
+        tasksJson(count).collect { [details: it, start: null] }
+    }
+
+    static List<TaskDetails> migratedTasks(String productName) {
+        TaskDetails.suggestedTasks(productName, null).collect {
+            it.toBuilder().assignmentGroup('Technology Architecture').configurationItem('CertScanner').build()
+        }
+    }
+
+    static ChangeTask task(int index = 1) {
+        ctask("CTASK004100$index", "Task $index of the CertScanner release", "Step $index of the CertScanner release.",
+                OPEN)
+    }
+
+    static ChangeTask ctask(String number, String shortDescription, String description, TaskState state) {
+        new ChangeTask(number, TaskDetails.builder().assignmentGroup('Technology Architecture')
+                .configurationItem('CertScanner').shortDescription(shortDescription).description(description).build(),
+                null, null, state)
+    }
+
+    static ChangeTask releaseTask(Map changes = [:], String start = '2026-10-10T06:01:00Z') {
+        new ChangeTask(null, details(3, [assignmentGroup: 'Release Management', application: 'CertScanner'] + changes),
+                start == null ? null : at(start), null, OPEN)
     }
 
     static ProductionChange raised(Map changes = [:]) {
@@ -70,10 +117,7 @@ class ChangeFixtures {
                 .fixVersion(FIX_VERSION).schedule(schedule()).shortDescription('CertScanner CERT 4.2: Expiry alerts')
                 .description('Production release CERT 4.2 of CertScanner.').template(template(release: FIX_VERSION))
                 .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
-                .tasks([new ChangeTask('CTASK0041001', 'Task 1 of the CertScanner release',
-                        'Step 1 of the CertScanner release.', OPEN),
-                        new ChangeTask('CTASK0041002', 'Task 2 of the CertScanner release',
-                                'Step 2 of the CertScanner release.', OPEN)])
+                .tasks([task(1), task(2)])
                 .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)]).syncedAt(RAISED).version(0L)
                 .createdAt(RAISED).build())
     }

@@ -73,8 +73,8 @@ class DemoProTechChangesSpec extends Specification {
         changes.stories(_, _, ['CERT-1', 'CERT-5'], null) >> [story('CERT-2', 'E-mail the owner', 'CERT-1')]
         changes.preview(_) >> { ChangeCommand command ->
             ProductionChange.draft(changeProduct(id: command.productId(),
-                    name: "Product ${command.productId()}".toString()), 'Mateusz Matan', command.tasks(),
-                    command.fixVersion(), command.schedule(), command.template(),
+                    name: "Product ${command.productId()}".toString()), 'Mateusz Matan', command.fixVersion(),
+                    command.schedule(), command.template(),
                     command.epicKeys().collect { epic(it, it) }, command.storyKeys().collect { story(it, it, 'CERT-1') },
                     null, null)
         }
