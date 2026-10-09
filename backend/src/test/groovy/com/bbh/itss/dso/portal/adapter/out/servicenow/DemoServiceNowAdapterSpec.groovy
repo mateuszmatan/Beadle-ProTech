@@ -7,6 +7,7 @@ import com.bbh.itss.dso.portal.domain.change.WorkflowStep
 import spock.lang.Specification
 import spock.util.time.MutableClock
 
+import java.time.Duration
 import java.time.Instant
 
 import static com.bbh.itss.dso.portal.adapter.out.servicenow.DemoServiceNowAdapter.CLOSED_REFUSAL
@@ -25,6 +26,7 @@ import static com.bbh.itss.dso.portal.domain.change.TaskState.CLOSED as TASK_CLO
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.RAISED
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.ctask
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static java.time.Duration.ofDays
@@ -36,25 +38,56 @@ class DemoServiceNowAdapterSpec extends Specification {
 
     static final ChangeSchedule SHORT_NOTICE = scheduleFrom(RAISED.plus(ofHours(20)))
     static final ChangeSchedule SOON = scheduleFrom(RAISED.plus(ofHours(1)))
-    static final ChangeTask CHECK = new ChangeTask(null, 'Check the audit trail', 'Open the audit trail.', null)
+    static final ChangeTask CHECK = ctask(null, 'Check the audit trail', 'Open the audit trail.', null)
 
     MutableClock clock = new MutableClock(RAISED)
     def serviceNow = new DemoServiceNowAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
 
-    def "each raised change gets a new CHG number and a new CTASK number per task"() {
+    def "each raised change gets a new CHG number and each task created on it a new CTASK number"() {
         when:
-        def first = serviceNow.raise(change(2))
-        def second = serviceNow.raise(change(1))
+        def first = serviceNow.raise(change(0))
+        def second = serviceNow.raise(change(0))
+        def numbers = [serviceNow.createTask(first.number(), CHECK), serviceNow.createTask(first.number(), CHECK),
+                       serviceNow.createTask(second.number(), CHECK)]
 
         then:
         !serviceNow.connected()
         first.number() ==~ /CHG\d{7}/
-        first.taskNumbers().size() == 2
-        first.taskNumbers().every { it ==~ /CTASK\d{7}/ }
         first.url() == null
         second.number() != first.number()
-        second.taskNumbers().size() == 1
-        !first.taskNumbers().contains(second.taskNumbers()[0])
+        numbers.every { it ==~ /CTASK\d{7}/ }
+        numbers.toSet().size() == 3
+        serviceNow.read([change(0).numbered(first.number(), null)])[first.number()].tasks()*.number() ==
+                numbers.take(2)
+    }
+
+    def "a created task is open and asked for approval when its change reaches CTask approval"() {
+        given:
+        def known = raise(change(0))
+        def number = serviceNow.createTask(known.number(), CHECK)
+
+        expect:
+        approvals(known, ofMinutes(0)) == [[number, OPEN, 'Not Yet Requested']]
+        approvals(known, ofMinutes(8)) == [[number, OPEN, 'Requested']]
+        approvals(known, ofMinutes(10)) == [[number, OPEN, 'Approved']]
+    }
+
+    def "ProTech creates no task on #refusal"() {
+        given:
+        def known = raise(change(1, SOON))
+        clock.instant = SOON.validationEnd()
+
+        when:
+        serviceNow.createTask(unknown ? 'CHG0000001' : known.number(), CHECK)
+
+        then:
+        def refused = thrown(IllegalStateException)
+        refused.message == message
+
+        where:
+        refusal                     | unknown || message
+        'a closed change'           | false   || CLOSED_REFUSAL
+        'a change it does not hold' | true    || 'ProTech has no change CHG0000001'
     }
 
     def "a change planned well ahead is in #state #after after it was raised"() {
@@ -155,8 +188,8 @@ class DemoServiceNowAdapterSpec extends Specification {
         after.schedule() == later
         after.template().category() == 'Apps'
         after.template().jiraProjectKey() == 'CERT'
-        after.tasks()*.shortDescription() == [known.tasks()[1].shortDescription(), CHECK.shortDescription(),
-                                              known.tasks()[0].shortDescription()]
+        after.tasks()*.details()*.shortDescription() == [known.tasks()[1], CHECK, known.tasks()[0]]
+                *.details()*.shortDescription()
         after.tasks()*.number()[0] == known.tasks()[1].number()
         after.tasks()*.number()[1] ==~ /CTASK\d{7}/
         after.tasks()*.number()[2] == known.tasks()[0].number()
@@ -173,7 +206,7 @@ class DemoServiceNowAdapterSpec extends Specification {
         def canceled = known.tasks()[1]
 
         when:
-        serviceNow.update(known.toBuilder().tasks([known.tasks()[0], new ChangeTask(canceled.number(), 'Back again',
+        serviceNow.update(known.toBuilder().tasks([known.tasks()[0], ctask(canceled.number(), 'Back again',
                 'Back again.', OPEN)]).build())
         clock.instant = RAISED.plusSeconds(6)
         def after = serviceNow.read([known])[known.number()]
@@ -294,13 +327,20 @@ class DemoServiceNowAdapterSpec extends Specification {
     }
 
     private ProductionChange raise(ProductionChange change) {
-        def raised = serviceNow.raise(change)
-        change.numbered(raised.number(), raised.taskNumbers(), raised.url())
+        def bare = change.toBuilder().tasks([]).build()
+        def raised = serviceNow.raise(bare)
+        bare.numbered(raised.number(), raised.url())
+                .withTasks(change.tasks().collect { it.numbered(serviceNow.createTask(raised.number(), it)) })
+    }
+
+    private List approvals(ProductionChange known, Duration after) {
+        clock.instant = RAISED.plus(after)
+        serviceNow.read([known])[known.number()].tasks().collect { [it.number(), it.state(), it.approval()] }
     }
 
     static ProductionChange change(int tasks, ChangeSchedule schedule = schedule()) {
         raised(id: null, number: null, schedule: schedule, createdAt: null, workflow: [], syncedAt: null,
-                tasks: (1..tasks).collect { new ChangeTask(null, "Task $it", "Step $it.", null) })
+                tasks: (0..<tasks).collect { ctask(null, "Task ${it + 1}", "Step ${it + 1}.", null) })
     }
 
     static ChangeSchedule scheduleFrom(Instant start) {

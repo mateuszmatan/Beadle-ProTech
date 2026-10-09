@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.GROUP_MAX;
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.NAME_MAX;
+import static com.bbh.itss.dso.portal.domain.change.TaskDetails.RELEASE_MANAGEMENT;
 import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviateBytes;
 import static com.bbh.itss.dso.portal.domain.shared.Text.bytes;
 import static java.lang.Math.floorMod;
@@ -50,10 +51,14 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Investor Services", "Cost centre 4520"), new Lookup("Private Banking", "Cost centre 4710"),
             new Lookup("Treasury", "Cost centre 4810"));
     static final List<Lookup> INFRASTRUCTURE_GROUPS = List.of(
+            new Lookup("Cloud Engineering", "Infrastructure & Operations"),
+            new Lookup("Data Movement - API", "Infrastructure & Operations"),
             new Lookup("Database Administration", "Infrastructure & Operations"),
             new Lookup("Middleware Support", "Infrastructure & Operations"),
             new Lookup("Network Operations", "Infrastructure & Operations"),
+            new Lookup("OIS Support", "Infrastructure & Operations"),
             new Lookup("OpenShift Platform Support", "Infrastructure & Operations"),
+            new Lookup(RELEASE_MANAGEMENT, "Corporate Technology"),
             new Lookup("Security Operations", "Information Security"),
             new Lookup("Service Desk", "Corporate Technology"));
     static final List<Lookup> INCIDENTS = List.of(
