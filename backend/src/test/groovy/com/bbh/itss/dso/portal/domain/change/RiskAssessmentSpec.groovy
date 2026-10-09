@@ -11,12 +11,12 @@ class RiskAssessmentSpec extends Specification {
 
     def "an assessment of #answers is #expected"() {
         expect:
-        copy(answers, RiskAssessment.NONE).risk() == expected
+        copy(answers, RiskAssessment.DEFAULTS).risk() == expected
 
         where:
         answers                                                                    || expected
-        [:]                                                                        || null
-        [bbhWorkgroups: ' ', businessImpact: '']                                   || null
+        [:]                                                                        || 'Low'
+        [bbhWorkgroups: ' ', businessImpact: '']                                   || 'Low'
         [bbhWorkgroups: 'Single', changeComplexity: 'Simple']                      || 'Low'
         [bbhUsers: 'Less than 5', clientsOutsideBbh: 'No clients', businessImpact: 'None'] || 'Low'
         [bbhWorkgroups: 'Single', bbhUsers: '5-25']                                || 'Moderate'
@@ -57,7 +57,7 @@ class RiskAssessmentSpec extends Specification {
                 businessImpact      : ['None', 'Low', 'Medium', 'High']]
     }
 
-    def "an assessment trims its answers, accepts only listed options and reads as its answered questions"() {
+    def "an assessment trims its answers, takes the first option of a question left out and accepts only listed options"() {
         given:
         def problems = new ValidationProblems()
 
@@ -69,11 +69,17 @@ class RiskAssessmentSpec extends Specification {
                 ' Less than 30 minutes, 30 mins - 2 hours, Greater than 2 hours, Unable to test']
         risk(bbhUsers: ' 26-250 ').bbhUsers() == '26-250'
         RiskAssessment.builder().bbhUsers('All users').businessImpact('Low').build().lines() ==
-                ['Number of BBH users impacted: All users', 'Business impact: Low']
-        RiskAssessment.NONE.lines() == []
+                ['Number of BBH workgroups impacted: Single', 'Complexity of the change: Simple',
+                 'Number of BBH users impacted: All users', 'Complexity of validation: Simple',
+                 'Number of applications impacted: Single', 'Backout testing & duration: Less than 30 minutes',
+                 'Number of impacted clients outside BBH: No clients', 'Platform status: Existing',
+                 'Business impact: Low']
+        RiskAssessment.DEFAULTS == new RiskAssessment('Single', 'Simple', 'Less than 5', 'Simple', 'Single',
+                'Less than 30 minutes', 'No clients', 'Existing', 'None')
+        risk(platformStatus: ' ').platformStatus() == 'Existing'
     }
 
     private static RiskAssessment answer(Question question, String option) {
-        copy([(question.field()): option], RiskAssessment.NONE)
+        copy([(question.field()): option], RiskAssessment.DEFAULTS)
     }
 }

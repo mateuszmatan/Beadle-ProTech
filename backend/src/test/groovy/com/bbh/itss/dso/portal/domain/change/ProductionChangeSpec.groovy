@@ -110,18 +110,15 @@ class ProductionChangeSpec extends Specification {
                 Backout testing & duration: Less than 30 minutes
                 Number of impacted clients outside BBH: No clients
                 Platform status: Existing
-                Business impact: Low
-
-                About CertScanner:
-                Watches TLS certificates.'''.stripIndent()
+                Business impact: Low'''.stripIndent()
         change.tasks() == tasks().collect { new ChangeTask(null, it.shortDescription(), it.description(), OPEN) }
     }
 
-    def "the description names the downtime, the privileged users, a missing risk assessment and the new fields"() {
+    def "the description names the downtime, the privileged users, the default risk answers and the new fields"() {
         when:
         def text = descriptionOf(changeProduct(departmentName: null), tasks(1), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
-                downtimeEnd: '2026-10-10T08:00:00Z'), template(description: null, downtime: true,
-                privilegedAccess: privileged(2), riskAssessment: RiskAssessment.NONE,
+                downtimeEnd: '2026-10-10T08:00:00Z'), template(downtime: true,
+                privilegedAccess: privileged(2), riskAssessment: RiskAssessment.DEFAULTS,
                 usersAffected: 'Fund accountants', secureCodingTicket: 'APPSEC-1234'), epics.take(1), [])
 
         then:
@@ -130,7 +127,8 @@ class ProductionChangeSpec extends Specification {
                 ' Task 1 of the CertScanner release.\n\n')
         text.contains('Scope from Jira project CERT, FixVersion R1:\nCERT-1 Expiry alerts (Done)\n\nTest summary:')
         text.contains('\nPrivileged access needed for: User 1 (adm_user1), User 2 (adm_user2).\n')
-        text.endsWith('Risk: not assessed\n\nUsers affected:\nFund accountants\n\nSecure coding ticket: APPSEC-1234')
+        text.contains('\nRisk: Low\nNumber of BBH workgroups impacted: Single\n')
+        text.endsWith('Business impact: None\n\nUsers affected:\nFund accountants\n\nSecure coding ticket: APPSEC-1234')
     }
 
     def "texts typed by the user replace the generated ones and a given release is kept"() {
@@ -150,7 +148,7 @@ class ProductionChangeSpec extends Specification {
         def many = (1..60).collect { epic("CERT-$it", "Epic number $it with a long summary that goes on and on") }
         def lots = (1..80).collect { story("CERT-${100 + it}", "Story $it " + 'x' * 60, 'CERT-1') }
         def custody = changeProduct(departmentName: 'Custody')
-        def wordy = template(planning: new Planning(*(['p' * 2000] * 5)), description: 'd' * 2000,
+        def wordy = template(planning: new Planning(*(['p' * 2000] * 5)),
                 usersAffected: 'u' * 2000, secureCodingTicket: 's' * 40)
 
         when:
@@ -163,7 +161,7 @@ class ProductionChangeSpec extends Specification {
         summary.endsWith('...')
         bytes(text) <= DESCRIPTION_MAX
         text.contains('more issues in Jira.')
-        text.endsWith('About CertScanner:\nWatches TLS certificates.')
+        text.endsWith('Business impact: Low')
         bytes(longest) <= DESCRIPTION_MAX
         longest.contains('Test summary:\n' + 'p' * (SECTION_MAX - 3) + '...\n')
         longest.contains('\n\nUsers affected:\n' + 'u' * (SECTION_MAX - 3) + '...\n\nSecure coding ticket: sss')
@@ -183,7 +181,7 @@ class ProductionChangeSpec extends Specification {
         bytes(summary) <= SHORT_DESCRIPTION_MAX
         bytes(text) <= DESCRIPTION_MAX
         text.contains('more issues in Jira.')
-        text.endsWith('About CertScanner:\nWatches TLS certificates.')
+        text.endsWith('Business impact: Low')
     }
 
     def "a raised change is a draft of its raise time with its number, the numbers of its tasks in order and its link"() {
@@ -236,12 +234,11 @@ class ProductionChangeSpec extends Specification {
         'template.problem'                 | [template: template(release: FIX_VERSION, problem: 'PRB1')]
         'template.affectedClients'         | [template: template(release: FIX_VERSION, affectedClients: 'All')]
         'template.usersAffected'           | [template: template(release: FIX_VERSION, usersAffected: 'Operators')]
-        'template.description'             | [template: template(release: FIX_VERSION, description: 'Other')]
         'template.approvers'               | [template: template(release: FIX_VERSION, approvers: Approvers.NONE)]
         'template.downtime'                | [template: template(release: FIX_VERSION, downtime: true)]
         'template.planning'                | [template: template(release: FIX_VERSION, planning: PLANNING)]
         'template.privilegedAccess'        | [template: template(release: FIX_VERSION, privilegedAccess: privileged(1))]
-        'template.riskAssessment'          | [template: template(release: FIX_VERSION, riskAssessment: RiskAssessment.NONE)]
+        'template.riskAssessment'          | [template: template(release: FIX_VERSION, riskAssessment: RiskAssessment.DEFAULTS)]
         'template.secureCodingTicket'      | [template: template(release: FIX_VERSION, secureCodingTicket: 'APPSEC-1')]
         'tasks'                            | [tasks: raised().tasks().take(1)]
         'tasks'                            | [tasks: raised().tasks().reverse()]
@@ -254,8 +251,8 @@ class ProductionChangeSpec extends Specification {
         def all = raised(shortDescription: 'S', description: 'D',
                 schedule: new ChangeSchedule(*(1..7).collect { at("2026-11-0${it}T08:00:00Z") }),
                 template: new ChangeTemplate('OTHER', 'RF', 'RB', 'DE', 'G', 'C', 'AT', EMERGENCY, 'R', 'CI', 'I',
-                        'DBS', 'P', 'High', 'A', 'UA', 'D', Approvers.NONE, true, new Timing('06:00', 1, 0), PLANNING,
-                        privileged(1), RiskAssessment.NONE, 'SCT'),
+                        'DBS', 'P', 'High', 'A', 'UA', Approvers.NONE, true, new Timing('06:00', 1, 0), PLANNING,
+                        privileged(1), RiskAssessment.DEFAULTS, 'SCT'),
                 tasks: [])
         def same = raised(template: template(release: FIX_VERSION, jiraProjectKey: 'OTHER', type: EMERGENCY,
                 timing: new Timing('06:00', 1, 0)),
@@ -269,7 +266,7 @@ class ProductionChangeSpec extends Specification {
                                   'template.assignmentGroup', 'template.category', 'template.assignedTo',
                                   'template.release', 'template.configurationItem', 'template.incident',
                                   'template.directBusinessService', 'template.problem', 'template.affectedClients',
-                                  'template.usersAffected', 'template.description', 'template.approvers',
+                                  'template.usersAffected', 'template.approvers',
                                   'template.downtime', 'template.planning', 'template.privilegedAccess',
                                   'template.riskAssessment', 'template.secureCodingTicket', 'tasks']
         mine.unappliedIn(same) == []

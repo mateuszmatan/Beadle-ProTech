@@ -71,7 +71,6 @@ public record ProductionChange(Long id, String number, Long productId, String pr
             new Edited("template.problem", change -> change.template.problem()),
             new Edited("template.affectedClients", change -> change.template.affectedClients()),
             new Edited("template.usersAffected", change -> change.template.usersAffected()),
-            new Edited("template.description", change -> change.template.description()),
             new Edited("template.approvers", change -> change.template.approvers()),
             new Edited("template.downtime", change -> change.template.downtime()),
             new Edited("template.planning", change -> change.template.planning()),
@@ -208,7 +207,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 + schedule.text() + "\n\n"
                 + "Change tasks: " + tasks.stream().map(TaskText::shortDescription).collect(joining("; ")) + ".\n\n"
                 + "Scope from Jira project " + template.jiraProjectKey() + ", FixVersion " + fixVersion + ":\n";
-        String tail = "\n" + detailsOf(product, template);
+        String tail = "\n" + detailsOf(template);
         List<String> lines = new ArrayList<>();
         for (JiraIssue epic : epics) {
             lines.add(epic.line());
@@ -265,9 +264,9 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return tasks.stream().map(task -> task.in(states.getOrDefault(task.number(), task.state()))).toList();
     }
 
-    private static String detailsOf(ChangeProduct product, ChangeTemplate template) {
+    private static String detailsOf(ChangeTemplate template) {
         Planning planning = template.planning();
-        String risk = Stream.concat(Stream.of("Risk: " + getIfNull(template.risk(), "not assessed")),
+        String risk = Stream.concat(Stream.of("Risk: " + template.risk()),
                 template.riskAssessment().lines().stream()).collect(joining("\n"));
         return Stream.of(section("Test summary", planning.testSummary()),
                         section("Implementation plan", planning.implementationPlan()),
@@ -277,8 +276,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                         abbreviateBytes(template.privilegedAccess().text(), SECTION_MAX), risk,
                         section("Users affected", template.usersAffected()),
                         template.secureCodingTicket() == null ? null
-                                : "Secure coding ticket: " + template.secureCodingTicket(),
-                        section("About " + product.name(), template.description()))
+                                : "Secure coding ticket: " + template.secureCodingTicket())
                 .filter(Objects::nonNull).collect(joining("\n\n"));
     }
 

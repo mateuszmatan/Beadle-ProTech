@@ -29,14 +29,13 @@ class ChangeFixtures {
     static final Instant RAISED = Instant.parse('2026-10-05T09:00:00Z')
 
     static ChangeProduct changeProduct(Map changes = [:]) {
-        copy(changes, new ChangeProduct(1L, 'CERTSCANNER', 'CertScanner', 'Watches TLS certificates.',
-                'Technology Architecture', 3L, 'Corporate Technology', null))
+        copy(changes, new ChangeProduct(1L, 'CERTSCANNER', 'CertScanner', 'Technology Architecture', 3L,
+                'Corporate Technology', null))
     }
 
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
                 .category('Application').type(STANDARD).configurationItem('CertScanner')
-                .description('Watches TLS certificates.')
                 .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'))
                 .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
     }
@@ -92,7 +91,7 @@ class ChangeFixtures {
                     assignmentGroup   : 'Technology Architecture', category: 'Application', assignedTo: null,
                     type              : 'STANDARD', release: null, configurationItem: 'CertScanner',
                     incident          : null, directBusinessService: null, problem: null, risk: 'Moderate',
-                    affectedClients   : null, usersAffected: null, description: 'Watches TLS certificates.',
+                    affectedClients   : null, usersAffected: null,
                     approvers         : [l1Manager: 'Olivia Bennett', l2Manager: 'James Carter',
                                          businessApprover: 'Rebecca Lawson'],
                     downtime          : false,
