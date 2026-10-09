@@ -32,12 +32,15 @@ import static com.bbh.itss.dso.portal.support.ChangeFixtures.FIX_VERSION
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.RAISED
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.at
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.changeProduct
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.ctask
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.details
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.epic
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
-import static com.bbh.itss.dso.portal.support.ChangeFixtures.tasks
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.task
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
 
 class ProductionChangeSpec extends Specification {
@@ -51,9 +54,9 @@ class ProductionChangeSpec extends Specification {
     def stories = [story('CERT-2', 'E-mail the owner', 'CERT-1'), story('CERT-6', 'Record each change', 'CERT-5'),
                    story('CERT-3', 'Teams alert', 'CERT-1')]
 
-    def "a draft writes the short description, the description and the change tasks of its template from Jira"() {
+    def "a draft writes the short description and the description from Jira and has no change tasks yet"() {
         when:
-        def change = draft(product, 'Mateusz Matan', tasks(), FIX_VERSION, schedule(), template(planning: PLANNING),
+        def change = draft(product, 'Mateusz Matan', FIX_VERSION, schedule(), template(planning: PLANNING),
                 epics, stories, ' ', null)
 
         then:
@@ -74,8 +77,6 @@ class ProductionChangeSpec extends Specification {
         change.description() == '''\
                 Production release CERT 4.2 of CertScanner (CERTSCANNER) in Corporate Technology.
                 Installation 2026-10-10 06:00 to 10:00 UTC, post-install validation 2026-10-10 10:00 to 11:00 UTC, first usage 2026-10-12 08:00 UTC. No downtime.
-
-                Change tasks: Task 1 of the CertScanner release; Task 2 of the CertScanner release.
 
                 Scope from Jira project CERT, FixVersion CERT 4.2:
                 CERT-1 Expiry alerts (Done)
@@ -111,20 +112,19 @@ class ProductionChangeSpec extends Specification {
                 Number of impacted clients outside BBH: No clients
                 Platform status: Existing
                 Business impact: Low'''.stripIndent()
-        change.tasks() == tasks().collect { new ChangeTask(null, it.shortDescription(), it.description(), OPEN) }
+        change.tasks() == []
     }
 
     def "the description names the downtime, the privileged users, the default risk answers and the new fields"() {
         when:
-        def text = descriptionOf(changeProduct(departmentName: null), tasks(1), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
+        def text = descriptionOf(changeProduct(departmentName: null), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
                 downtimeEnd: '2026-10-10T08:00:00Z'), template(downtime: true,
                 privilegedAccess: privileged(2), riskAssessment: RiskAssessment.DEFAULTS,
                 usersAffected: 'Fund accountants', secureCodingTicket: 'APPSEC-1234'), epics.take(1), [])
 
         then:
         text.startsWith('Production release R1 of CertScanner (CERTSCANNER).\n')
-        text.contains('first usage 2026-10-12 08:00 UTC. Downtime 2026-10-10 06:00 to 08:00 UTC.\n\nChange tasks:' +
-                ' Task 1 of the CertScanner release.\n\n')
+        text.contains('first usage 2026-10-12 08:00 UTC. Downtime 2026-10-10 06:00 to 08:00 UTC.\n\nScope from')
         text.contains('Scope from Jira project CERT, FixVersion R1:\nCERT-1 Expiry alerts (Done)\n\nTest summary:')
         text.contains('\nPrivileged access needed for: User 1 (adm_user1), User 2 (adm_user2).\n')
         text.contains('\nRisk: Low\nNumber of BBH workgroups impacted: Single\n')
@@ -133,8 +133,7 @@ class ProductionChangeSpec extends Specification {
 
     def "texts typed by the user replace the generated ones and a given release is kept"() {
         when:
-        def change = draft(changeProduct(departmentId: null, departmentName: null), 'Mateusz Matan', tasks(1),
-                FIX_VERSION, schedule(), template(release: 'Release 42'), epics, [], ' Mine ', ' My description ')
+        def change = draft(changeProduct(departmentId: null, departmentName: null), 'Mateusz Matan', FIX_VERSION, schedule(), template(release: 'Release 42'), epics, [], ' Mine ', ' My description ')
 
         then:
         change.shortDescription() == 'Mine'
@@ -153,8 +152,8 @@ class ProductionChangeSpec extends Specification {
 
         when:
         def summary = shortDescriptionOf(product, FIX_VERSION, many)
-        def text = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), template(), many, lots)
-        def longest = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), wordy, many, lots)
+        def text = descriptionOf(custody, FIX_VERSION, schedule(), template(), many, lots)
+        def longest = descriptionOf(custody, FIX_VERSION, schedule(), wordy, many, lots)
 
         then:
         bytes(summary) <= SHORT_DESCRIPTION_MAX
@@ -175,7 +174,7 @@ class ProductionChangeSpec extends Specification {
 
         when:
         def summary = shortDescriptionOf(product, FIX_VERSION, many)
-        def text = descriptionOf(custody, tasks(), FIX_VERSION, schedule(), template(), many, lots)
+        def text = descriptionOf(custody, FIX_VERSION, schedule(), template(), many, lots)
 
         then:
         bytes(summary) <= SHORT_DESCRIPTION_MAX
@@ -184,19 +183,18 @@ class ProductionChangeSpec extends Specification {
         text.endsWith('Business impact: Low')
     }
 
-    def "a raised change is a draft of its raise time with its number, the numbers of its tasks in order and its link"() {
+    def "a raised change is a draft of its raise time with its number and its link"() {
         given:
-        def drafted = draft(changeProduct(departmentName: null), null, tasks(), FIX_VERSION, schedule(), template(),
+        def drafted = draft(changeProduct(departmentName: null), null, FIX_VERSION, schedule(), template(),
                 epics, [], null, null)
 
         when:
-        def raised = drafted.raisedAt(RAISED).numbered('CHG0001', ['CTASK0001', 'CTASK0002'], 'https://snow/CHG0001')
+        def raised = drafted.raisedAt(RAISED).numbered('CHG0001', 'https://snow/CHG0001')
 
         then:
         raised.number() == 'CHG0001'
         raised.url() == 'https://snow/CHG0001'
-        raised.tasks()*.number() == ['CTASK0001', 'CTASK0002']
-        raised.tasks()*.state() == [OPEN, OPEN]
+        raised.tasks() == []
         [raised.state(), raised.workflow(), raised.syncedAt(), raised.createdAt()] ==
                 [DRAFT, [new WorkflowStep(DRAFT, RAISED)], RAISED, RAISED]
         [raised.fixVersion(), raised.schedule(), raised.template()] ==
@@ -242,7 +240,7 @@ class ProductionChangeSpec extends Specification {
         'template.secureCodingTicket'      | [template: template(release: FIX_VERSION, secureCodingTicket: 'APPSEC-1')]
         'tasks'                            | [tasks: raised().tasks().take(1)]
         'tasks'                            | [tasks: raised().tasks().reverse()]
-        'tasks'                            | [tasks: [raised().tasks()[0], new ChangeTask('CTASK0041002', 'Other', 'Step 2 of the CertScanner release.', OPEN)]]
+        'tasks'                            | [tasks: [raised().tasks()[0], ctask('CTASK0041002', 'Other', 'Step 2 of the CertScanner release.', OPEN)]]
     }
 
     def "the paths are listed in their order, and the fixed template fields, task states and canceled tasks never differ"() {
@@ -256,7 +254,7 @@ class ProductionChangeSpec extends Specification {
                 tasks: [])
         def same = raised(template: template(release: FIX_VERSION, jiraProjectKey: 'OTHER', type: EMERGENCY,
                 timing: new Timing('06:00', 1, 0)),
-                tasks: mine.tasks().collect { it.in(WORK_IN_PROGRESS) } + new ChangeTask('CTASK9', 'Gone', 'Gone.', CANCELED))
+                tasks: mine.tasks().collect { it.in(WORK_IN_PROGRESS) } + ctask('CTASK9', 'Gone', 'Gone.', CANCELED))
 
         expect:
         mine.unappliedIn(all) == ['shortDescription', 'description', 'schedule.installationStart',
@@ -332,14 +330,14 @@ class ProductionChangeSpec extends Specification {
     def "a pending update keeps the requested tasks with the states ProTech gives the tasks it knows"() {
         given:
         def requested = raised(update: requested(NOW, 'Custody'), tasks: raised().tasks().take(1) +
-                new ChangeTask(null, 'New task', 'A new task.', OPEN))
+                ctask(null, 'New task', 'A new task.', OPEN))
 
         when:
         def synced = requested.synced(remote(), NOW)
 
         then:
         synced.update().fields() == ['tasks']
-        synced.tasks() == [raised().tasks()[0].in(WORK_IN_PROGRESS), new ChangeTask(null, 'New task', 'A new task.', OPEN)]
+        synced.tasks() == [raised().tasks()[0].in(WORK_IN_PROGRESS), ctask(null, 'New task', 'A new task.', OPEN)]
     }
 
     def "an update that could not be checked waits with every path it changed and says why"() {
@@ -359,35 +357,35 @@ class ProductionChangeSpec extends Specification {
 
     def "an edit takes the texts, the schedule, the editable ProTech fields and the tasks with their ProTech states"() {
         given:
-        def stored = raised(tasks: [new ChangeTask('CTASK1', 'One', 'First.', WORK_IN_PROGRESS),
-                                    new ChangeTask('CTASK2', 'Two', 'Second.', CANCELED),
-                                    new ChangeTask('CTASK3', 'Three', 'Third.', CLOSED)])
+        def stored = raised(tasks: [ctask('CTASK1', 'One', 'First.', WORK_IN_PROGRESS),
+                                    ctask('CTASK2', 'Two', 'Second.', CANCELED),
+                                    ctask('CTASK3', 'Three', 'Third.', CLOSED)])
         def edit = template(jiraProjectKey: 'OTHER', type: EMERGENCY, timing: new Timing('06:00', 1, 0),
                 category: ' Hardware ', release: 'R 5', requestedFor: ' Ann Lee ', usersAffected: 'Operators')
 
         when:
         def edited = stored.edited(' New ', ' Text ', schedule(firstUsage: '2026-10-13T08:00:00Z'), edit,
-                [new ChangeTask('CTASK3', 'Three', 'Third.', OPEN), new ChangeTask(null, ' Four ', 'Fourth.', CLOSED),
-                 new ChangeTask('CTASK1', 'One more', 'First again.', CLOSED)], NOW).rebasedOn(stored)
+                [ctask('CTASK3', 'Three', 'Third.', OPEN), ctask(null, ' Four ', 'Fourth.', CLOSED),
+                 ctask('CTASK1', 'One more', 'First again.', CLOSED)], NOW).rebasedOn(stored)
 
         then:
         edited == stored.toBuilder().shortDescription('New').description('Text')
                 .schedule(schedule(firstUsage: '2026-10-13T08:00:00Z'))
                 .template(template(category: 'Hardware', release: 'R 5', requestedFor: 'Ann Lee',
                         usersAffected: 'Operators'))
-                .tasks([new ChangeTask('CTASK3', 'Three', 'Third.', CLOSED), new ChangeTask(null, 'Four', 'Fourth.', OPEN),
-                        new ChangeTask('CTASK1', 'One more', 'First again.', WORK_IN_PROGRESS),
-                        new ChangeTask('CTASK2', 'Two', 'Second.', CANCELED)]).build()
+                .tasks([ctask('CTASK3', 'Three', 'Third.', CLOSED), ctask(null, 'Four', 'Fourth.', OPEN),
+                        ctask('CTASK1', 'One more', 'First again.', WORK_IN_PROGRESS),
+                        ctask('CTASK2', 'Two', 'Second.', CANCELED)]).build()
     }
 
     def "an edit with #problem is refused against its field"() {
         given:
-        def stored = raised(tasks: [new ChangeTask('CTASK1', 'One', 'First.', OPEN),
-                                    new ChangeTask('CTASK2', 'Two', 'Second.', CANCELED),
-                                    new ChangeTask('CTASK3', 'Three', 'Third.', CLOSED)])
+        def stored = raised(tasks: [ctask('CTASK1', 'One', 'First.', OPEN),
+                                    ctask('CTASK2', 'Two', 'Second.', CANCELED),
+                                    ctask('CTASK3', 'Three', 'Third.', CLOSED)])
         def values = [shortDescription: 'Short', description: 'Text', schedule: schedule(), template: template(),
-                      tasks: [new ChangeTask('CTASK1', 'One', 'First.', OPEN),
-                              new ChangeTask('CTASK3', 'Three', 'Third.', CLOSED)]] + edits
+                      tasks: [ctask('CTASK1', 'One', 'First.', OPEN),
+                              ctask('CTASK3', 'Three', 'Third.', CLOSED)]] + edits
 
         when:
         stored.edited(values.shortDescription, values.description, values.schedule, values.template, values.tasks,
@@ -411,25 +409,60 @@ class ProductionChangeSpec extends Specification {
         'downtime without its window'  | [template: template(downtime: true)]            || ['schedule.downtimeStart: choose when the downtime starts', 'schedule.downtimeEnd: choose when the downtime ends']
         'a window without downtime'    | [schedule: schedule(downtimeStart: '2026-10-10T06:00:00Z', downtimeEnd: '2026-10-10T08:00:00Z')] || ['schedule.downtimeStart: must be empty without downtime', 'schedule.downtimeEnd: must be empty without downtime']
         'a category off the list'      | [template: template(category: 'Software')]      || ['template.category: must be one of Application, Hardware, Infrastructure, System Software, Network, Telecom, Data Amendment, Desktop Software, Storage, Facilities, Other, Database']
-        'no tasks'                     | [tasks: []]                                     || ['tasks: add at least one change task']
-        'a task without texts'         | [tasks: [new ChangeTask(null, ' ', 'x' * 4001, null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].shortDescription: is required', 'tasks[0].description: is too long: it may take at most 4000 bytes']
-        'a task of another change'     | [tasks: [new ChangeTask('CTASK9', 'Nine', 'Ninth.', null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].number: is not a change task of CHG0031001']
-        'a task listed twice'          | [tasks: [new ChangeTask('CTASK1', 'One', 'First.', null), new ChangeTask('CTASK1', 'One', 'First.', null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[1].number: is listed more than once']
-        'a canceled task'              | [tasks: [new ChangeTask('CTASK2', 'Two', 'Second.', null), new ChangeTask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].number: is canceled in ProTech']
-        'a closed task changed'        | [tasks: [new ChangeTask('CTASK3', 'Three', 'Changed.', null)]] || ['tasks[0].number: is closed in ProTech and cannot be changed']
-        'a closed task removed'        | [tasks: [new ChangeTask('CTASK1', 'One', 'First.', null)]] || ['tasks: CTASK3 is closed in ProTech and cannot be removed']
-        'too many tasks'               | [tasks: (1..50).collect { new ChangeTask(null, "T$it", 'Text.', null) } + new ChangeTask('CTASK3', 'Three', 'Third.', null)] || ['tasks: may list at most 50 change tasks']
+        'a task without texts'         | [tasks: [ctask(null, ' ', 'x' * 4001, null), ctask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].details.shortDescription: is required', 'tasks[0].details.description: is too long: it may take at most 4000 bytes']
+        'a release task out of window' | [tasks: [releaseTask([:], '2026-10-10T11:00:00Z'), ctask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].start: must not be after the installation end']
+        'a task of another change'     | [tasks: [ctask('CTASK9', 'Nine', 'Ninth.', null), ctask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].number: is not a change task of CHG0031001']
+        'a task listed twice'          | [tasks: [ctask('CTASK1', 'One', 'First.', null), ctask('CTASK1', 'One', 'First.', null), ctask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[1].number: is listed more than once']
+        'a canceled task'              | [tasks: [ctask('CTASK2', 'Two', 'Second.', null), ctask('CTASK3', 'Three', 'Third.', null)]] || ['tasks[0].number: is canceled in ProTech']
+        'a closed task changed'        | [tasks: [ctask('CTASK3', 'Three', 'Changed.', null)]] || ['tasks[0].number: is closed in ProTech and cannot be changed']
+        'a closed task removed'        | [tasks: [ctask('CTASK1', 'One', 'First.', null)]] || ['tasks: CTASK3 is closed in ProTech and cannot be removed']
+        'too many tasks'               | [tasks: (1..50).collect { ctask(null, "T$it", 'Text.', null) } + ctask('CTASK3', 'Three', 'Third.', null)] || ['tasks: may list at most 50 change tasks']
+    }
+
+    def "an open change without change tasks yet can be edited"() {
+        expect:
+        raised(tasks: []).edited('Short', 'Text', schedule(), template(), [], NOW).tasks() == []
+    }
+
+    def "the tasks created on a raised change are planned in its window, take its affected CI and stay open"() {
+        given:
+        def change = raised(tasks: [task(1)])
+
+        when:
+        def planned = change.plannedTasks([releaseTask([configurationItem: null], null).numbered('CTASK9')
+                                                   .approved('Approved').in(CLOSED), ChangeTask.of(details(2))])
+
+        then:
+        planned == [releaseTask([configurationItem: 'CertScanner'], '2026-10-10T06:01:00Z'),
+                    ChangeTask.of(details(2, [configurationItem: 'CertScanner']))]
+        change.withTasks(planned.collect { it.numbered('CTASK7') }).tasks() ==
+                [task(1)] + planned.collect { it.numbered('CTASK7') }
+    }
+
+    def "the tasks created on a raised change are refused when #problem"() {
+        when:
+        raised(tasks: [task(1)] * held).plannedTasks(requested)
+
+        then:
+        def refused = thrown(InvalidRequestException)
+        refused.problems().collect { it.field() + ': ' + it.message() } == problems
+
+        where:
+        problem                    | held | requested                                        || problems
+        'a release task starts at the installation start' | 0 | [releaseTask([:], '2026-10-10T06:00:00Z')] || ['tasks[0].start: must be at least a minute after the installation start']
+        'a task has no group'      | 0    | [ChangeTask.of(details(1, [assignmentGroup: ' ']))] || ['tasks[0].details.assignmentGroup: is required']
+        'the change would hold 51' | 49   | [ChangeTask.of(details(1)), ChangeTask.of(details(2))] || ['tasks: CHG0031001 may hold at most 50 change tasks']
     }
 
     def "an edit is checked against the tasks ProTech holds now and takes the rest of the change from there"() {
         given:
-        def stored = raised(tasks: [new ChangeTask('CTASK1', 'One', 'First.', OPEN)])
+        def stored = raised(tasks: [ctask('CTASK1', 'One', 'First.', OPEN)])
         def current = stored.toBuilder().state(IMPLEMENTATION).version(3L)
-                .tasks([new ChangeTask('CTASK1', 'One', 'First.', CLOSED)]).build()
-        def kept = stored.edited('New', 'Text', schedule(), template(), [new ChangeTask('CTASK1', 'One', 'First.', null)],
+                .tasks([ctask('CTASK1', 'One', 'First.', CLOSED)]).build()
+        def kept = stored.edited('New', 'Text', schedule(), template(), [ctask('CTASK1', 'One', 'First.', null)],
                 NOW)
         def changed = stored.edited('New', 'Text', schedule(), template(),
-                [new ChangeTask('CTASK1', 'One', 'Changed.', null)], NOW)
+                [ctask('CTASK1', 'One', 'Changed.', null)], NOW)
 
         when:
         def rebased = kept.rebasedOn(current)
@@ -444,7 +477,7 @@ class ProductionChangeSpec extends Specification {
         then:
         def refused = thrown(InvalidRequestException)
         refused.problems()*.field() == ['tasks[0].number']
-        changed.rebasedOn(stored).tasks() == [new ChangeTask('CTASK1', 'One', 'Changed.', OPEN)]
+        changed.rebasedOn(stored).tasks() == [ctask('CTASK1', 'One', 'Changed.', OPEN)]
     }
 
     def "an edit without a release releases the change as its FixVersion"() {

@@ -20,14 +20,14 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CLOSED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN;
-import static com.bbh.itss.dso.portal.domain.change.TaskText.validateTasks;
+import static com.bbh.itss.dso.portal.domain.change.ChangeTask.validateTasks;
+import static com.bbh.itss.dso.portal.domain.change.TaskDetails.MAX_TASKS;
 import static com.bbh.itss.dso.portal.domain.shared.Text.abbreviateBytes;
 import static com.bbh.itss.dso.portal.domain.shared.Text.bytes;
 import static java.time.Duration.ofMinutes;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.IntStream.range;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -77,7 +77,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
             new Edited("template.privilegedAccess", change -> change.template.privilegedAccess()),
             new Edited("template.riskAssessment", change -> change.template.riskAssessment()),
             new Edited("template.secureCodingTicket", change -> change.template.secureCodingTicket()),
-            new Edited("tasks", ProductionChange::texts));
+            new Edited("tasks", ProductionChange::contents));
 
     public ProductionChange {
         epicKeys = List.copyOf(epicKeys);
@@ -88,15 +88,14 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         editedVersion = getIfNull(editedVersion, version);
     }
 
-    public static ProductionChange draft(ChangeProduct product, String openedBy, List<TaskText> tasks,
-                                         String fixVersion, ChangeSchedule schedule, ChangeTemplate template,
-                                         List<JiraIssue> epics, List<JiraIssue> stories, String shortDescription,
-                                         String description) {
+    public static ProductionChange draft(ChangeProduct product, String openedBy, String fixVersion,
+                                         ChangeSchedule schedule, ChangeTemplate template, List<JiraIssue> epics,
+                                         List<JiraIssue> stories, String shortDescription, String description) {
         ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, product.departmentName());
         String summary = isBlank(shortDescription) ? shortDescriptionOf(product, fixVersion, epics)
                 : shortDescription.trim();
         String text = isBlank(description)
-                ? descriptionOf(product, tasks, fixVersion, schedule, raised, epics, stories)
+                ? descriptionOf(product, fixVersion, schedule, raised, epics, stories)
                 : description.trim();
         return builder().productId(product.id()).productCode(product.code()).productName(product.name())
                 .departmentId(product.departmentId()).departmentName(product.departmentName()).openedBy(openedBy)
@@ -104,7 +103,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 .schedule(schedule).shortDescription(summary).description(text).template(raised)
                 .epicKeys(epics.stream().map(JiraIssue::key).toList())
                 .storyKeys(stories.stream().map(JiraIssue::key).toList())
-                .tasks(tasks.stream().map(ChangeTask::of).toList()).build();
+                .tasks(List.of()).build();
     }
 
     public ProductionChange raisedAt(Instant at) {
@@ -112,10 +111,24 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 .build();
     }
 
-    public ProductionChange numbered(String number, List<String> taskNumbers, String url) {
-        List<ChangeTask> numberedTasks = range(0, tasks.size())
-                .mapToObj(index -> tasks.get(index).numbered(taskNumbers.get(index))).toList();
-        return toBuilder().number(number).tasks(numberedTasks).url(url).build();
+    public ProductionChange numbered(String number, String url) {
+        return toBuilder().number(number).url(url).build();
+    }
+
+    public List<ChangeTask> plannedTasks(List<ChangeTask> requested) {
+        ValidationProblems problems = new ValidationProblems();
+        List<ChangeTask> planned = planned(requested.stream().map(task -> ChangeTask.of(task.details())
+                .editedTo(task)).toList(), schedule, template);
+        validateTasks(planned, schedule, problems);
+        if (tasks.size() + planned.size() > MAX_TASKS) {
+            problems.add("tasks", number + " may hold at most " + MAX_TASKS + " change tasks");
+        }
+        problems.throwIfAny();
+        return planned;
+    }
+
+    public ProductionChange withTasks(List<ChangeTask> created) {
+        return toBuilder().tasks(Stream.concat(tasks.stream(), created.stream()).toList()).build();
     }
 
     public ProductionChange edited(String shortDescription, String description, ChangeSchedule schedule,
@@ -129,10 +142,12 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         boolean moved = schedule != null
                 && !Objects.equals(schedule.installationStart(), this.schedule.installationStart());
         checkTemplateAndSchedule(edited, schedule, moved ? now : null, problems);
-        validateTasks(tasks.stream().map(ChangeTask::text).toList(), problems);
+        ChangeSchedule planning = getIfNull(schedule, ChangeSchedule.UNPLANNED);
+        List<ChangeTask> planned = planned(tasks, planning, getIfNull(edited, this.template));
+        validateTasks(planned, planning, problems);
         problems.throwIfAny();
         return toBuilder().shortDescription(summary).description(text).schedule(schedule).template(edited)
-                .tasks(tasks).build();
+                .tasks(planned).build();
     }
 
     public ProductionChange rebasedOn(ProductionChange current) {
@@ -199,13 +214,11 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return abbreviateBytes(text, SHORT_DESCRIPTION_MAX);
     }
 
-    static String descriptionOf(ChangeProduct product, List<TaskText> tasks, String fixVersion,
-                                ChangeSchedule schedule, ChangeTemplate template, List<JiraIssue> epics,
-                                List<JiraIssue> stories) {
+    static String descriptionOf(ChangeProduct product, String fixVersion, ChangeSchedule schedule,
+                                ChangeTemplate template, List<JiraIssue> epics, List<JiraIssue> stories) {
         String head = "Production release " + fixVersion + " of " + product.name() + " (" + product.code() + ")"
                 + (product.departmentName() == null ? "" : " in " + product.departmentName()) + ".\n"
                 + schedule.text() + "\n\n"
-                + "Change tasks: " + tasks.stream().map(TaskText::shortDescription).collect(joining("; ")) + ".\n\n"
                 + "Scope from Jira project " + template.jiraProjectKey() + ", FixVersion " + fixVersion + ":\n";
         String tail = "\n" + detailsOf(template);
         List<String> lines = new ArrayList<>();
@@ -243,10 +256,10 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                 problems.add(field, "is listed more than once");
             } else if (known != null && known.state() == CANCELED) {
                 problems.add(field, "is canceled in ProTech");
-            } else if (known != null && known.state() == CLOSED && !known.text().equals(task.text())) {
+            } else if (known != null && known.state() == CLOSED && !known.content().equals(task.content())) {
                 problems.add(field, "is closed in ProTech and cannot be changed");
             }
-            edited.add(task.in(known == null ? OPEN : known.state()));
+            edited.add(known == null ? task.in(OPEN) : known.editedTo(task));
         }
         tasks.stream().filter(task -> task.state() == CLOSED && !listed.contains(task.number()))
                 .forEach(task -> problems.add("tasks", task.number() + " is closed in ProTech and cannot be removed"));
@@ -254,14 +267,20 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         return edited;
     }
 
-    private List<TaskText> texts() {
-        return tasks.stream().filter(task -> task.state() != CANCELED).map(ChangeTask::text).toList();
+    private static List<ChangeTask> planned(List<ChangeTask> requested, ChangeSchedule schedule,
+                                            ChangeTemplate template) {
+        return requested.stream().map(task -> task.plannedIn(schedule, template.configurationItem())).toList();
+    }
+
+    private List<ChangeTask.Content> contents() {
+        return tasks.stream().filter(task -> task.state() != CANCELED).map(ChangeTask::content).toList();
     }
 
     private List<ChangeTask> tasksIn(ProductionChange remote) {
-        Map<String, TaskState> states = remote.tasks.stream().filter(task -> task.number() != null)
-                .collect(toMap(ChangeTask::number, ChangeTask::state, (first, second) -> first));
-        return tasks.stream().map(task -> task.in(states.getOrDefault(task.number(), task.state()))).toList();
+        Map<String, ChangeTask> tracked = remote.tasks.stream().filter(task -> task.number() != null)
+                .collect(toMap(ChangeTask::number, identity(), (first, second) -> first));
+        return tasks.stream().map(task -> tracked.containsKey(task.number())
+                ? tracked.get(task.number()).editedTo(task) : task).toList();
     }
 
     private static String detailsOf(ChangeTemplate template) {

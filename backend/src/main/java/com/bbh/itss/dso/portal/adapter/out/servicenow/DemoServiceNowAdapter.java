@@ -32,6 +32,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeState.ESCALATED_APPROV
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.IMPLEMENTATION;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.PRIMARY_APPROVAL;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.SECONDARY_APPROVAL;
+import static com.bbh.itss.dso.portal.domain.change.ChangeTask.NOT_YET_REQUESTED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS;
@@ -53,6 +54,8 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     static final Duration SHORT_NOTICE = ofHours(24);
     static final Duration ESCALATED_LEAD = ofHours(2);
     static final String CLOSED_REFUSAL = "ProTech does not change a closed change";
+    static final String REQUESTED = "Requested";
+    static final String APPROVED = "Approved";
 
     private final AtomicInteger changes = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final AtomicInteger tasks = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
@@ -68,10 +71,23 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     @Override
     public RaisedChange raise(ProductionChange change) {
         String number = "CHG%07d".formatted(changes.incrementAndGet());
-        List<String> taskNumbers = change.tasks().stream().map(task -> nextTask()).toList();
-        held.put(number, new Held(change.numbered(number, taskNumbers, null),
-                getIfNull(change.createdAt(), () -> now(clock)), List.of(), List.of(), null));
-        return new RaisedChange(number, taskNumbers, null);
+        held.put(number, new Held(change.numbered(number, null), getIfNull(change.createdAt(), () -> now(clock)),
+                List.of(), List.of(), null));
+        return new RaisedChange(number, null);
+    }
+
+    @Override
+    public String createTask(String changeNumber, ChangeTask task) {
+        return createTask(changeNumber, task, now(clock));
+    }
+
+    String createTask(String changeNumber, ChangeTask task, Instant at) {
+        String number = nextTask();
+        held.compute(changeNumber, (key, found) -> {
+            Held current = open(key, found, at);
+            return current.with(current.change().withTasks(List.of(task.numbered(number).in(OPEN))), at);
+        });
+        return number;
     }
 
     @Override
@@ -89,16 +105,8 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     @Override
     public void update(ProductionChange change) {
         Instant now = now(clock);
-        held.compute(change.number(), (number, found) -> {
-            if (found == null) {
-                throw new IllegalStateException("ProTech has no change " + number);
-            }
-            Held current = applied(found, now);
-            if (current.stateAt(now) == CLOSED) {
-                throw new IllegalStateException(CLOSED_REFUSAL);
-            }
-            return current.queued(new Queued(now.plus(properties.protechApplyDelay()), change));
-        });
+        held.compute(change.number(), (number, found) -> open(number, found, now)
+                .queued(new Queued(now.plus(properties.protechApplyDelay()), change)));
     }
 
     static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant now) {
@@ -129,6 +137,22 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             return TaskState.CLOSED;
         }
         return state == IMPLEMENTATION && installing ? WORK_IN_PROGRESS : OPEN;
+    }
+
+    static String approvalOf(ChangeState state) {
+        int reached = state.compareTo(CTASK_APPROVAL);
+        return reached < 0 ? NOT_YET_REQUESTED : reached == 0 ? REQUESTED : APPROVED;
+    }
+
+    private Held open(String number, Held found, Instant now) {
+        if (found == null) {
+            throw new IllegalStateException("ProTech has no change " + number);
+        }
+        Held current = applied(found, now);
+        if (current.stateAt(now) == CLOSED) {
+            throw new IllegalStateException(CLOSED_REFUSAL);
+        }
+        return current;
     }
 
     private Held adopted(ProductionChange known, Instant now) {
@@ -170,7 +194,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         for (ChangeTask task : requested.tasks()) {
             ChangeTask mine = heldTasks.remove(task.number());
             changed.add(mine == null ? task.numbered(null).in(OPEN)
-                    : mine.state().frozen() ? mine : task.in(mine.state()));
+                    : mine.state().frozen() ? mine : mine.editedTo(task));
         }
         List<ChangeTask> dropped = heldTasks.values().stream()
                 .map(task -> task.state().frozen() ? task : task.in(CANCELED)).toList();
@@ -222,8 +246,8 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             boolean installing = !now.isBefore(change.schedule().installationStart());
             return known.toBuilder().shortDescription(change.shortDescription()).description(change.description())
                     .schedule(change.schedule()).template(change.template())
-                    .tasks(change.tasks().stream()
-                            .map(task -> task.in(taskStateOf(task.state(), state, installing))).toList())
+                    .tasks(change.tasks().stream().map(task -> task.approved(approvalOf(state))
+                            .in(taskStateOf(task.state(), state, installing))).toList())
                     .url(change.url()).state(state).workflow(workflow).build();
         }
     }

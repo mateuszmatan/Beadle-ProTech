@@ -9,6 +9,7 @@ import com.bbh.itss.dso.portal.application.change.port.out.ProductionChangeRepos
 import com.bbh.itss.dso.portal.application.change.port.out.ServiceNowPort.RaisedChange;
 import com.bbh.itss.dso.portal.domain.change.ChangeProduct;
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule;
+import com.bbh.itss.dso.portal.domain.change.ChangeTask;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate;
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing;
 import com.bbh.itss.dso.portal.domain.change.ChangeUpdate;
@@ -95,15 +96,19 @@ class DemoProTechChanges {
     }
 
     private ProductionChange staged(ChangeProduct product, Scene scene, Instant now) {
-        ProductionChange draft = drafted(product, scene, now).raisedAt(now.minus(scene.raisedAgo()));
+        ChangeProfileView profile = profiles.get(product.id());
+        ProductionChange draft = drafted(product, profile, scene, now).raisedAt(now.minus(scene.raisedAgo()));
         RaisedChange raised = serviceNow.raise(draft);
-        ProductionChange numbered = draft.numbered(raised.number(), raised.taskNumbers(), raised.url());
-        ProductionChange synced = numbered.synced(serviceNow.read(List.of(numbered)).get(raised.number()), now);
+        ProductionChange numbered = draft.numbered(raised.number(), raised.url());
+        ProductionChange tasked = numbered.withTasks(numbered.plannedTasks(profile.tasks().stream()
+                .map(ChangeTask::of).toList()).stream()
+                .map(task -> task.numbered(serviceNow.createTask(raised.number(), task, draft.createdAt())))
+                .toList());
+        ProductionChange synced = tasked.synced(serviceNow.read(List.of(tasked)).get(raised.number()), now);
         return synced.toBuilder().update(scene.update() == null ? null : updateOf(scene.update(), synced)).build();
     }
 
-    private ProductionChange drafted(ChangeProduct product, Scene scene, Instant now) {
-        ChangeProfileView profile = profiles.get(product.id());
+    private ProductionChange drafted(ChangeProduct product, ChangeProfileView profile, Scene scene, Instant now) {
         List<JiraVersion> versions = changes.versions(product.id(), null);
         String fixVersion = versions.stream().filter(version -> version.released() == scene.startIn().isNegative())
                 .findFirst().orElse(versions.get(0)).name();
@@ -113,7 +118,7 @@ class DemoProTechChanges {
                 .map(JiraIssue::key).toList();
         ChangeSchedule schedule = scheduleOf(now.plus(scene.startIn()).truncatedTo(MINUTES), profile.template());
         return changes.preview(new ChangeCommand(product.id(), fixVersion, epicKeys, storyKeys, schedule,
-                profile.template(), profile.tasks(), null, null));
+                profile.template(), null, null));
     }
 
     static ChangeSchedule scheduleOf(Instant start, ChangeTemplate template) {
