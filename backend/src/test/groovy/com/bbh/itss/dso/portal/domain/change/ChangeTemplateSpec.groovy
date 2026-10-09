@@ -16,7 +16,6 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.GROUP_MAX
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.IMPLEMENTATION_PLAN
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.JIRA_KEY_MESSAGE
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEST_SUMMARY
-import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.TEXT_MAX
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.VALIDATION_PLAN
@@ -38,7 +37,7 @@ class ChangeTemplateSpec extends Specification {
                 .department(' Custody ').assignmentGroup(' TA ').category(' Application ').assignedTo(' Jane Smith ')
                 .type(STANDARD).release(' ').configurationItem(' CertScanner ').incident(' INC0012345 ')
                 .directBusinessService(' Certificates ').problem('').affectedClients(' Clients ')
-                .usersAffected(' Operators ').description(' About ').approvers(new Approvers(' Ann ', ' ', null))
+                .usersAffected(' Operators ').approvers(new Approvers(' Ann ', ' ', null))
                 .timing(new Timing(' 18:00 ', 2, 1)).planning(new Planning(' t ', 'i', ' ', 'b', 'f'))
                 .privilegedAccess(new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]))
                 .riskAssessment(RiskAssessment.builder().bbhWorkgroups(' 2-3 ').businessImpact(' Low ')
@@ -50,33 +49,33 @@ class ChangeTemplateSpec extends Specification {
         trimmed == ChangeTemplate.builder().jiraProjectKey('CERT').requestedFor('Ann Lee').department('Custody')
                 .assignmentGroup('TA').category('Application').assignedTo('Jane Smith').type(STANDARD)
                 .configurationItem('CertScanner').incident('INC0012345').directBusinessService('Certificates')
-                .affectedClients('Clients').usersAffected('Operators').description('About')
+                .affectedClients('Clients').usersAffected('Operators')
                 .approvers(new Approvers('Ann', null, null)).downtime(false).timing(new Timing('18:00', 2, 1))
                 .planning(new Planning('t', 'i', null, 'b', 'f'))
                 .privilegedAccess(new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]))
                 .riskAssessment(RiskAssessment.builder().bbhWorkgroups('2-3').businessImpact('Low').build())
                 .secureCodingTicket('APPSEC-1').build()
         trimmed.risk() == 'Moderate'
-        [empty.jiraProjectKey(), empty.timing(), empty.planning(), empty.risk()] == [null, null, null, null]
+        [empty.jiraProjectKey(), empty.timing(), empty.planning(), empty.risk()] == [null, null, null, 'Low']
         [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment()] ==
-                [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.NONE]
+                [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.DEFAULTS]
     }
 
     def "a template computes its risk from the assessment and ignores the risk it is given"() {
         expect:
         template(risk: 'High').risk() == 'Moderate'
-        template(riskAssessment: null, risk: 'Low').risk() == null
+        template(riskAssessment: null, risk: 'High').risk() == 'Low'
     }
 
     def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
         when:
-        def suggested = suggestedFor(code, 'Product', owner, 'About it')
+        def suggested = suggestedFor(code, 'Product', owner)
 
         then:
         suggested == ChangeTemplate.builder().jiraProjectKey(key).assignmentGroup(group).category('Application')
-                .type(STANDARD).configurationItem('Product').description('About it')
+                .type(STANDARD).configurationItem('Product')
                 .timing(new Timing('18:00', 2, 1)).planning(Planning.SUGGESTED).build()
-        suggested.risk() == null
+        suggested.risk() == 'Low'
         Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
                 FIRST_USE_PLAN)
         VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
@@ -91,15 +90,13 @@ class ChangeTemplateSpec extends Specification {
         'fx-rates_2'  | ' '   || 'FXRA'   | 'Product Support'
     }
 
-    def "the suggested template fits the columns of a long description and a long product name"() {
+    def "the suggested template fits the columns of a long product name"() {
         when:
-        def suggested = suggestedFor('LONG', 'N' * 195, null, 'é' * 2500)
+        def suggested = suggestedFor('LONG', 'N' * 195, null)
 
         then:
         suggested.assignmentGroup().getBytes('UTF-8').length <= GROUP_MAX
         suggested.assignmentGroup().endsWith('...')
-        suggested.description().getBytes('UTF-8').length <= TEXT_MAX
-        suggested.description().endsWith('...')
     }
 
     def "a raised template takes the FixVersion as its release unless it names one"() {

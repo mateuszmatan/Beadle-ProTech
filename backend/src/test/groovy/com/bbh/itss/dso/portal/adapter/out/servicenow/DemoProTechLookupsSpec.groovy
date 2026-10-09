@@ -73,7 +73,7 @@ class DemoProTechLookupsSpec extends Specification {
     def "the values stay within the ProTech fields they fill, however long the names in the portal are"() {
         given:
         def wide = new DemoProTechLookups(Stub(ChangeProductsPort) {
-            findAll() >> [new ChangeProduct(1L, 'LONG', 'Ł' * 200, null, 'Ż' * 200, 3L, 'Custody', null)]
+            findAll() >> [new ChangeProduct(1L, 'LONG', 'Ł' * 200, 'Ż' * 200, 3L, 'Custody', null)]
         }, Stub(DepartmentRepositoryPort) {
             findAll() >> [new Department(9L, 'Ś' * 100, 0)]
         }, Stub(SignedInUserUseCase) {
@@ -128,6 +128,6 @@ class DemoProTechLookupsSpec extends Specification {
     }
 
     static ChangeProduct summary(String code, String name, String ownerTeam, String department) {
-        new ChangeProduct(1L, code, name, null, ownerTeam, 3L, department, null)
+        new ChangeProduct(1L, code, name, ownerTeam, 3L, department, null)
     }
 }

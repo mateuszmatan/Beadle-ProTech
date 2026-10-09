@@ -8,7 +8,17 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.function.Function;
 
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.BACKOUT_TESTING;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.BBH_APPLICATIONS;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.BBH_USERS;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.BBH_WORKGROUPS;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.BUSINESS_IMPACT;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.CHANGE_COMPLEXITY;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.CLIENTS_OUTSIDE_BBH;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.PLATFORM_STATUS;
+import static com.bbh.itss.dso.portal.domain.change.RiskAssessment.Question.VALIDATION_COMPLEXITY;
 import static java.util.Arrays.stream;
+import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 @Builder(toBuilder = true)
@@ -16,46 +26,44 @@ public record RiskAssessment(String bbhWorkgroups, String changeComplexity, Stri
                              String validationComplexity, String bbhApplications, String backoutTesting,
                              String clientsOutsideBbh, String platformStatus, String businessImpact) {
 
-    public static final RiskAssessment NONE = builder().build();
+    public static final RiskAssessment DEFAULTS = builder().build();
     public static final String LOW = "Low";
     public static final String MODERATE = "Moderate";
     public static final String HIGH = "High";
 
     public RiskAssessment {
-        bbhWorkgroups = trimToNull(bbhWorkgroups);
-        changeComplexity = trimToNull(changeComplexity);
-        bbhUsers = trimToNull(bbhUsers);
-        validationComplexity = trimToNull(validationComplexity);
-        bbhApplications = trimToNull(bbhApplications);
-        backoutTesting = trimToNull(backoutTesting);
-        clientsOutsideBbh = trimToNull(clientsOutsideBbh);
-        platformStatus = trimToNull(platformStatus);
-        businessImpact = trimToNull(businessImpact);
+        bbhWorkgroups = answered(bbhWorkgroups, BBH_WORKGROUPS);
+        changeComplexity = answered(changeComplexity, CHANGE_COMPLEXITY);
+        bbhUsers = answered(bbhUsers, BBH_USERS);
+        validationComplexity = answered(validationComplexity, VALIDATION_COMPLEXITY);
+        bbhApplications = answered(bbhApplications, BBH_APPLICATIONS);
+        backoutTesting = answered(backoutTesting, BACKOUT_TESTING);
+        clientsOutsideBbh = answered(clientsOutsideBbh, CLIENTS_OUTSIDE_BBH);
+        platformStatus = answered(platformStatus, PLATFORM_STATUS);
+        businessImpact = answered(businessImpact, BUSINESS_IMPACT);
+    }
+
+    private static String answered(String answer, Question question) {
+        return getIfNull(trimToNull(answer), question.options().getFirst());
     }
 
     String risk() {
-        List<Question> answered = stream(Question.values()).filter(question -> question.answerIn(this) != null)
-                .toList();
-        if (answered.isEmpty()) {
-            return null;
-        }
-        if (answered.stream().anyMatch(question -> question.rankIn(this) == question.options().size() - 1)) {
+        if (stream(Question.values()).anyMatch(question -> question.rankIn(this) == question.options().size() - 1)) {
             return HIGH;
         }
-        return answered.stream().anyMatch(question -> question.rankIn(this) > 0) ? MODERATE : LOW;
+        return stream(Question.values()).anyMatch(question -> question.rankIn(this) > 0) ? MODERATE : LOW;
     }
 
     void validate(ValidationProblems problems) {
         for (Question question : Question.values()) {
-            if (question.answerIn(this) != null && question.rankIn(this) < 0) {
+            if (question.rankIn(this) < 0) {
                 problems.add(question.field(), "must be one of " + String.join(", ", question.options()));
             }
         }
     }
 
     List<String> lines() {
-        return stream(Question.values()).filter(question -> question.answerIn(this) != null)
-                .map(question -> question.label() + ": " + question.answerIn(this)).toList();
+        return stream(Question.values()).map(question -> question.label() + ": " + question.answerIn(this)).toList();
     }
 
     @RequiredArgsConstructor

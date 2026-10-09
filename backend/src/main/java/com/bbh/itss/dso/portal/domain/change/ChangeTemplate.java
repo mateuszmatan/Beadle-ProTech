@@ -25,7 +25,7 @@ import static org.apache.commons.lang3.StringUtils.upperCase;
 public record ChangeTemplate(String jiraProjectKey, String requestedFor, String requestedBy, String department,
                              String assignmentGroup, String category, String assignedTo, Type type, String release,
                              String configurationItem, String incident, String directBusinessService, String problem,
-                             String risk, String affectedClients, String usersAffected, String description,
+                             String risk, String affectedClients, String usersAffected,
                              Approvers approvers, Boolean downtime, Timing timing, Planning planning,
                              PrivilegedAccess privilegedAccess, RiskAssessment riskAssessment,
                              String secureCodingTicket) {
@@ -88,20 +88,19 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         problem = trimToNull(problem);
         affectedClients = trimToNull(affectedClients);
         usersAffected = trimToNull(usersAffected);
-        description = trimToNull(description);
         approvers = getIfNull(approvers, Approvers.NONE);
         downtime = isTrue(downtime);
         privilegedAccess = getIfNull(privilegedAccess, PrivilegedAccess.NONE);
-        riskAssessment = getIfNull(riskAssessment, RiskAssessment.NONE);
+        riskAssessment = getIfNull(riskAssessment, RiskAssessment.DEFAULTS);
         risk = riskAssessment.risk();
         secureCodingTicket = trimToNull(secureCodingTicket);
     }
 
-    public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam, String description) {
+    public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam) {
         return builder().jiraProjectKey(jiraKeyOf(code))
                 .assignmentGroup(abbreviateBytes(defaultIfBlank(trim(ownerTeam), name + " Support"), GROUP_MAX))
                 .category(CATEGORIES.getFirst()).type(STANDARD).configurationItem(name)
-                .description(abbreviateBytes(description, TEXT_MAX)).timing(Timing.SUGGESTED)
+                .timing(Timing.SUGGESTED)
                 .planning(Planning.SUGGESTED).build();
     }
 
@@ -153,7 +152,6 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
                 .fits("problem", problem, NUMBER_MAX)
                 .fits("affectedClients", affectedClients, TEXT_MAX)
                 .fits("usersAffected", usersAffected, TEXT_MAX)
-                .fits("description", description, TEXT_MAX)
                 .fits("secureCodingTicket", secureCodingTicket, NUMBER_MAX);
         approvers.validate(problems.at("approvers"));
         if (timing != null) {

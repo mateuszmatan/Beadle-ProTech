@@ -157,6 +157,6 @@ class DemoProTechChangesSpec extends Specification {
     }
 
     static ChangeProduct summary(long id, String name, String department, Long departmentId) {
-        new ChangeProduct(id, name.toUpperCase(), name, null, null, departmentId, department, null)
+        new ChangeProduct(id, name.toUpperCase(), name, null, departmentId, department, null)
     }
 }
