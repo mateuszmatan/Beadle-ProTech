@@ -44,7 +44,7 @@ public record RiskAssessment(String bbhWorkgroups, String changeComplexity, Stri
     }
 
     private static String answered(String answer, Question question) {
-        return getIfNull(trimToNull(answer), question.options().getFirst());
+        return getIfNull(trimToNull(answer), question.options().get(0));
     }
 
     String risk() {
