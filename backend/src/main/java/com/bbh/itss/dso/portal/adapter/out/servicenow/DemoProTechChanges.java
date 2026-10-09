@@ -106,7 +106,7 @@ class DemoProTechChanges {
         ChangeProfileView profile = profiles.get(product.id());
         List<JiraVersion> versions = changes.versions(product.id(), null);
         String fixVersion = versions.stream().filter(version -> version.released() == scene.startIn().isNegative())
-                .findFirst().orElse(versions.getFirst()).name();
+                .findFirst().orElse(versions.get(0)).name();
         List<String> epicKeys = changes.epics(product.id(), fixVersion, null).stream().limit(2)
                 .map(JiraIssue::key).toList();
         List<String> storyKeys = changes.stories(product.id(), fixVersion, epicKeys, null).stream()

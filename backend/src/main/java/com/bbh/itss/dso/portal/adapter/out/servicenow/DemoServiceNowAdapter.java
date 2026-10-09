@@ -134,7 +134,11 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     private Held adopted(ProductionChange known, Instant now) {
         List<WorkflowStep> reached = known.workflow();
         return new Held(known.toBuilder().tasks(numbered(known.tasks())).build(), getIfNull(known.createdAt(), now),
-                List.of(), reached, reached.isEmpty() ? null : reached.getLast().enteredAt());
+                List.of(), reached, reached.isEmpty() ? null : last(reached).enteredAt());
+    }
+
+    private static WorkflowStep last(List<WorkflowStep> steps) {
+        return steps.get(steps.size() - 1);
     }
 
     private List<ChangeTask> numbered(List<ChangeTask> changed) {
@@ -201,7 +205,7 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             if (kept.isEmpty()) {
                 return workflowOf(raisedAt, change.schedule(), now);
             }
-            ChangeState reached = kept.getLast().state();
+            ChangeState reached = last(kept).state();
             return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), MAX).stream()
                     .filter(step -> step.state().compareTo(reached) > 0)
                     .map(step -> new WorkflowStep(step.state(), max(step.enteredAt(), rescheduledAt)))
@@ -209,12 +213,12 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         }
 
         ChangeState stateAt(Instant now) {
-            return workflowAt(now).getLast().state();
+            return last(workflowAt(now)).state();
         }
 
         ProductionChange copyFor(ProductionChange known, Instant now) {
             List<WorkflowStep> workflow = workflowAt(now);
-            ChangeState state = workflow.getLast().state();
+            ChangeState state = last(workflow).state();
             boolean installing = !now.isBefore(change.schedule().installationStart());
             return known.toBuilder().shortDescription(change.shortDescription()).description(change.description())
                     .schedule(change.schedule()).template(change.template())
