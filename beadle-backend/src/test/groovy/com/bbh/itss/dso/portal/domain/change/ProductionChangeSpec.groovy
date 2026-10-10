@@ -366,7 +366,23 @@ class ProductionChangeSpec extends Specification {
 
         then:
         synced.update().fields() == ['tasks']
-        synced.tasks() == [raised().tasks()[0].in(WORK_IN_PROGRESS), ctask(null, 'New task', 'A new task.', OPEN)]
+        synced.tasks() == [raised().tasks()[0].in(WORK_IN_PROGRESS).withApproval(APPROVED, ['Daniel Foster']),
+                           ctask(null, 'New task', 'A new task.', OPEN)]
+        synced.state() == CTASK_APPROVAL
+    }
+
+    def "a change ProTech holds in Implementation is In Progress in Beadle only when #tasks"() {
+        expect:
+        raised().synced(remote(tasks: tasks), NOW).state() == state
+        raised().synced(remote(state: ChangeState.CLOSED, tasks: []), NOW).state() == ChangeState.CLOSED
+
+        where:
+        tasks                                                                             || state
+        []                                                                                || CTASK_APPROVAL
+        [task(1).withApproval(APPROVED, []), task(2).withApproval(REQUESTED, [])]         || CTASK_APPROVAL
+        [task(1).withApproval(NOT_APPROVED, []), task(2).in(CANCELED)]                    || CTASK_APPROVAL
+        [task(1).withApproval(APPROVED, []), task(2).in(CANCELED)]                        || IMPLEMENTATION
+        [task(1).withApproval(APPROVED, []), task(2).withApproval(APPROVED, [])]          || IMPLEMENTATION
     }
 
     def "an update that could not be checked waits with every path it changed and says why"() {
@@ -620,6 +636,6 @@ class ProductionChangeSpec extends Specification {
         raised([url: 'https://protech/CHG', state: IMPLEMENTATION,
                 workflow: [new WorkflowStep(DRAFT, RAISED), new WorkflowStep(BUSINESS_APPROVAL, RAISED.plusSeconds(120)),
                            new WorkflowStep(IMPLEMENTATION, RAISED.plusSeconds(600))],
-                tasks: raised().tasks().collect { it.in(WORK_IN_PROGRESS) }] + changes)
+                tasks: raised().tasks().collect { it.in(WORK_IN_PROGRESS).withApproval(APPROVED, ['Daniel Foster']) }] + changes)
     }
 }

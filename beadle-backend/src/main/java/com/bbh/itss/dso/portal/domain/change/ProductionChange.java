@@ -18,7 +18,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.CTASK_APPROVAL;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT;
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.IMPLEMENTATION;
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CLOSED;
@@ -196,14 +198,19 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         ChangeUpdate checked = update == null ? null : update.checked(unappliedIn(remote), now);
         boolean waiting = checked != null && checked.pending();
         ProductionChange values = waiting ? this : remote;
+        List<ChangeTask> synced = remindersKept(waiting ? tasksIn(remote) : remote.tasks);
         return toBuilder().shortDescription(values.shortDescription).description(values.description)
-                .schedule(values.schedule).template(template.edited(values.template))
-                .tasks(remindersKept(waiting ? tasksIn(remote) : remote.tasks)).url(remote.url).state(remote.state)
+                .schedule(values.schedule).template(template.edited(values.template)).tasks(synced).url(remote.url)
+                .state(remote.state == IMPLEMENTATION && !approved(synced) ? CTASK_APPROVAL : remote.state)
                 .workflow(remote.workflow).approvals(approvalsIn(remote)).update(checked).syncedAt(now)
                 .syncProblem(null).build();
     }
 
     public boolean tasksApproved() {
+        return approved(tasks);
+    }
+
+    private static boolean approved(List<ChangeTask> tasks) {
         List<ChangeTask> active = tasks.stream().filter(ChangeTask::active).toList();
         return !active.isEmpty() && active.stream().noneMatch(ChangeTask::awaited);
     }

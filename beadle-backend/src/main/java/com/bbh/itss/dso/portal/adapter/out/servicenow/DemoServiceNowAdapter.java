@@ -273,8 +273,8 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         }
 
         Held with(ProductionChange applied, Instant at) {
-            List<ChangeTask> added = applied.tasks().stream().filter(task -> !tasked.containsKey(task.number()))
-                    .toList();
+            List<ChangeTask> added = applied.tasks().stream()
+                    .filter(task -> !tasked.containsKey(task.number()) || regrouped(task)).toList();
             Map<String, Instant> known = new HashMap<>(tasked);
             added.forEach(task -> known.put(task.number(), at));
             ChangeState state = stateAt(at);
@@ -287,6 +287,11 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             return new Held(applied, raisedAt, queued, reopened
                     ? Stream.concat(reached.stream(), Stream.of(new WorkflowStep(CTASK_APPROVAL, at))).toList()
                     : reached, at, known);
+        }
+
+        private boolean regrouped(ChangeTask task) {
+            return change.tasks().stream().anyMatch(held -> task.number().equals(held.number())
+                    && !Objects.equals(held.details().assignmentGroup(), task.details().assignmentGroup()));
         }
 
         Map<String, Instant> approvedAt() {

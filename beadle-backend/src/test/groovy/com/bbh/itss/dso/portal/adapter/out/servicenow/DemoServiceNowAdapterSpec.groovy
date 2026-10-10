@@ -167,6 +167,29 @@ class DemoServiceNowAdapterSpec extends Specification {
         approved.workflow().last() == new WorkflowStep(IMPLEMENTATION, RAISED.plus(ofMinutes(34)))
     }
 
+    def "a change task moved to another assignment group is asked again from the approvers of its new group"() {
+        given:
+        def known = raise(change(1))
+        def moved = known.tasks()[0].editedTo(ChangeTask.of(known.tasks()[0].details().toBuilder()
+                .assignmentGroup('Database Administration').build()))
+        clock.instant = RAISED.plus(ofMinutes(30))
+
+        when:
+        serviceNow.update(known.toBuilder().tasks([moved]).build())
+        clock.instant = RAISED.plus(ofMinutes(30)).plusSeconds(3)
+        def asked = serviceNow.read([known])[known.number()]
+        clock.instant = RAISED.plus(ofMinutes(32)).plusSeconds(3)
+        def approved = serviceNow.read([known])[known.number()]
+
+        then:
+        known.tasks()[0].details().assignmentGroup() == 'Technology Architecture'
+        asked.state() == CTASK_APPROVAL
+        asked.tasks().collect { [it.number(), it.approval(), it.approvers()] } ==
+                [[moved.number(), REQUESTED, ['Henry Collins', 'Kenji Watanabe']]]
+        approved.state() == IMPLEMENTATION
+        approved.tasks()*.approval() == [APPROVED]
+    }
+
     def "ProTech reminds the approver of a role or the approvers of a change task and records whom it reminded"() {
         given:
         def known = raise(change(1))
