@@ -22,7 +22,7 @@ import java.time.LocalDate
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN
-import static com.bbh.itss.dso.portal.support.Fixtures.copy
+import static com.bbh.itss.dso.portal.support.CatalogFixtures.copy
 
 class ChangeFixtures {
 

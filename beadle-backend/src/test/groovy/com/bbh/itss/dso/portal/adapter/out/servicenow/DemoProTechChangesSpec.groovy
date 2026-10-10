@@ -38,7 +38,6 @@ import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.tasks
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
-import static com.bbh.itss.dso.portal.support.Fixtures.product
 import static java.time.Clock.fixed
 import static java.time.Duration.ofHours
 import static java.time.Duration.ofMinutes

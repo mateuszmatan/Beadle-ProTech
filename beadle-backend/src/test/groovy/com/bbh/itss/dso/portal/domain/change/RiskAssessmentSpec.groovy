@@ -5,7 +5,7 @@ import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
 
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.risk
-import static com.bbh.itss.dso.portal.support.Fixtures.copy
+import static com.bbh.itss.dso.portal.support.CatalogFixtures.copy
 
 class RiskAssessmentSpec extends Specification {
 

@@ -48,7 +48,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
 
     public static final String TEST_SUMMARY = """
             Unit, smoke, regression and performance tests and the security scans of the DevSecOps \
-            pipeline passed on QC; Change Evidence in the DevSecOps portal holds the results.""";
+            pipeline passed on QC.""";
     public static final String IMPLEMENTATION_PLAN = """
             1. Carry out the change tasks in the order listed.
             2. Run the smoke tests of the DevSecOps pipeline against production.
