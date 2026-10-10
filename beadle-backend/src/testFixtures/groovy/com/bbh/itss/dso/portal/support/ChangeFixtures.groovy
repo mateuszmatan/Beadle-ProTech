@@ -12,6 +12,7 @@ import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.dso.portal.domain.change.JiraIssue
 import com.bbh.itss.dso.portal.domain.change.ProductionChange
 import com.bbh.itss.dso.portal.domain.change.RiskAssessment
+import com.bbh.itss.dso.portal.domain.change.SecureCoding
 import com.bbh.itss.dso.portal.domain.change.TaskDetails
 import com.bbh.itss.dso.portal.domain.change.TaskState
 import com.bbh.itss.dso.portal.domain.change.WorkflowStep
@@ -39,6 +40,20 @@ class ChangeFixtures {
                 .category('Application').type(STANDARD).configurationItem('CertScanner')
                 .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'))
                 .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
+    }
+
+    static SecureCoding secureCoding(Map changes = [:]) {
+        copy(changes, new SecureCoding('APO-12345', 'https://bitbucket.bbh.com/projects/CERT/repos/cert',
+                'https://jenkins.bbh.com/job/CERT/job/cert-release/', 'https://cert.qc.bbh.com'))
+    }
+
+    static Map secureCodingJson(Map changes = [:]) {
+        secureCodingJson(secureCoding(changes))
+    }
+
+    static Map secureCodingJson(SecureCoding inputs) {
+        [apoNumber: inputs.apoNumber(), bitbucketUrl: inputs.bitbucketUrl(), artifactLink: inputs.artifactLink(),
+         qcApplicationLink: inputs.qcApplicationLink()]
     }
 
     static RiskAssessment risk(Map changes = [:]) {
@@ -150,7 +165,8 @@ class ChangeFixtures {
                                          validationComplexity: 'Simple', bbhApplications: 'Single',
                                          backoutTesting: 'Less than 30 minutes', clientsOutsideBbh: 'No clients',
                                          platformStatus: 'Existing', businessImpact: 'Low'],
-                    secureCodingTicket: null]
+                    secureCodingTicket: null,
+                    secureCoding      : secureCodingJson(SecureCoding.NONE)]
         changes.each { String path, value ->
             List<String> keys = path.tokenize('.')
             Map target = keys.init().inject(json) { Map map, String key -> map[key] as Map }

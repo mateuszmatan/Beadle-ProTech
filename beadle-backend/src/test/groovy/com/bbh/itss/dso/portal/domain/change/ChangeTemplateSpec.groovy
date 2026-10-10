@@ -42,7 +42,7 @@ class ChangeTemplateSpec extends Specification {
                 .privilegedAccess(new PrivilegedAccess(null, [new PrivilegedUser(' Jane ', ' adm_jane '), null]))
                 .riskAssessment(RiskAssessment.builder().bbhWorkgroups(' 2-3 ').businessImpact(' Low ')
                         .changeComplexity(' ').build())
-                .secureCodingTicket(' APPSEC-1 ').build()
+                .secureCodingTicket(' SCP-1 ').secureCoding(new SecureCoding(' APO-1 ', ' ', null, ' https://qc ')).build()
         def empty = ChangeTemplate.builder().build()
 
         then:
@@ -54,11 +54,11 @@ class ChangeTemplateSpec extends Specification {
                 .planning(new Planning('t', 'i', null, 'b', 'f'))
                 .privilegedAccess(new PrivilegedAccess(false, [new PrivilegedUser('Jane', 'adm_jane'), null]))
                 .riskAssessment(RiskAssessment.builder().bbhWorkgroups('2-3').businessImpact('Low').build())
-                .secureCodingTicket('APPSEC-1').build()
+                .secureCodingTicket('SCP-1').secureCoding(new SecureCoding('APO-1', null, null, 'https://qc')).build()
         trimmed.risk() == 'Moderate'
         [empty.jiraProjectKey(), empty.timing(), empty.planning(), empty.risk()] == [null, null, null, 'Low']
-        [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment()] ==
-                [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.DEFAULTS]
+        [empty.approvers(), empty.downtime(), empty.privilegedAccess(), empty.riskAssessment(), empty.secureCoding()] ==
+                [Approvers.NONE, false, PrivilegedAccess.NONE, RiskAssessment.DEFAULTS, SecureCoding.NONE]
     }
 
     def "a template computes its risk from the assessment and ignores the risk it is given"() {
@@ -126,6 +126,7 @@ class ChangeTemplateSpec extends Specification {
         problems(template(privilegedAccess: privileged(1))) == []
         problems(template(privilegedAccess: privileged(7))) == []
         problems(template(approvers: null, riskAssessment: null)) == []
+        problems(template(secureCoding: new SecureCoding('APO-1', 'https://' + 'b' * 492, 'http://nexus', null))) == []
     }
 
     def "a template is refused when #problem"() {
@@ -136,6 +137,8 @@ class ChangeTemplateSpec extends Specification {
         problem                                  | edits                                                       || expected
         'it misses its required texts'           | [jiraProjectKey: ' ', assignmentGroup: null, category: '', type: null, configurationItem: ' '] || ['template.jiraProjectKey is required', 'template.assignmentGroup is required', 'template.category is required', 'template.type is required', 'template.configurationItem is required']
         'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey ' + JIRA_KEY_MESSAGE]
+        'secure coding links are no links'       | [secureCoding: new SecureCoding('APO-1', 'bitbucket.bbh.com/projects/CERT', null, 'ftp://cert')] || ['template.secureCoding.bitbucketUrl ' + SecureCoding.LINK_MESSAGE, 'template.secureCoding.qcApplicationLink ' + SecureCoding.LINK_MESSAGE]
+        'secure coding inputs are too long'      | [secureCoding: new SecureCoding('A' * 41, 'https://' + 'b' * 493, null, null)] || ['template.secureCoding.apoNumber is too long: it may take at most 40 bytes', 'template.secureCoding.bitbucketUrl is too long: it may take at most 500 bytes']
         'it has no timing and no planning'       | [timing: null, planning: null]                              || ['template.timing is required', 'template.planning is required']
         'a planning text is missing'             | [planning: new Planning('t', ' ', 'v', null, 'f')]          || ['template.planning.implementationPlan is required', 'template.planning.backoutPlan is required']
         'the installation starts at no time'     | [timing: new Timing('6pm', 2, 1)]                           || ['template.timing.installationStart must be a time of day such as 18:00']
