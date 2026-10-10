@@ -167,20 +167,22 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         secureCoding.validate(problems.at("secureCoding"));
     }
 
-    public record Approvers(String l1Manager, String l2Manager, String businessApprover) {
+    public record Approvers(String l1Manager, String l2Manager, String businessApprover, String supportApprover) {
 
-        public static final Approvers NONE = new Approvers(null, null, null);
+        public static final Approvers NONE = new Approvers(null, null, null, null);
 
         public Approvers {
             l1Manager = trimToNull(l1Manager);
             l2Manager = trimToNull(l2Manager);
             businessApprover = trimToNull(businessApprover);
+            supportApprover = trimToNull(supportApprover);
         }
 
         void validate(ValidationProblems problems) {
             problems.fits("l1Manager", l1Manager, GROUP_MAX)
                     .fits("l2Manager", l2Manager, GROUP_MAX)
-                    .fits("businessApprover", businessApprover, GROUP_MAX);
+                    .fits("businessApprover", businessApprover, GROUP_MAX)
+                    .fits("supportApprover", supportApprover, GROUP_MAX);
         }
     }
 

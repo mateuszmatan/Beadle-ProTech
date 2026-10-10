@@ -1,5 +1,6 @@
 package com.bbh.itss.dso.portal.support
 
+import com.bbh.itss.dso.portal.domain.change.ChangeApproval
 import com.bbh.itss.dso.portal.domain.change.ChangeProduct
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule
 import com.bbh.itss.dso.portal.domain.change.ChangeTask
@@ -38,7 +39,7 @@ class ChangeFixtures {
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
                 .category('Application').type(STANDARD).configurationItem('CertScanner')
-                .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson'))
+                .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson', 'Jane Smith'))
                 .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
     }
 
@@ -118,12 +119,12 @@ class ChangeFixtures {
     static ChangeTask ctask(String number, String shortDescription, String description, TaskState state) {
         new ChangeTask(number, TaskDetails.builder().assignmentGroup('Technology Architecture')
                 .configurationItem('CertScanner').shortDescription(shortDescription).description(description).build(),
-                null, null, state)
+                null, null, null, null, state)
     }
 
     static ChangeTask releaseTask(Map changes = [:], String start = '2026-10-10T06:01:00Z') {
         new ChangeTask(null, details(3, [assignmentGroup: 'Release Management', application: 'CertScanner'] + changes),
-                start == null ? null : at(start), null, OPEN)
+                start == null ? null : at(start), null, null, null, OPEN)
     }
 
     static ProductionChange raised(Map changes = [:]) {
@@ -133,7 +134,8 @@ class ChangeFixtures {
                 .description('Production release CERT 4.2 of CertScanner.').template(template(release: FIX_VERSION))
                 .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
                 .tasks([task(1), task(2)])
-                .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)]).syncedAt(RAISED).version(0L)
+                .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)])
+                .approvals(ChangeApproval.of(template().approvers())).syncedAt(RAISED).version(0L)
                 .createdAt(RAISED).build())
     }
 
@@ -152,7 +154,7 @@ class ChangeFixtures {
                     incident          : null, directBusinessService: null, problem: null, risk: 'Moderate',
                     affectedClients   : null, usersAffected: null,
                     approvers         : [l1Manager: 'Olivia Bennett', l2Manager: 'James Carter',
-                                         businessApprover: 'Rebecca Lawson'],
+                                         businessApprover: 'Rebecca Lawson', supportApprover: 'Jane Smith'],
                     downtime          : false,
                     timing            : [installationStart: '18:00', installationHours: 2, validationHours: 1],
                     planning          : [testSummary       : 'Pipeline tests passed on QC.',
