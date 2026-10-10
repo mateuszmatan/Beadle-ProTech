@@ -8,9 +8,18 @@ import spock.lang.Specification
 
 import java.time.Instant
 
+import static com.bbh.itss.dso.portal.domain.change.ApprovalRole.BUSINESS
+import static com.bbh.itss.dso.portal.domain.change.ApprovalRole.L1
+import static com.bbh.itss.dso.portal.domain.change.ApprovalRole.L2
+import static com.bbh.itss.dso.portal.domain.change.ApprovalRole.SUPPORT
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.APPROVED
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.NOT_APPROVED
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.REQUESTED
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.BUSINESS_APPROVAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.CTASK_APPROVAL
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.IMPLEMENTATION
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.PRIMARY_APPROVAL
 import static com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.NOT_APPLIED_MESSAGE
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.APPLIED
@@ -204,6 +213,10 @@ class ProductionChangeSpec extends Specification {
                 [drafted.fixVersion(), drafted.schedule(), drafted.template()]
         raised.shortDescription() == drafted.shortDescription()
         raised.description() == drafted.description()
+        raised.approvals() == [new ChangeApproval(BUSINESS, 'Rebecca Lawson', NOT_APPROVED, null),
+                               new ChangeApproval(L1, 'Olivia Bennett', NOT_APPROVED, null),
+                               new ChangeApproval(L2, 'James Carter', NOT_APPROVED, null),
+                               new ChangeApproval(SUPPORT, 'Jane Smith', NOT_APPROVED, null)]
     }
 
     def "a secure coding ticket is stored with the inputs it was created from and changes nothing else"() {
@@ -446,7 +459,7 @@ class ProductionChangeSpec extends Specification {
 
         when:
         def planned = change.plannedTasks([releaseTask([configurationItem: null], null).numbered('CTASK9')
-                                                   .approved('Approved').in(CLOSED), ChangeTask.of(details(2))])
+                                                   .withApproval(APPROVED, ['Ann Lee']).in(CLOSED), ChangeTask.of(details(2))])
 
         then:
         planned == [releaseTask([configurationItem: 'CertScanner'], '2026-10-10T06:01:00Z'),
@@ -506,6 +519,101 @@ class ProductionChangeSpec extends Specification {
         expect:
         raised().edited('Short', 'Text', schedule(), template(), raised().tasks(), Instant.parse('2026-10-11T00:00:00Z'))
                 .schedule() == schedule()
+    }
+
+    def "the change tasks are approved only when every active task is approved and there is at least one"() {
+        expect:
+        raised(tasks: tasks).tasksApproved() == approved
+
+        where:
+        tasks                                                                         || approved
+        []                                                                            || false
+        [task(1).withApproval(APPROVED, [])]                                          || true
+        [task(1).withApproval(APPROVED, []), task(2).withApproval(REQUESTED, [])]     || false
+        [task(1).withApproval(APPROVED, []), task(2).withApproval(NOT_APPROVED, [])]  || false
+        [task(1).withApproval(APPROVED, []), task(2).in(CANCELED)]                    || true
+        [task(1).in(CANCELED)]                                                        || false
+    }
+
+    def "a reminder to everyone goes to each named approver of the change and of each active task who has not approved yet"() {
+        given:
+        def change = raised(state: CTASK_APPROVAL, approvals: [
+                new ChangeApproval(BUSINESS, 'Rebecca Lawson', APPROVED, null),
+                new ChangeApproval(L1, 'Olivia Bennett', REQUESTED, null),
+                new ChangeApproval(L2, null, NOT_APPROVED, null),
+                new ChangeApproval(SUPPORT, 'Jane Smith', NOT_APPROVED, null)],
+                tasks: [task(1).withApproval(APPROVED, ['Ann Lee']), task(2).withApproval(REQUESTED, ['Ann Lee']),
+                        ctask('CTASK3', 'Three', 'Third.', CANCELED).withApproval(REQUESTED, ['Ann Lee']),
+                        ctask('CTASK4', 'Four', 'Fourth.', OPEN),
+                        ctask('CTASK5', 'Five', 'Fifth.', OPEN).withApproval(NOT_APPROVED, ['Grace Turner'])])
+
+        expect:
+        change.toRemind(null, null) == [ApprovalRef.of(L1), ApprovalRef.of(SUPPORT), ApprovalRef.ofTask('CTASK0041002'),
+                                        ApprovalRef.ofTask('CTASK5')]
+        change.toRemind(L1, null) == [ApprovalRef.of(L1)]
+        change.toRemind(null, 'CTASK5') == [ApprovalRef.ofTask('CTASK5')]
+    }
+
+    def "a reminder is refused when #refusal"() {
+        given:
+        def change = raised(state: state, approvals: [new ChangeApproval(BUSINESS, 'Rebecca Lawson', APPROVED, null),
+                                                      new ChangeApproval(L1, null, REQUESTED, null)],
+                tasks: [task(1).withApproval(APPROVED, ['Ann Lee']),
+                        ctask('CTASK2', 'Two', 'Second.', CANCELED).withApproval(REQUESTED, ['Ann Lee']),
+                        ctask('CTASK3', 'Three', 'Third.', OPEN)])
+
+        when:
+        change.toRemind(role, task)
+
+        then:
+        def refused = thrown(type)
+        refused.message == message
+
+        where:
+        refusal                         | state                        | role     | task           || type                    | message
+        'the change is closed'          | ChangeState.CLOSED           | null     | null           || IllegalStateException   | 'CHG0031001 is closed in ProTech, so nobody is reminded to approve it'
+        'it names a role and a task'    | PRIMARY_APPROVAL             | L1       | 'CTASK3'       || InvalidRequestException | 'Remind the approvers of either the change or one change task'
+        'the role already approved'     | PRIMARY_APPROVAL             | BUSINESS | null           || IllegalStateException   | 'The business approver already approved CHG0031001'
+        'the role names nobody'         | PRIMARY_APPROVAL             | L1       | null           || IllegalStateException   | 'No L1 approver is named on CHG0031001, so ProTech has nobody to remind'
+        'ProTech holds no such role'    | PRIMARY_APPROVAL             | SUPPORT  | null           || IllegalStateException   | 'ProTech has no support approver on CHG0031001'
+        'the task is not on the change' | CTASK_APPROVAL               | null     | 'CTASK9'       || InvalidRequestException | 'CTASK9 is not a change task of CHG0031001'
+        'the task is canceled'          | CTASK_APPROVAL               | null     | 'CTASK2'       || IllegalStateException   | 'CTASK2 is canceled in ProTech'
+        'the task is approved'          | CTASK_APPROVAL               | null     | 'CTASK0041001' || IllegalStateException   | 'CTASK0041001 is already approved'
+        'the task names no approvers'   | CTASK_APPROVAL               | null     | 'CTASK3'       || IllegalStateException   | 'ProTech names no approvers of CTASK3 yet'
+        'nobody named has to approve'   | CTASK_APPROVAL               | null     | null           || IllegalStateException   | 'Nobody named on CHG0031001 still has to approve it'
+    }
+
+    def "the reminders sent are kept on their approvals and survive the next read from ProTech"() {
+        given:
+        def sent = new Reminder(NOW, ['Olivia Bennett'])
+        def toTask = new Reminder(NOW, ['Ann Lee', 'Grace Turner'])
+        def change = raised(tasks: [task(1), task(2)])
+
+        when:
+        def reminded = change.reminded([(ApprovalRef.of(L1)): sent, (ApprovalRef.ofTask('CTASK0041002')): toTask])
+        def synced = reminded.synced(remote(approvals: ChangeApproval.of(template().approvers()).collect {
+            new ChangeApproval(it.role(), it.approver(), APPROVED, null)
+        }, tasks: raised().tasks().collect { it.withApproval(APPROVED, ['Ann Lee']) }), NOW)
+
+        then:
+        reminded.approvals()*.reminder() == [null, sent, null, null]
+        reminded.tasks()*.reminder() == [null, toTask]
+        reminded.toBuilder().approvals(change.approvals()).tasks(change.tasks()).build() == change
+        reminded.unappliedIn(change) == []
+        synced.approvals()*.state() == [APPROVED] * 4
+        synced.approvals()*.reminder() == [null, sent, null, null]
+        synced.tasks()*.approval() == [APPROVED] * 2
+        synced.tasks()*.reminder() == [null, toTask]
+        reminded.synced(remote(approvals: []), NOW).approvals() == reminded.approvals()
+    }
+
+    def "a change approval and a reminder trim their names and keep at most nine people"() {
+        expect:
+        new ChangeApproval(L1, '  ', null, new Reminder(null, ['Ann'])) == new ChangeApproval(L1, null, NOT_APPROVED, null)
+        new ChangeApproval(L1, ' Ann Lee ', REQUESTED, null).approver() == 'Ann Lee'
+        new Reminder(NOW, (1..12).collect { " Person $it ".toString() } + [' Person 1', null, ' ']).sentTo() ==
+                (1..9).collect { "Person $it".toString() }
+        ChangeTask.of(details()).withApproval(REQUESTED, [' Ann ', 'Ann', null]).approvers() == ['Ann']
     }
 
     static ProductionChange remote(Map changes = [:]) {

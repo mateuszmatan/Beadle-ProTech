@@ -18,6 +18,9 @@ import java.time.LocalDate
 
 import static com.bbh.itss.dso.portal.adapter.out.servicenow.DemoProTechChanges.MOVED_SCHEDULE
 import static com.bbh.itss.dso.portal.adapter.out.servicenow.DemoProTechChanges.SCENES
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.APPROVED
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.NOT_APPROVED
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.REQUESTED
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.BUSINESS_APPROVAL
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.CLOSED
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.CTASK_APPROVAL
@@ -25,7 +28,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.ESCALATED_APPROVAL
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.IMPLEMENTATION
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.PRIMARY_APPROVAL
-import static com.bbh.itss.dso.portal.domain.change.ChangeState.SECONDARY_APPROVAL
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.SUPPORT_APPROVAL
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.NOT_APPLIED_MESSAGE
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.APPLIED
 import static com.bbh.itss.dso.portal.domain.change.ChangeUpdate.Status.NOT_APPLIED
@@ -93,7 +96,7 @@ class DemoProTechChangesSpec extends Specification {
             change
         }
         stored*.state() == [CLOSED, CLOSED, CLOSED, IMPLEMENTATION, IMPLEMENTATION, IMPLEMENTATION,
-                            ESCALATED_APPROVAL, CTASK_APPROVAL, SECONDARY_APPROVAL, PRIMARY_APPROVAL,
+                            ESCALATED_APPROVAL, CTASK_APPROVAL, SUPPORT_APPROVAL, PRIMARY_APPROVAL,
                             BUSINESS_APPROVAL, DRAFT]
         stored*.productId() == [3L, 1L, 2L, 5L] * 3
         stored*.number().every { it ==~ /CHG\d{7}/ }
@@ -108,6 +111,11 @@ class DemoProTechChangesSpec extends Specification {
         stored[0].tasks()*.state() == [TASK_CLOSED] * 2
         stored[3].tasks()*.state() == [WORK_IN_PROGRESS] * 2
         stored[4].tasks()*.state() == [OPEN] * 2
+        stored[7].tasks()*.approval() == [APPROVED, REQUESTED]
+        stored[8].tasks()*.approval() == [NOT_APPROVED] * 2
+        stored[8].approvals()*.state() == [APPROVED, APPROVED, APPROVED, REQUESTED]
+        stored[0..6].every { it.tasksApproved() && it.approvals()*.state() == [APPROVED] * 4 }
+        stored*.tasks().flatten().every { it.approvers().size() == 2 }
         stored[3].update() == new ChangeUpdate(NOT_APPLIED, NOW.minus(ofMinutes(30)), 'Corporate Technology',
                 MOVED_SCHEDULE, NOT_APPLIED_MESSAGE, NOW.minus(ofMinutes(29)))
         stored[4].update() == new ChangeUpdate(APPLIED, stored[4].createdAt().plus(ofHours(5)),

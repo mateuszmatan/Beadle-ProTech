@@ -57,8 +57,8 @@ class DemoProTechChanges {
             new Scene(ofDays(3), ofDays(2), APPLIED),
             new Scene(ofDays(2), ofDays(4), null),
             new Scene(ofMinutes(30), ofHours(20), null),
-            new Scene(ofMinutes(9), ofDays(5), null),
-            new Scene(ofMinutes(7), ofDays(6), null),
+            new Scene(ofMinutes(13), ofDays(5), null),
+            new Scene(ofMinutes(9), ofDays(6), null),
             new Scene(ofMinutes(5), ofDays(6), null),
             new Scene(ofMinutes(3), ofDays(7), null),
             new Scene(ofMinutes(1), ofDays(8), null));

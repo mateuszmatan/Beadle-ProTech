@@ -1,12 +1,15 @@
 package com.bbh.itss.dso.portal.domain.change;
 
 import com.bbh.itss.dso.portal.domain.change.ChangeTemplate.Planning;
+import com.bbh.itss.dso.portal.domain.shared.InvalidRequestException;
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems;
 import lombok.Builder;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +42,8 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                                ChangeSchedule schedule, String shortDescription, String description,
                                ChangeTemplate template, List<String> epicKeys, List<String> storyKeys,
                                List<ChangeTask> tasks, String url, ChangeState state, List<WorkflowStep> workflow,
-                               Instant syncedAt, String syncProblem, ChangeUpdate update, Long version,
-                               Long editedVersion, Instant createdAt) {
+                               List<ChangeApproval> approvals, Instant syncedAt, String syncProblem,
+                               ChangeUpdate update, Long version, Long editedVersion, Instant createdAt) {
 
     public static final int FIX_VERSION_MAX = 100;
     public static final int SHORT_DESCRIPTION_MAX = 160;
@@ -85,6 +88,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         tasks = List.copyOf(tasks);
         state = getIfNull(state, DRAFT);
         workflow = List.copyOf(emptyIfNull(workflow));
+        approvals = List.copyOf(emptyIfNull(approvals));
         editedVersion = getIfNull(editedVersion, version);
     }
 
@@ -108,8 +112,8 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     }
 
     public ProductionChange raisedAt(Instant at) {
-        return toBuilder().state(DRAFT).workflow(List.of(new WorkflowStep(DRAFT, at))).syncedAt(at).createdAt(at)
-                .build();
+        return toBuilder().state(DRAFT).workflow(List.of(new WorkflowStep(DRAFT, at)))
+                .approvals(ChangeApproval.of(template.approvers())).syncedAt(at).createdAt(at).build();
     }
 
     public ProductionChange numbered(String number, String url) {
@@ -194,8 +198,46 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         ProductionChange values = waiting ? this : remote;
         return toBuilder().shortDescription(values.shortDescription).description(values.description)
                 .schedule(values.schedule).template(template.edited(values.template))
-                .tasks(waiting ? tasksIn(remote) : remote.tasks).url(remote.url).state(remote.state)
-                .workflow(remote.workflow).update(checked).syncedAt(now).syncProblem(null).build();
+                .tasks(remindersKept(waiting ? tasksIn(remote) : remote.tasks)).url(remote.url).state(remote.state)
+                .workflow(remote.workflow).approvals(approvalsIn(remote)).update(checked).syncedAt(now)
+                .syncProblem(null).build();
+    }
+
+    public boolean tasksApproved() {
+        List<ChangeTask> active = tasks.stream().filter(ChangeTask::active).toList();
+        return !active.isEmpty() && active.stream().noneMatch(ChangeTask::awaited);
+    }
+
+    public List<ApprovalRef> toRemind(ApprovalRole role, String task) {
+        if (!state.isOpen()) {
+            throw new IllegalStateException(number + " is closed in ProTech, so nobody is reminded to approve it");
+        }
+        if (role != null && task != null) {
+            throw InvalidRequestException.of("task", "Remind the approvers of either the change or one change task");
+        }
+        if (role != null) {
+            return List.of(remindable(approvalOf(role)));
+        }
+        if (task != null) {
+            return List.of(remindable(task, taskOf(task)));
+        }
+        List<ApprovalRef> awaited = Stream.concat(
+                approvals.stream().filter(approval -> approval.awaited() && approval.approver() != null)
+                        .map(approval -> ApprovalRef.of(approval.role())),
+                tasks.stream().filter(ChangeTask::awaited)
+                        .filter(found -> found.number() != null && !found.approvers().isEmpty())
+                        .map(found -> ApprovalRef.ofTask(found.number()))).toList();
+        if (awaited.isEmpty()) {
+            throw new IllegalStateException("Nobody named on " + number + " still has to approve it");
+        }
+        return awaited;
+    }
+
+    public ProductionChange reminded(Map<ApprovalRef, Reminder> sent) {
+        return toBuilder().approvals(approvals.stream().map(approval -> approval.remindedBy(
+                        sent.getOrDefault(ApprovalRef.of(approval.role()), approval.reminder()))).toList())
+                .tasks(tasks.stream().map(task -> task.number() == null ? task : task.remindedBy(
+                        sent.getOrDefault(ApprovalRef.ofTask(task.number()), task.reminder()))).toList()).build();
     }
 
     public ProductionChange unverified(ProductionChange stored, String problem) {
@@ -276,6 +318,58 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     private static List<ChangeTask> planned(List<ChangeTask> requested, ChangeSchedule schedule,
                                             ChangeTemplate template) {
         return requested.stream().map(task -> task.plannedIn(schedule, template.configurationItem())).toList();
+    }
+
+    private ChangeApproval approvalOf(ApprovalRole role) {
+        return approvals.stream().filter(approval -> approval.role() == role).findFirst()
+                .orElseThrow(() -> new IllegalStateException("ProTech has no " + role.label() + " on " + number));
+    }
+
+    private ChangeTask taskOf(String task) {
+        return tasks.stream().filter(found -> task.equals(found.number())).findFirst()
+                .orElseThrow(() -> InvalidRequestException.of("task", task + " is not a change task of " + number));
+    }
+
+    private ApprovalRef remindable(ChangeApproval approval) {
+        String role = approval.role().label();
+        if (approval.state().approved()) {
+            throw new IllegalStateException("The " + role + " already approved " + number);
+        }
+        if (approval.approver() == null) {
+            throw new IllegalStateException("No " + role + " is named on " + number
+                    + ", so ProTech has nobody to remind");
+        }
+        return ApprovalRef.of(approval.role());
+    }
+
+    private static ApprovalRef remindable(String number, ChangeTask task) {
+        if (!task.active()) {
+            throw new IllegalStateException(number + " is canceled in ProTech");
+        }
+        if (task.approval().approved()) {
+            throw new IllegalStateException(number + " is already approved");
+        }
+        if (task.approvers().isEmpty()) {
+            throw new IllegalStateException("ProTech names no approvers of " + number + " yet");
+        }
+        return ApprovalRef.ofTask(number);
+    }
+
+    private List<ChangeApproval> approvalsIn(ProductionChange remote) {
+        if (remote.approvals.isEmpty()) {
+            return approvals;
+        }
+        Map<ApprovalRole, Reminder> sent = new EnumMap<>(ApprovalRole.class);
+        approvals.stream().filter(approval -> approval.reminder() != null)
+                .forEach(approval -> sent.put(approval.role(), approval.reminder()));
+        return remote.approvals.stream().map(approval -> approval.remindedBy(sent.get(approval.role()))).toList();
+    }
+
+    private List<ChangeTask> remindersKept(List<ChangeTask> synced) {
+        Map<String, Reminder> sent = new HashMap<>();
+        tasks.stream().filter(task -> task.number() != null && task.reminder() != null)
+                .forEach(task -> sent.putIfAbsent(task.number(), task.reminder()));
+        return synced.stream().map(task -> task.remindedBy(sent.get(task.number()))).toList();
     }
 
     private List<ChangeTask.Content> contents() {

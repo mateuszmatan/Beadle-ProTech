@@ -1,6 +1,10 @@
 package com.bbh.itss.dso.portal.adapter.out.servicenow;
 
 import com.bbh.itss.dso.portal.application.change.port.out.ServiceNowPort;
+import com.bbh.itss.dso.portal.domain.change.ApprovalRef;
+import com.bbh.itss.dso.portal.domain.change.ApprovalRole;
+import com.bbh.itss.dso.portal.domain.change.ApprovalState;
+import com.bbh.itss.dso.portal.domain.change.ChangeApproval;
 import com.bbh.itss.dso.portal.domain.change.ChangeSchedule;
 import com.bbh.itss.dso.portal.domain.change.ChangeState;
 import com.bbh.itss.dso.portal.domain.change.ChangeTask;
@@ -17,13 +21,19 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.APPROVED;
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.NOT_APPROVED;
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.REQUESTED;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.BUSINESS_APPROVAL;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.CLOSED;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.CTASK_APPROVAL;
@@ -32,7 +42,7 @@ import static com.bbh.itss.dso.portal.domain.change.ChangeState.ESCALATED_APPROV
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.IMPLEMENTATION;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.PRIMARY_APPROVAL;
 import static com.bbh.itss.dso.portal.domain.change.ChangeState.SECONDARY_APPROVAL;
-import static com.bbh.itss.dso.portal.domain.change.ChangeTask.NOT_YET_REQUESTED;
+import static com.bbh.itss.dso.portal.domain.change.ChangeState.SUPPORT_APPROVAL;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.OPEN;
 import static com.bbh.itss.dso.portal.domain.change.TaskState.WORK_IN_PROGRESS;
@@ -54,12 +64,11 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     static final Duration SHORT_NOTICE = ofHours(24);
     static final Duration ESCALATED_LEAD = ofHours(2);
     static final String CLOSED_REFUSAL = "ProTech does not change a closed change";
-    static final String REQUESTED = "Requested";
-    static final String APPROVED = "Approved";
 
     private final AtomicInteger changes = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final AtomicInteger tasks = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final Map<String, Held> held = new ConcurrentHashMap<>();
+    private final List<SentReminder> reminders = new CopyOnWriteArrayList<>();
     private final Clock clock;
     private final DemoProTechProperties properties;
 
@@ -71,8 +80,8 @@ class DemoServiceNowAdapter implements ServiceNowPort {
     @Override
     public RaisedChange raise(ProductionChange change) {
         String number = "CHG%07d".formatted(changes.incrementAndGet());
-        held.put(number, new Held(change.numbered(number, null), getIfNull(change.createdAt(), () -> now(clock)),
-                List.of(), List.of(), null));
+        Instant raisedAt = getIfNull(change.createdAt(), () -> now(clock));
+        held.put(number, new Held(change.numbered(number, null), raisedAt, List.of(), List.of(), null, Map.of()));
         return new RaisedChange(number, null);
     }
 
@@ -109,24 +118,51 @@ class DemoServiceNowAdapter implements ServiceNowPort {
                 .queued(new Queued(now.plus(properties.protechApplyDelay()), change)));
     }
 
-    static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant now) {
-        Instant approved = raisedAt.plus(STAGE.multipliedBy(5));
-        boolean shortNotice = between(approved, schedule.installationStart()).compareTo(SHORT_NOTICE) < 0;
-        Instant implementation = shortNotice
-                ? max(approved.plus(STAGE), schedule.installationStart().minus(ESCALATED_LEAD)) : approved;
+    @Override
+    public List<String> remind(String changeNumber, ApprovalRef approval) {
+        Instant now = now(clock);
+        Held current = held.compute(changeNumber, (number, found) -> open(number, found, now));
+        ProductionChange change = current.copyFor(current.change(), now);
+        List<String> approvers = approval.role() == null ? approversOf(change, approval.task())
+                : change.approvals().stream().filter(found -> found.role() == approval.role())
+                .map(ChangeApproval::approver).filter(Objects::nonNull).toList();
+        if (approvers.isEmpty()) {
+            throw new IllegalStateException("ProTech has nobody to remind on " + changeNumber);
+        }
+        reminders.add(new SentReminder(changeNumber, approval, approvers, now));
+        return approvers;
+    }
+
+    List<SentReminder> sent() {
+        return List.copyOf(reminders);
+    }
+
+    static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant tasksApproved,
+                                         Instant now) {
         Map<ChangeState, Instant> stages = new EnumMap<>(ChangeState.class);
         stages.put(DRAFT, raisedAt);
         stages.put(BUSINESS_APPROVAL, raisedAt.plus(STAGE));
         stages.put(PRIMARY_APPROVAL, raisedAt.plus(STAGE.multipliedBy(2)));
         stages.put(SECONDARY_APPROVAL, raisedAt.plus(STAGE.multipliedBy(3)));
-        stages.put(CTASK_APPROVAL, raisedAt.plus(STAGE.multipliedBy(4)));
-        if (shortNotice) {
-            stages.put(ESCALATED_APPROVAL, approved);
+        stages.put(SUPPORT_APPROVAL, raisedAt.plus(STAGE.multipliedBy(4)));
+        stages.put(CTASK_APPROVAL, tasksRequested(raisedAt));
+        if (tasksApproved.isBefore(MAX)) {
+            Instant approved = max(raisedAt.plus(STAGE.multipliedBy(6)), tasksApproved);
+            boolean shortNotice = between(approved, schedule.installationStart()).compareTo(SHORT_NOTICE) < 0;
+            Instant implementation = shortNotice
+                    ? max(approved.plus(STAGE), schedule.installationStart().minus(ESCALATED_LEAD)) : approved;
+            if (shortNotice) {
+                stages.put(ESCALATED_APPROVAL, approved);
+            }
+            stages.put(IMPLEMENTATION, implementation);
+            stages.put(CLOSED, max(schedule.validationEnd(), implementation));
         }
-        stages.put(IMPLEMENTATION, implementation);
-        stages.put(CLOSED, max(schedule.validationEnd(), implementation));
         return stages.entrySet().stream().filter(stage -> !stage.getValue().isAfter(now))
                 .map(stage -> new WorkflowStep(stage.getKey(), stage.getValue())).toList();
+    }
+
+    static Instant tasksRequested(Instant raisedAt) {
+        return raisedAt.plus(STAGE.multipliedBy(5));
     }
 
     static TaskState taskStateOf(TaskState held, ChangeState state, boolean installing) {
@@ -139,9 +175,20 @@ class DemoServiceNowAdapter implements ServiceNowPort {
         return state == IMPLEMENTATION && installing ? WORK_IN_PROGRESS : OPEN;
     }
 
-    static String approvalOf(ChangeState state) {
-        int reached = state.compareTo(CTASK_APPROVAL);
-        return reached < 0 ? NOT_YET_REQUESTED : reached == 0 ? REQUESTED : APPROVED;
+    static ApprovalState approvalOf(ChangeState state, ChangeState stage) {
+        int reached = state.compareTo(stage);
+        return reached < 0 ? NOT_APPROVED : reached == 0 ? REQUESTED : APPROVED;
+    }
+
+    static ApprovalState approvalAt(Instant now, Instant requested, Instant approved) {
+        return now.isBefore(requested) ? NOT_APPROVED : now.isBefore(approved) ? REQUESTED : APPROVED;
+    }
+
+    private static List<String> approversOf(ProductionChange change, String task) {
+        return change.tasks().stream().filter(found -> task.equals(found.number())).findFirst()
+                .map(ChangeTask::approvers)
+                .orElseThrow(() -> new IllegalStateException("ProTech has no change task " + task + " on "
+                        + change.number()));
     }
 
     private Held open(String number, Held found, Instant now) {
@@ -157,8 +204,11 @@ class DemoServiceNowAdapter implements ServiceNowPort {
 
     private Held adopted(ProductionChange known, Instant now) {
         List<WorkflowStep> reached = known.workflow();
-        return new Held(known.toBuilder().tasks(numbered(known.tasks())).build(), getIfNull(known.createdAt(), now),
-                List.of(), reached, reached.isEmpty() ? null : last(reached).enteredAt());
+        Instant raisedAt = getIfNull(known.createdAt(), now);
+        List<ChangeTask> numbered = numbered(known.tasks());
+        return new Held(known.toBuilder().tasks(numbered).build(), raisedAt, List.of(), reached,
+                reached.isEmpty() ? null : last(reached).enteredAt(),
+                numbered.stream().collect(toMap(ChangeTask::number, task -> raisedAt, (first, second) -> first)));
     }
 
     private static WorkflowStep last(List<WorkflowStep> steps) {
@@ -205,32 +255,65 @@ class DemoServiceNowAdapter implements ServiceNowPort {
                 .tasks(numbered(Stream.concat(changed.stream(), dropped.stream()).toList())).build();
     }
 
+    record SentReminder(String changeNumber, ApprovalRef approval, List<String> sentTo, Instant at) {
+    }
+
     private record Queued(Instant dueAt, ProductionChange requested) {
     }
 
     private record Held(ProductionChange change, Instant raisedAt, List<Queued> queued, List<WorkflowStep> kept,
-                        Instant rescheduledAt) {
+                        Instant rescheduledAt, Map<String, Instant> tasked) {
 
         Held queued(Queued update) {
             return waiting(Stream.concat(queued.stream(), Stream.of(update)).toList());
         }
 
         Held waiting(List<Queued> waiting) {
-            return new Held(change, raisedAt, waiting, kept, rescheduledAt);
+            return new Held(change, raisedAt, waiting, kept, rescheduledAt, tasked);
         }
 
         Held with(ProductionChange applied, Instant at) {
-            return applied.schedule().equals(change.schedule())
-                    ? new Held(applied, raisedAt, queued, kept, rescheduledAt)
-                    : new Held(applied, raisedAt, queued, workflowAt(at), at);
+            List<ChangeTask> added = applied.tasks().stream().filter(task -> !tasked.containsKey(task.number()))
+                    .toList();
+            Map<String, Instant> known = new HashMap<>(tasked);
+            added.forEach(task -> known.put(task.number(), at));
+            ChangeState state = stateAt(at);
+            boolean reopened = added.stream().anyMatch(ChangeTask::active) && state.compareTo(CTASK_APPROVAL) > 0
+                    && state != CLOSED;
+            if (!reopened && applied.schedule().equals(change.schedule())) {
+                return new Held(applied, raisedAt, queued, kept, rescheduledAt, known);
+            }
+            List<WorkflowStep> reached = workflowAt(at);
+            return new Held(applied, raisedAt, queued, reopened
+                    ? Stream.concat(reached.stream(), Stream.of(new WorkflowStep(CTASK_APPROVAL, at))).toList()
+                    : reached, at, known);
+        }
+
+        Map<String, Instant> approvedAt() {
+            Map<String, Instant> approved = new HashMap<>();
+            List<ChangeTask> active = change.tasks().stream().filter(ChangeTask::active).toList();
+            for (int index = 0; index < active.size(); index++) {
+                ChangeTask task = active.get(index);
+                approved.put(task.number(), requestedAt(task).plus(STAGE.multipliedBy(index + 1L)));
+            }
+            return approved;
+        }
+
+        Instant requestedAt(ChangeTask task) {
+            return max(tasksRequested(raisedAt), tasked.getOrDefault(task.number(), raisedAt));
+        }
+
+        Instant tasksApproved() {
+            return approvedAt().values().stream().max(Instant::compareTo).orElse(MAX);
         }
 
         List<WorkflowStep> workflowAt(Instant now) {
+            Instant approved = tasksApproved();
             if (kept.isEmpty()) {
-                return workflowOf(raisedAt, change.schedule(), now);
+                return workflowOf(raisedAt, change.schedule(), approved, now);
             }
             ChangeState reached = last(kept).state();
-            return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), MAX).stream()
+            return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), approved, MAX).stream()
                     .filter(step -> step.state().compareTo(reached) > 0)
                     .map(step -> new WorkflowStep(step.state(), max(step.enteredAt(), rescheduledAt)))
                     .filter(step -> !step.enteredAt().isAfter(now))).toList();
@@ -244,11 +327,17 @@ class DemoServiceNowAdapter implements ServiceNowPort {
             List<WorkflowStep> workflow = workflowAt(now);
             ChangeState state = last(workflow).state();
             boolean installing = !now.isBefore(change.schedule().installationStart());
+            Map<String, Instant> approved = approvedAt();
             return known.toBuilder().shortDescription(change.shortDescription()).description(change.description())
                     .schedule(change.schedule()).template(change.template())
-                    .tasks(change.tasks().stream().map(task -> task.approved(approvalOf(state))
+                    .tasks(change.tasks().stream().map(task -> task.withApproval(task.active()
+                                    ? approvalAt(now, requestedAt(task), approved.get(task.number()))
+                                    : task.approval(), DemoApprovers.of(task.details().assignmentGroup()))
                             .in(taskStateOf(task.state(), state, installing))).toList())
-                    .url(change.url()).state(state).workflow(workflow).build();
+                    .url(change.url()).state(state).workflow(workflow)
+                    .approvals(Stream.of(ApprovalRole.values()).map(role -> new ChangeApproval(role,
+                            role.approverIn(change.template().approvers()), approvalOf(state, role.stage()),
+                            null)).toList()).build();
         }
     }
 }

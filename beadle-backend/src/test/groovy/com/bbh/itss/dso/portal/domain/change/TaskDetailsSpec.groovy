@@ -3,7 +3,7 @@ package com.bbh.itss.dso.portal.domain.change
 import com.bbh.itss.dso.portal.domain.shared.ValidationProblems
 import spock.lang.Specification
 
-import static com.bbh.itss.dso.portal.domain.change.ChangeTask.NOT_YET_REQUESTED
+import static com.bbh.itss.dso.portal.domain.change.ApprovalState.NOT_APPROVED
 import static com.bbh.itss.dso.portal.domain.change.TaskDetails.suggestedTasks
 import static com.bbh.itss.dso.portal.domain.change.TaskDetails.validateTasks
 import static com.bbh.itss.dso.portal.domain.change.TaskState.CANCELED
@@ -47,13 +47,13 @@ class TaskDetailsSpec extends Specification {
         openShift.application() == 'OCP'
     }
 
-    def "a change task is open and not yet requested for approval by default and only a release task keeps a start"() {
+    def "a change task is open and not approved by default and only a release task keeps a start"() {
         expect:
         ctask(' CTASK1 ', ' Deploy ', ' It. ', null) == ctask('CTASK1', 'Deploy', 'It.', OPEN)
-        ChangeTask.of(details()) == new ChangeTask(null, details(), null, NOT_YET_REQUESTED, OPEN)
-        new ChangeTask(null, details(), at('2026-10-10T06:30:00Z'), ' ', null).start() == null
+        ChangeTask.of(details()) == new ChangeTask(null, details(), null, NOT_APPROVED, [], null, OPEN)
+        new ChangeTask(null, details(), at('2026-10-10T06:30:00Z'), null, null, null, null).start() == null
         releaseTask().start() == at('2026-10-10T06:01:00Z')
-        new ChangeTask(null, null, null, null, null).details() == TaskDetails.builder().build()
+        new ChangeTask(null, null, null, null, null, null, null).details() == TaskDetails.builder().build()
         [OPEN, WORK_IN_PROGRESS, CLOSED, CANCELED].collect { it.frozen() } == [false, false, true, true]
     }
 
