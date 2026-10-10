@@ -39,6 +39,7 @@ import static com.bbh.itss.dso.portal.support.ChangeFixtures.privileged
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.raised
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.schedule
+import static com.bbh.itss.dso.portal.support.ChangeFixtures.secureCoding
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.story
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.task
 import static com.bbh.itss.dso.portal.support.ChangeFixtures.template
@@ -54,9 +55,10 @@ class ProductionChangeSpec extends Specification {
     def stories = [story('CERT-2', 'E-mail the owner', 'CERT-1'), story('CERT-6', 'Record each change', 'CERT-5'),
                    story('CERT-3', 'Teams alert', 'CERT-1')]
 
-    def "a draft writes the short description and the description from Jira and has no change tasks yet"() {
+    def "a draft writes the texts from Jira, has no change tasks and no secure coding ticket yet but keeps its inputs"() {
         when:
-        def change = draft(product, 'Mateusz Matan', FIX_VERSION, schedule(), template(planning: PLANNING),
+        def change = draft(product, 'Mateusz Matan', FIX_VERSION, schedule(), template(planning: PLANNING,
+                secureCodingTicket: 'SCP-1', secureCoding: secureCoding()),
                 epics, stories, ' ', null)
 
         then:
@@ -67,7 +69,8 @@ class ProductionChangeSpec extends Specification {
         change.fixVersion() == FIX_VERSION
         change.schedule() == schedule()
         change.template() == template(planning: PLANNING, release: FIX_VERSION, requestedFor: 'Mateusz Matan',
-                requestedBy: 'Mateusz Matan', department: 'Corporate Technology', assignedTo: 'Mateusz Matan')
+                requestedBy: 'Mateusz Matan', department: 'Corporate Technology', assignedTo: 'Mateusz Matan',
+                secureCoding: secureCoding())
         change.epicKeys() == ['CERT-1', 'CERT-5']
         change.storyKeys() == ['CERT-2', 'CERT-6', 'CERT-3']
         [change.state(), change.workflow(), change.syncedAt(), change.syncProblem(), change.update()] ==
@@ -120,7 +123,7 @@ class ProductionChangeSpec extends Specification {
         def text = descriptionOf(changeProduct(departmentName: null), 'R1', schedule(downtimeStart: '2026-10-10T06:00:00Z',
                 downtimeEnd: '2026-10-10T08:00:00Z'), template(downtime: true,
                 privilegedAccess: privileged(2), riskAssessment: RiskAssessment.DEFAULTS,
-                usersAffected: 'Fund accountants', secureCodingTicket: 'APPSEC-1234'), epics.take(1), [])
+                usersAffected: 'Fund accountants', secureCodingTicket: 'SCP-1234'), epics.take(1), [])
 
         then:
         text.startsWith('Production release R1 of CertScanner (CERTSCANNER).\n')
@@ -128,7 +131,7 @@ class ProductionChangeSpec extends Specification {
         text.contains('Scope from Jira project CERT, FixVersion R1:\nCERT-1 Expiry alerts (Done)\n\nTest summary:')
         text.contains('\nPrivileged access needed for: User 1 (adm_user1), User 2 (adm_user2).\n')
         text.contains('\nRisk: Low\nNumber of BBH workgroups impacted: Single\n')
-        text.endsWith('Business impact: None\n\nUsers affected:\nFund accountants\n\nSecure coding ticket: APPSEC-1234')
+        text.endsWith('Business impact: None\n\nUsers affected:\nFund accountants\n\nSecure coding ticket: SCP-1234')
     }
 
     def "texts typed by the user replace the generated ones and a given release is kept"() {
@@ -203,6 +206,19 @@ class ProductionChangeSpec extends Specification {
         raised.description() == drafted.description()
     }
 
+    def "a secure coding ticket is stored with the inputs it was created from and changes nothing else"() {
+        given:
+        def change = raised()
+        def inputs = secureCoding(apoNumber: 'APO-777')
+
+        when:
+        def ticketed = change.withSecureCoding(inputs, 'SCP-1001')
+
+        then:
+        ticketed.template() == change.template().toBuilder().secureCoding(inputs).secureCodingTicket('SCP-1001').build()
+        ticketed.toBuilder().template(change.template()).build() == change
+    }
+
     def "#path is what ProTech has not applied when it holds another value"() {
         expect:
         raised().unappliedIn(raised(edit)) == [path]
@@ -250,7 +266,7 @@ class ProductionChangeSpec extends Specification {
                 schedule: new ChangeSchedule(*(1..7).collect { at("2026-11-0${it}T08:00:00Z") }),
                 template: new ChangeTemplate('OTHER', 'RF', 'RB', 'DE', 'G', 'C', 'AT', EMERGENCY, 'R', 'CI', 'I',
                         'DBS', 'P', 'High', 'A', 'UA', Approvers.NONE, true, new Timing('06:00', 1, 0), PLANNING,
-                        privileged(1), RiskAssessment.DEFAULTS, 'SCT'),
+                        privileged(1), RiskAssessment.DEFAULTS, 'SCT', secureCoding()),
                 tasks: [])
         def same = raised(template: template(release: FIX_VERSION, jiraProjectKey: 'OTHER', type: EMERGENCY,
                 timing: new Timing('06:00', 1, 0)),

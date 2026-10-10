@@ -97,7 +97,8 @@ class DemoProTechChanges {
 
     private ProductionChange staged(ChangeProduct product, Scene scene, Instant now) {
         ChangeProfileView profile = profiles.get(product.id());
-        ProductionChange draft = drafted(product, profile, scene, now).raisedAt(now.minus(scene.raisedAgo()));
+        ProductionChange draft = drafted(product, profile, scene, now).raisedAt(now.minus(scene.raisedAgo()))
+                .withSecureCoding(profile.template().secureCoding(), "SCP-" + (1_000 + product.id()));
         RaisedChange raised = serviceNow.raise(draft);
         ProductionChange numbered = draft.numbered(raised.number(), raised.url());
         ProductionChange tasked = numbered.withTasks(numbered.plannedTasks(profile.tasks().stream()

@@ -28,7 +28,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
                              String risk, String affectedClients, String usersAffected,
                              Approvers approvers, Boolean downtime, Timing timing, Planning planning,
                              PrivilegedAccess privilegedAccess, RiskAssessment riskAssessment,
-                             String secureCodingTicket) {
+                             String secureCodingTicket, SecureCoding secureCoding) {
 
     public static final String JIRA_KEY = "^[A-Z][A-Z0-9_]{0,9}$";
     public static final String JIRA_KEY_MESSAGE = "must be a Jira project key such as CERT: up to 10 upper case"
@@ -94,6 +94,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         riskAssessment = getIfNull(riskAssessment, RiskAssessment.DEFAULTS);
         risk = riskAssessment.risk();
         secureCodingTicket = trimToNull(secureCodingTicket);
+        secureCoding = getIfNull(secureCoding, SecureCoding.NONE);
     }
 
     public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam) {
@@ -123,7 +124,8 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
     }
 
     public ChangeTemplate edited(ChangeTemplate changes) {
-        return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).build();
+        return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).secureCoding(secureCoding)
+                .build();
     }
 
     public void validate(ValidationProblems problems) {
@@ -162,6 +164,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         }
         privilegedAccess.validate(problems.at("privilegedAccess"));
         riskAssessment.validate(problems.at("riskAssessment"));
+        secureCoding.validate(problems.at("secureCoding"));
     }
 
     public record Approvers(String l1Manager, String l2Manager, String businessApprover) {

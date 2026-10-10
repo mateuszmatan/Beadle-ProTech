@@ -91,7 +91,8 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     public static ProductionChange draft(ChangeProduct product, String openedBy, String fixVersion,
                                          ChangeSchedule schedule, ChangeTemplate template, List<JiraIssue> epics,
                                          List<JiraIssue> stories, String shortDescription, String description) {
-        ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, product.departmentName());
+        ChangeTemplate raised = template.releasedAs(fixVersion).openedBy(openedBy, product.departmentName())
+                .toBuilder().secureCodingTicket(null).build();
         String summary = isBlank(shortDescription) ? shortDescriptionOf(product, fixVersion, epics)
                 : shortDescription.trim();
         String text = isBlank(description)
@@ -125,6 +126,11 @@ public record ProductionChange(Long id, String number, Long productId, String pr
         }
         problems.throwIfAny();
         return planned;
+    }
+
+    public ProductionChange withSecureCoding(SecureCoding inputs, String ticket) {
+        return toBuilder().template(template.toBuilder().secureCoding(inputs).secureCodingTicket(ticket).build())
+                .build();
     }
 
     public ProductionChange withTasks(List<ChangeTask> created) {
