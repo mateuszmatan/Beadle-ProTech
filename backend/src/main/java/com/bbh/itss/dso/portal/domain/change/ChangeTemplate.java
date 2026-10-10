@@ -99,7 +99,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
     public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam) {
         return builder().jiraProjectKey(jiraKeyOf(code))
                 .assignmentGroup(abbreviateBytes(defaultIfBlank(trim(ownerTeam), name + " Support"), GROUP_MAX))
-                .category(CATEGORIES.get(0)).type(STANDARD).configurationItem(name)
+                .category(CATEGORIES.get(0)).type(STANDARD).configurationItem(abbreviateBytes(name, GROUP_MAX))
                 .timing(Timing.SUGGESTED)
                 .planning(Planning.SUGGESTED).build();
     }
