@@ -93,10 +93,15 @@ class ChangeTemplateSpec extends Specification {
     def "the suggested template fits the columns of a long product name"() {
         when:
         def suggested = suggestedFor('LONG', 'N' * 195, null)
+        def multibyte = suggestedFor('LONG', 'Ł' * 200, null)
 
         then:
         suggested.assignmentGroup().getBytes('UTF-8').length <= GROUP_MAX
         suggested.assignmentGroup().endsWith('...')
+        suggested.configurationItem() == 'N' * 195
+        multibyte.configurationItem().getBytes('UTF-8').length <= GROUP_MAX
+        multibyte.configurationItem().endsWith('...')
+        problems(multibyte) == []
     }
 
     def "a raised template takes the FixVersion as its release unless it names one"() {
