@@ -54,7 +54,7 @@ import static org.apache.commons.lang3.Strings.CS;
 
 /**
  * The live ProTech: speaks the ServiceNow Table API of BBH's ServiceNow instance as the Beadle service account,
- * used when {@code beadle.protech.url} names it. A change is a {@code change_request}, its tasks are
+ * used when {@code beadle.protech.instance-url} names it. A change is a {@code change_request}, its tasks are
  * {@code change_task} records that reference it, and the approvals of both are {@code sysapproval_approver} records;
  * the lookups search the tables of {@code beadle.protech.fields.lookups}. Which ServiceNow field holds which field of
  * Beadle, and which state values stand for which state, is {@link ProTechFields}, documented in
@@ -85,7 +85,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         this.api = new TableApi(builder, properties);
         this.fields = properties.fields();
         this.records = new ProTechRecords(fields);
-        this.url = CS.removeEnd(trimToEmpty(properties.url()), "/");
+        this.url = CS.removeEnd(trimToEmpty(properties.instanceUrl()), "/");
         this.poll = properties.poll();
         this.clock = clock;
     }

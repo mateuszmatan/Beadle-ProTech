@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.ContextConfiguration
 import org.springframework.web.client.RestClient
 import spock.util.concurrent.PollingConditions
 import spock.util.time.MutableClock
@@ -26,9 +27,10 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 /**
  * Runs Beadle-ProTech on a random port with the demo ProTech on an in-memory H2 in Oracle mode, a clock that only
- * moves when a spec moves it, a tick every second and {@link GuiCallbacks} as Beadle-GUI. Every spec shares the one
- * application and its clock, so a spec tells its data apart by the correlation id of its calls or by the number of
- * its changes, and only ever moves the clock forward.
+ * moves when a spec moves it, a tick every second and {@link GuiCallbacks} as Beadle-GUI. The environment variables
+ * are those of a shell shared with Beadle-GUI ({@link EnvironmentVariables#SHARED_WITH_GUI}), which must leave the
+ * demo ProTech playing. Every spec shares the one application and its clock, so a spec tells its data apart by the
+ * correlation id of its calls or by the number of its changes, and only ever moves the clock forward.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = [
         'spring.datasource.url=jdbc:h2:mem:beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000',
@@ -36,6 +38,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
         'beadle.gui.url=http://beadle-gui.test:8081',
         'beadle.protech.tick=PT1S'])
 @ActiveProfiles('local')
+@ContextConfiguration(initializers = EnvironmentVariables)
 @Import(Regression)
 abstract class BeadleProTechSpecification extends ServiceSpecification {
 

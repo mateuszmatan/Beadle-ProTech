@@ -5,6 +5,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
 import com.bbh.itss.beadle.protech.config.ClockConfiguration
 import com.bbh.itss.beadle.protech.domain.change.ChangeState
+import com.bbh.itss.beadle.protech.support.EnvironmentVariables
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
@@ -23,13 +24,14 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeState.IMPLEMENTATI
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CLIENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.RELEASES
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.USERS
+import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 
 class ProTechAdaptersSpec extends Specification {
 
     def runner = new ApplicationContextRunner().withUserConfiguration(Adapters)
 
-    def "the demo ProTech plays until beadle.protech.url names the real one"() {
+    def "the demo ProTech plays until beadle.protech.instance-url names the real one"() {
         expect:
         runner.withPropertyValues(properties as String[]).run { context ->
             assert context.getBeansOfType(ProTechPort).values()*.class == changes
@@ -38,15 +40,29 @@ class ProTechAdaptersSpec extends Specification {
         }
 
         where:
-        properties                                         || changes                     | lookups
-        []                                                 || [DemoProTechAdapter]        | [DemoProTechLookups]
-        ['beadle.protech.url=']                            || [DemoProTechAdapter]        | [DemoProTechLookups]
-        ['beadle.protech.url=https://bbh.service-now.com'] || [ServiceNowTableApiAdapter] | [ServiceNowTableApiAdapter]
+        properties                                                  || changes                     | lookups
+        []                                                          || [DemoProTechAdapter]        | [DemoProTechLookups]
+        ['beadle.protech.instance-url=']                            || [DemoProTechAdapter]        | [DemoProTechLookups]
+        ['beadle.protech.instance-url=https://bbh.service-now.com'] || [ServiceNowTableApiAdapter] | [ServiceNowTableApiAdapter]
+    }
+
+    def "Beadle-GUI's BEADLE_PROTECH_URL among the environment variables leaves the demo ProTech playing"() {
+        expect: 'Spring binds the variable to beadle.protech.url, which names nothing here'
+        runner.withInitializer(new EnvironmentVariables()).run { context ->
+            assert context.environment.getProperty('beadle.protech.url') == 'http://localhost:8083'
+            assert context.getBean(ProTechProperties).instanceUrl() == null
+            def proTech = context.getBean(ProTechPort)
+            assert proTech instanceof DemoProTechAdapter
+            assert !proTech.connected()
+            assert proTech.mode() == DEMO
+            assert context.getBean(ProTechLookupPort) instanceof DemoProTechLookups
+            true
+        }
     }
 
     def "the ProTech properties take the address, the account, the poll and the demo's apply delay"() {
         expect:
-        runner.withPropertyValues('beadle.protech.url=https://bbh.service-now.com', 'beadle.protech.username=beadle',
+        runner.withPropertyValues('beadle.protech.instance-url=https://bbh.service-now.com', 'beadle.protech.username=beadle',
                 'beadle.protech.password=secret', 'beadle.protech.poll=PT30S', 'beadle.protech.demo.apply-delay=PT1S')
                 .run { context ->
                     assert context.getBean(ProTechProperties) == new ProTechProperties('https://bbh.service-now.com',

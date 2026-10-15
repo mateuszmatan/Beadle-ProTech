@@ -95,9 +95,9 @@ class ChangeTickerSpec extends Specification {
         }
 
         where:
-        mode                                  | properties                                                                   || expected
-        'by default, demo or live'            | []                                                                           || Duration.ofSeconds(10)
-        'whatever the poll of ProTech is'     | ['beadle.protech.url=https://bbh.service-now.com', 'beadle.protech.poll=PT5M'] || Duration.ofSeconds(10)
-        'as beadle.protech.tick says'         | ['beadle.protech.tick=PT1S']                                                 || Duration.ofSeconds(1)
+        mode                              | properties                                                                              || expected
+        'by default, demo or live'        | []                                                                                      || Duration.ofSeconds(10)
+        'whatever the poll of ProTech is' | ['beadle.protech.instance-url=https://bbh.service-now.com', 'beadle.protech.poll=PT5M'] || Duration.ofSeconds(10)
+        'as beadle.protech.tick says'     | ['beadle.protech.tick=PT1S']                                                            || Duration.ofSeconds(1)
     }
 }

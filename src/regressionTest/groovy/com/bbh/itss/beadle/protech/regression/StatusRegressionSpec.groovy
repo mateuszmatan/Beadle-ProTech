@@ -1,10 +1,18 @@
 package com.bbh.itss.beadle.protech.regression
 
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.core.env.Environment
 
 class StatusRegressionSpec extends BeadleProTechSpecification {
 
-    def "without beadle.protech.url the demo ProTech plays and says so"() {
+    @Autowired
+    Environment environment
+
+    def "without beadle.protech.instance-url the demo ProTech plays and says so, whatever Beadle-GUI's BEADLE_PROTECH_URL says"() {
+        expect: 'the shell is shared with Beadle-GUI, which finds Beadle-ProTech by BEADLE_PROTECH_URL'
+        environment.getProperty('BEADLE_PROTECH_URL') == 'http://localhost:8083'
+
         when:
         def response = api.get('/api/protech/status')
 

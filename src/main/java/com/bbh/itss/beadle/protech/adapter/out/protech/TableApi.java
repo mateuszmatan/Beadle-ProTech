@@ -48,7 +48,7 @@ class TableApi {
     private final RestClient client;
 
     TableApi(RestClient.Builder builder, ProTechProperties properties) {
-        this.client = builder.baseUrl(CS.removeEnd(trimToEmpty(properties.url()), "/"))
+        this.client = builder.baseUrl(CS.removeEnd(trimToEmpty(properties.instanceUrl()), "/"))
                 .defaultHeaders(headers -> headers.setBasicAuth(defaultString(properties.username()),
                         defaultString(properties.password()), UTF_8))
                 .build();

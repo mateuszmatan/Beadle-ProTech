@@ -63,7 +63,7 @@ import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
 /**
- * A ProTech played by the clock, used until {@code beadle.protech.url} names the real one: every change it raises
+ * A ProTech played by the clock, used until {@code beadle.protech.instance-url} names the real one: every change it raises
  * moves through the approval stages two minutes apart, its tasks are approved by the people of their assignment
  * group, an update shows after the apply delay and the reminders it sends are recorded. Its activity is the
  * clock-driven workflow: what moved since a time, no earlier than when the demo got the change.

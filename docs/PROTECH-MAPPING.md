@@ -1,10 +1,10 @@
 # How Beadle-ProTech maps a change to ProTech
 
-ProTech is BBH's ServiceNow. When `beadle.protech.url` names it, Beadle-ProTech talks to it through
-`ServiceNowTableApiAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle service
-account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read timeout
-30 s). This page lists which ServiceNow table and field holds each field of a Beadle change, and which ServiceNow
-values stand for each state.
+ProTech is BBH's ServiceNow. When `beadle.protech.instance-url` (`PROTECH_URL`) names it, Beadle-ProTech talks to it
+through `ServiceNowTableApiAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
+service account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read
+timeout 30 s). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
+ServiceNow values stand for each state.
 
 The mapping is a best effort made without access to the real instance. Every table name, field name and state value
 below is a property under `beadle.protech.fields.*` (class `ProTechFields`) with the default shown, so the real
@@ -98,7 +98,7 @@ A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is ans
 | `template.riskAssessment` | `risk-assessment` | `u_risk_assessment` | written only, one line per question: `Complexity of the change: Simple` |
 | `template.secureCodingTicket` | `secure-coding-ticket` | `u_secure_coding_ticket` | the CyberTrack key |
 | `state` | `state` | `state` | see the states below |
-| `url` | | | `{beadle.protech.url}/change_request.do?sysparm_query=number={number}` |
+| `url` | | | `{beadle.protech.instance-url}/change_request.do?sysparm_query=number={number}` |
 | `workflow` | | `sys_updated_on` | Beadle's workflow plus a step for the state ProTech holds, entered at `sys_updated_on`, when it differs from Beadle's last step |
 | `approvals` | | `sysapproval_approver` | see the approvals below |
 

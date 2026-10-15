@@ -48,7 +48,8 @@ beadle:
   gui:
     url: ${BEADLE_GUI_URL:http://localhost:8081}
   protech:
-    url: ${PROTECH_URL:}
+    # Not beadle.protech.url: Spring would bind Beadle-GUI's BEADLE_PROTECH_URL (the address of this service) to it.
+    instance-url: ${PROTECH_URL:}
     username: ${PROTECH_USERNAME:}
     password: ${PROTECH_PASSWORD:}
     poll: ${PROTECH_POLL:PT1M}

@@ -131,7 +131,7 @@ to start then, unless `PROTECH_DEMO=true` asks for the demo on purpose.
 |---|---|---|---|
 | `beadle.services.token` | `BEADLE_SERVICE_TOKEN` | blank: every call is refused | the token shared by the three Beadle services, checked on every call and sent with the callbacks |
 | `beadle.gui.url` | `BEADLE_GUI_URL` | `http://localhost:8081` | where Beadle-GUI takes the callbacks |
-| `beadle.protech.url` | `PROTECH_URL` | blank: demo | ProTech, for example `https://bbh.service-now.com` |
+| `beadle.protech.instance-url` | `PROTECH_URL` | blank: demo | ProTech, for example `https://bbh.service-now.com` |
 | `beadle.protech.username` | `PROTECH_USERNAME` | blank | the Beadle service account in ProTech (basic authentication) |
 | `beadle.protech.password` | `PROTECH_PASSWORD` | blank | its password |
 | `beadle.protech.poll` | `PROTECH_POLL` | `PT1M` | how often the live ProTech is asked what moved |
@@ -139,6 +139,11 @@ to start then, unless `PROTECH_DEMO=true` asks for the demo on purpose.
 | `beadle.protech.demo.enabled` | `PROTECH_DEMO` | `false` | `true` lets `rd`, `qc` and `prod` start with a blank `PROTECH_URL`, on the demo ProTech |
 | `beadle.protech.demo.apply-delay` | `PROTECH_DEMO_APPLY_DELAY` | `PT3S` | how long the demo ProTech takes to apply an update |
 | `beadle.protech.fields.*` | | the ServiceNow base system | the tables, fields, state values and lookup tables of ProTech, one property each; see [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) |
+
+ProTech's address is `beadle.protech.instance-url` rather than `beadle.protech.url`, because Spring binds an
+environment variable to the property of the same name, and `BEADLE_PROTECH_URL` is Beadle-GUI's address of this
+service (docs/CONTRACTS.md). That variable plays no part here, so the three services can share a shell, an env file
+or a ConfigMap.
 
 The other variables: `PORT` (`8083`), `SPRING_PROFILES_ACTIVE` (`local`), `BEADLE_PROTECH_DATA_DIR` (the H2 folder
 of the `local` profile, `~/bbh-devsecops/beadle-protech`), `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` and

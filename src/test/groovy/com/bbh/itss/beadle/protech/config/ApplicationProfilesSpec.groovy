@@ -1,10 +1,14 @@
 package com.bbh.itss.beadle.protech.config
 
+import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechProperties
+import com.bbh.itss.beadle.protech.support.EnvironmentVariables
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import spock.lang.Specification
 
+import static com.bbh.itss.beadle.protech.support.EnvironmentVariables.SHARED_WITH_GUI
 import static org.springframework.boot.WebApplicationType.NONE
 
 class ApplicationProfilesSpec extends Specification {
@@ -28,7 +32,7 @@ class ApplicationProfilesSpec extends Specification {
                 .startsWith('jdbc:h2:file:/var/beadle/beadle-protech;')
         env.getProperty('spring.jpa.hibernate.ddl-auto') == 'none'
         env.getProperty('spring.liquibase.change-log') == 'classpath:db/changelog/db.changelog-master.yaml'
-        env.getProperty('beadle.protech.url') == ''
+        env.getProperty('beadle.protech.instance-url') == ''
         env.getProperty('beadle.protech.poll') == 'PT1M'
         env.getProperty('beadle.protech.tick') == 'PT10S'
         env.getProperty('beadle.protech.demo.apply-delay') == 'PT3S'
@@ -47,7 +51,7 @@ class ApplicationProfilesSpec extends Specification {
                                    BEADLE_SERVICE_TOKEN: 'token', PORT: '9090'])
 
         then:
-        env.getProperty('beadle.protech.url') == 'https://bbh.service-now.com'
+        env.getProperty('beadle.protech.instance-url') == 'https://bbh.service-now.com'
         env.getProperty('beadle.protech.username') == 'beadle'
         env.getProperty('beadle.protech.password') == 'secret'
         env.getProperty('beadle.protech.poll') == 'PT30S'
@@ -55,6 +59,16 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.gui.url') == 'http://beadle:8081'
         env.getProperty('beadle.services.token') == 'token'
         env.getProperty('server.port') == '9090'
+    }
+
+    def "Beadle-GUI's BEADLE_PROTECH_URL in a shell shared with it does not name ProTech, which stays the demo"() {
+        when:
+        def env = environment([], SHARED_WITH_GUI)
+
+        then:
+        env.getProperty('BEADLE_PROTECH_URL') == 'http://localhost:8083'
+        env.getProperty('beadle.protech.instance-url') == ''
+        Binder.get(env).bind('beadle.protech', ProTechProperties).get().instanceUrl() == ''
     }
 
     def "the #profile profile runs on the Oracle database given by the environment"() {
@@ -97,7 +111,7 @@ class ApplicationProfilesSpec extends Specification {
         def env = environment([profile], ORACLE + REAL_PROTECH, RealProTechConfiguration)
 
         then:
-        env.getProperty('beadle.protech.url') == 'https://bbh.service-now.com'
+        env.getProperty('beadle.protech.instance-url') == 'https://bbh.service-now.com'
 
         where:
         profile << ['rd', 'qc', 'prod']
@@ -117,6 +131,7 @@ class ApplicationProfilesSpec extends Specification {
         'prod'  | [:]                                       || 'missing'
         'qc'    | [PROTECH_URL: '']                         || 'empty'
         'rd'    | [PROTECH_URL: ' ', PROTECH_DEMO: 'false'] || 'blank'
+        'prod'  | SHARED_WITH_GUI                           || "missing, whatever Beadle-GUI's BEADLE_PROTECH_URL says"
     }
 
     def "the #profile profile runs on the demo ProTech only when asked for on purpose"() {
@@ -124,7 +139,7 @@ class ApplicationProfilesSpec extends Specification {
         def env = environment([profile], ORACLE + [PROTECH_DEMO: 'true'], RealProTechConfiguration)
 
         then:
-        env.getProperty('beadle.protech.url') == ''
+        env.getProperty('beadle.protech.instance-url') == ''
         env.getProperty('beadle.protech.demo.enabled') == 'true'
 
         where:
@@ -137,7 +152,7 @@ class ApplicationProfilesSpec extends Specification {
 
         then:
         env.defaultProfiles as List == ['local']
-        env.getProperty('beadle.protech.url') == ''
+        env.getProperty('beadle.protech.instance-url') == ''
     }
 
     private static Environment environment(List<String> profiles, Map<String, String> variables,
@@ -145,7 +160,7 @@ class ApplicationProfilesSpec extends Specification {
         def application = new SpringApplicationBuilder(configuration)
                 .web(NONE)
                 .logStartupInfo(false)
-                .properties(variables.collectEntries { name, value -> [name, value] } as Map<String, Object>)
+                .environment(EnvironmentVariables.environment(variables))
         if (profiles) {
             application.profiles(profiles as String[])
         }
