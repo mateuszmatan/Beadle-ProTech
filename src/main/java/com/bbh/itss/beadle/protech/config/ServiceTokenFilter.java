@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -31,9 +32,10 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
 /**
  * Lets a call in only with the Beadle service token ({@code beadle.services.token}, {@code BEADLE_SERVICE_TOKEN}) as
  * {@code Authorization: Bearer <token>} and answers anything else {@code 401} with a problem; the health endpoints
- * under {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift. A blank token refuses every call. A call let in
- * runs as the caller its headers name ({@code X-Beadle-User}, {@code X-Correlation-Id}), with a fresh correlation id
- * when Beadle-GUI sent none, so that the call log can tell who caused each call to ProTech.
+ * under {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift. A blank token refuses every
+ * call. A call let in runs as the caller its headers name ({@code X-Beadle-User}, percent-decoded, and
+ * {@code X-Correlation-Id}), with a fresh correlation id when Beadle-GUI sent none, so that the call log can tell who
+ * caused each call to ProTech.
  */
 @Slf4j
 @Component
@@ -89,8 +91,26 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
 
     static Caller callerOf(HttpServletRequest request) {
         String correlationId = trimToNull(request.getHeader(CORRELATION_HEADER));
-        return new Caller(trimToNull(request.getHeader(USER_HEADER)),
+        return new Caller(userOf(request.getHeader(USER_HEADER)),
                 correlationId == null ? UUID.randomUUID().toString() : correlationId);
+    }
+
+    /**
+     * The user {@code X-Beadle-User} names. A header carries ASCII only, so the contract has the name percent-encoded
+     * in UTF-8 as {@link java.net.URLEncoder} writes it ({@code Łukasz Wójcik} travels as
+     * {@code %C5%81ukasz+W%C3%B3jcik}); a plain ASCII name reads the same either way, and a value that is not valid
+     * percent-encoding is taken as it came.
+     */
+    static String userOf(String header) {
+        String value = trimToNull(header);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return trimToNull(URLDecoder.decode(value, UTF_8));
+        } catch (IllegalArgumentException notEncoded) {
+            return value;
+        }
     }
 
     boolean accepts(String authorization) {

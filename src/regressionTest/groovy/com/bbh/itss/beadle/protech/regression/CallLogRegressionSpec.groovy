@@ -63,6 +63,20 @@ class CallLogRegressionSpec extends BeadleProTechSpecification {
         logged*.correlationId.unique().size() == 2
     }
 
+    def "a user whose name has Polish letters is logged by that name, sent percent-encoded as the contract says"() {
+        given:
+        String user = 'Łukasz Wójcik'
+        String correlation = UUID.randomUUID().toString()
+
+        when:
+        def found = api.withHeaders(['X-Beadle-User': URLEncoder.encode(user, 'UTF-8'), 'X-Correlation-Id': correlation])
+                .get('/api/protech/lookups/users?q=Olivia')
+
+        then:
+        found.status == 200
+        callLog('PROTECH', correlation)*.userName == [user]
+    }
+
     def "a call log query with #problem is refused naming the field"() {
         when:
         def response = api.get('/api/protech/call-log?' + query)

@@ -126,6 +126,29 @@ class ServiceTokenFilterSpec extends Specification {
         CallerContext.current() == Caller.NONE
     }
 
+    def "the user travels percent-encoded in UTF-8 and is logged decoded: #header"() {
+        given:
+        Caller seen = null
+        def chain = { ServletRequest request, ServletResponse response -> seen = CallerContext.current() } as FilterChain
+
+        when:
+        run(filter, '/api/protech/status', 'Bearer service-token', chain, ['X-Beadle-User': header])
+
+        then:
+        seen.user() == user
+
+        where:
+        header                                     || user
+        '%C5%81ukasz+W%C3%B3jcik'                  || 'Łukasz Wójcik'
+        '%C5%81ukasz%20W%C3%B3jcik'                || 'Łukasz Wójcik'
+        URLEncoder.encode('Żaneta Ćwięk-Ślusarczyk', 'UTF-8') || 'Żaneta Ćwięk-Ślusarczyk'
+        'Mateusz Matan'                            || 'Mateusz Matan'
+        'Mateusz+Matan'                            || 'Mateusz Matan'
+        'system'                                   || 'system'
+        '100% sure'                                || '100% sure'
+        '%20'                                      || null
+    }
+
     def "a call without the headers gets a fresh correlation id and no user"() {
         given:
         List<Caller> seen = []

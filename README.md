@@ -17,8 +17,10 @@ values, the lookup tables, the poll that finds what moved, and how each name is 
 ## API
 
 Every call carries `Authorization: Bearer <BEADLE_SERVICE_TOKEN>` (otherwise `401`), and from Beadle-GUI
-`X-Beadle-User` (the signed-in user, only logged) and `X-Correlation-Id` (one per user action, logged and passed on
-in callbacks; a fresh one is minted when it is missing). Answers are JSON, errors `application/problem+json` with
+`X-Beadle-User` (the signed-in user, only logged; percent-encoded in UTF-8 as `URLEncoder` writes it, so that a
+name such as `Łukasz Wójcik` survives the header as `%C5%81ukasz+W%C3%B3jcik`, and decoded before it is logged) and
+`X-Correlation-Id` (one per user action, logged and passed on in callbacks; a fresh one is minted when it is
+missing). Answers are JSON, errors `application/problem+json` with
 `status`, `title`, `detail` and, for validation, `problems: [{"field", "message"}]`. A request ProTech would refuse
 is refused with `400` and the fields at fault before it reaches ProTech; what ProTech refuses itself (a change it
 does not have, a closed change) answers `409` with ProTech's reason, and ProTech out of reach, a failed sign-in or
