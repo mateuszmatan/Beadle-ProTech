@@ -54,6 +54,7 @@ beadle:
     poll: ${PROTECH_POLL:PT1M}
     tick: ${PROTECH_TICK:PT10S}
     demo:
+      enabled: ${PROTECH_DEMO:false}
       apply-delay: ${PROTECH_DEMO_APPLY_DELAY:PT3S}
 ---
 spring:

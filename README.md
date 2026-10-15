@@ -118,7 +118,8 @@ services.gradle.org outside (`settings.gradle` makes one `HEAD` request to the B
 ## Configuration
 
 Every setting comes from an environment variable; OpenShift fills them from the ConfigMap `beadle-protech-config`
-and the secrets below. While `PROTECH_URL` is blank the demo ProTech plays.
+and the secrets below. While `PROTECH_URL` is blank the demo ProTech plays; the `rd`, `qc` and `prod` profiles refuse
+to start then, unless `PROTECH_DEMO=true` asks for the demo on purpose.
 
 | Property | Variable | Default | What |
 |---|---|---|---|
@@ -129,6 +130,7 @@ and the secrets below. While `PROTECH_URL` is blank the demo ProTech plays.
 | `beadle.protech.password` | `PROTECH_PASSWORD` | blank | its password |
 | `beadle.protech.poll` | `PROTECH_POLL` | `PT1M` | how often the live ProTech is asked what moved |
 | `beadle.protech.tick` | `PROTECH_TICK` | `PT10S` | how often the ticker looks (the demo ProTech at every tick, the live one once the poll interval passed) |
+| `beadle.protech.demo.enabled` | `PROTECH_DEMO` | `false` | `true` lets `rd`, `qc` and `prod` start with a blank `PROTECH_URL`, on the demo ProTech |
 | `beadle.protech.demo.apply-delay` | `PROTECH_DEMO_APPLY_DELAY` | `PT3S` | how long the demo ProTech takes to apply an update |
 | `beadle.protech.fields.*` | | the ServiceNow base system | the tables, fields, state values and lookup tables of ProTech, one property each; see [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) |
 
@@ -161,7 +163,7 @@ again on the next tick. In VS Code the tasks `gradle: bootRun`, `gradle: test`, 
 | Profile | Database | ProTech |
 |---------|----------|---------|
 | `local` (default) | H2 file in Oracle mode | demo, unless `PROTECH_URL` is set |
-| `rd`, `qc`, `prod` | Oracle from `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (`DB_POOL_SIZE` sizes the pool) | the real one when `PROTECH_URL` is set |
+| `rd`, `qc`, `prod` | Oracle from `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (`DB_POOL_SIZE` sizes the pool) | the real one: the service does not start while `PROTECH_URL` is blank, unless `PROTECH_DEMO=true` asks for the demo |
 
 `rd`, `qc` and `prod` each switch on the `oracle` profile. Liquibase updates the schema on every start and
 Hibernate validates it on Oracle. `rd` logs at `DEBUG`; `rd` and `qc` show the health details.
@@ -182,9 +184,11 @@ The manifests in `deploy/openshift/beadle-protech` are a Kustomize base (Deploym
 ConfigMap `beadle-protech-config` with the profile, `BEADLE_GUI_URL=http://beadle:8081`, `PROTECH_URL` and
 `PROTECH_POLL`) with one overlay per environment that sets its profile. The Deployment reads the secrets
 `beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) and `beadle-protech-services`
-(`BEADLE_SERVICE_TOKEN`), and the optional `beadle-protech-servicenow` (`PROTECH_URL`, `PROTECH_USERNAME`,
-`PROTECH_PASSWORD`; a secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and
-`/actuator/health/readiness`.
+(`BEADLE_SERVICE_TOKEN`), and `beadle-protech-servicenow` (`PROTECH_URL`, `PROTECH_USERNAME`, `PROTECH_PASSWORD`; a
+secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and `/actuator/health/readiness`. The
+Deployment marks `beadle-protech-servicenow` optional only so that an environment can run on the demo ProTech on
+purpose with `PROTECH_DEMO=true` in its overlay: without that, `rd`, `qc` and `prod` do not start while
+`PROTECH_URL` is blank, since the demo ProTech would answer in its place and hand Beadle-GUI made-up changes.
 
 ```bash
 oc create secret generic beadle-protech-db --from-literal=DB_URL='jdbc:oracle:thin:@//<host>:1521/<service>' \

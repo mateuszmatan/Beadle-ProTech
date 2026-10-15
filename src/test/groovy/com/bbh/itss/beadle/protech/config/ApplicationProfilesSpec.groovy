@@ -11,6 +11,8 @@ class ApplicationProfilesSpec extends Specification {
 
     static final Map ORACLE = [DB_URL     : 'jdbc:oracle:thin:@//oracle.bbh.test:1521/BEADLE',
                                DB_USERNAME: 'BEADLE_PROTECH', DB_PASSWORD: 'secret']
+    static final Map REAL_PROTECH = [PROTECH_URL: 'https://bbh.service-now.com', PROTECH_USERNAME: 'beadle',
+                                     PROTECH_PASSWORD: 'secret']
 
     def "without a profile Beadle-ProTech runs locally on port 8083 on H2 in the home folder with the demo ProTech"() {
         when:
@@ -30,6 +32,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.protech.poll') == 'PT1M'
         env.getProperty('beadle.protech.tick') == 'PT10S'
         env.getProperty('beadle.protech.demo.apply-delay') == 'PT3S'
+        env.getProperty('beadle.protech.demo.enabled') == 'false'
         env.getProperty('beadle.gui.url') == 'http://localhost:8081'
         env.getProperty('beadle.services.token') == ''
         env.getProperty('spring.http.clients.connect-timeout') == '5s'
@@ -89,8 +92,57 @@ class ApplicationProfilesSpec extends Specification {
         profile << ['rd', 'qc', 'prod']
     }
 
-    private static Environment environment(List<String> profiles, Map<String, String> variables) {
-        def application = new SpringApplicationBuilder(Empty)
+    def "the #profile profile starts on the real ProTech"() {
+        when:
+        def env = environment([profile], ORACLE + REAL_PROTECH, RealProTechConfiguration)
+
+        then:
+        env.getProperty('beadle.protech.url') == 'https://bbh.service-now.com'
+
+        where:
+        profile << ['rd', 'qc', 'prod']
+    }
+
+    def "the #profile profile does not start while PROTECH_URL is #blank, since the demo ProTech would answer in its place"() {
+        when:
+        environment([profile], ORACLE + variables, RealProTechConfiguration)
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message.startsWith('The rd, qc and prod profiles need the real ProTech, but PROTECH_URL is blank')
+        e.message.contains('PROTECH_DEMO=true')
+
+        where:
+        profile | variables                                 || blank
+        'prod'  | [:]                                       || 'missing'
+        'qc'    | [PROTECH_URL: '']                         || 'empty'
+        'rd'    | [PROTECH_URL: ' ', PROTECH_DEMO: 'false'] || 'blank'
+    }
+
+    def "the #profile profile runs on the demo ProTech only when asked for on purpose"() {
+        when:
+        def env = environment([profile], ORACLE + [PROTECH_DEMO: 'true'], RealProTechConfiguration)
+
+        then:
+        env.getProperty('beadle.protech.url') == ''
+        env.getProperty('beadle.protech.demo.enabled') == 'true'
+
+        where:
+        profile << ['rd', 'prod']
+    }
+
+    def "the local profile runs on the demo ProTech without asking"() {
+        when:
+        def env = environment([], [:], RealProTechConfiguration)
+
+        then:
+        env.defaultProfiles as List == ['local']
+        env.getProperty('beadle.protech.url') == ''
+    }
+
+    private static Environment environment(List<String> profiles, Map<String, String> variables,
+                                           Class<?> configuration = Empty) {
+        def application = new SpringApplicationBuilder(configuration)
                 .web(NONE)
                 .logStartupInfo(false)
                 .properties(variables.collectEntries { name, value -> [name, value] } as Map<String, Object>)
