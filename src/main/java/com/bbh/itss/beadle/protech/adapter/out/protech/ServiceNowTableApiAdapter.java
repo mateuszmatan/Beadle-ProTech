@@ -34,9 +34,9 @@ import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.SYS_ID;
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.UPDATED;
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.dateTime;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.SYS_ID;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.UPDATED;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.dateTime;
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static java.util.stream.Collectors.groupingBy;
@@ -69,17 +69,17 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
     /** How many changes one poll asks about, so that the query stays well within the length of a URL. */
     static final int POLL_BATCH = 50;
 
-    private final ServiceNowTableApi api;
-    private final ServiceNowRecords records;
+    private final TableApi api;
+    private final ProTechRecords records;
     private final ProTechFields fields;
     private final String url;
     private final Duration poll;
     private final Clock clock;
 
     ServiceNowTableApiAdapter(ProTechProperties properties, RestClient.Builder builder, Clock clock) {
-        this.api = new ServiceNowTableApi(builder, properties);
+        this.api = new TableApi(builder, properties);
         this.fields = properties.fields();
-        this.records = new ServiceNowRecords(fields);
+        this.records = new ProTechRecords(fields);
         this.url = CS.removeEnd(trimToEmpty(properties.url()), "/");
         this.poll = properties.poll();
         this.clock = clock;
@@ -98,7 +98,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
     @Override
     public RaisedChange raise(ProductionChange change) {
         ChangeFields columns = fields.change();
-        ServiceNowRow created = api.create(columns.table(), records.changeBody(change),
+        TableRow created = api.create(columns.table(), records.changeBody(change),
                 List.of(SYS_ID, columns.number()), "raise the change");
         String number = numberOf(created, columns.number());
         return new RaisedChange(number, linkTo(number));
@@ -118,21 +118,21 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         if (numbers.isEmpty()) {
             return Map.of();
         }
-        Map<String, ServiceNowRow> changes = api.list(columns.table(), columns.number() + "IN" + String.join(",",
+        Map<String, TableRow> changes = api.list(columns.table(), columns.number() + "IN" + String.join(",",
                         numbers), records.changeColumns(), numbers.size(), "read the changes " + String.join(", ", numbers))
                 .stream().filter(row -> row.value(columns.number()) != null)
                 .collect(toMap(row -> row.value(columns.number()), row -> row, (first, second) -> first));
         if (changes.isEmpty()) {
             return Map.of();
         }
-        List<String> changeIds = changes.values().stream().map(ServiceNowRow::sysId).toList();
-        Map<String, List<ServiceNowRow>> tasks = tasksOf(changeIds);
+        List<String> changeIds = changes.values().stream().map(TableRow::sysId).toList();
+        Map<String, List<TableRow>> tasks = tasksOf(changeIds);
         List<String> approving = Stream.concat(changeIds.stream(), tasks.values().stream().flatMap(List::stream)
-                .map(ServiceNowRow::sysId)).filter(Objects::nonNull).toList();
-        Map<String, List<ServiceNowRow>> approvals = approvalsOf(approving);
+                .map(TableRow::sysId)).filter(Objects::nonNull).toList();
+        Map<String, List<TableRow>> approvals = approvalsOf(approving);
         Map<String, ProductionChange> read = new LinkedHashMap<>();
         for (ProductionChange change : known) {
-            ServiceNowRow row = changes.get(safe(change.number()));
+            TableRow row = changes.get(safe(change.number()));
             if (row != null) {
                 read.put(change.number(), records.changeOf(change, row, tasks.getOrDefault(row.sysId(), List.of()),
                         approvals, linkTo(row.value(columns.number())), now(clock)));
@@ -145,14 +145,14 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
     public void update(ProductionChange change) {
         ChangeFields columns = fields.change();
         TaskFields taskColumns = fields.task();
-        ServiceNowRow row = changeRow(change.number(), List.of(SYS_ID));
+        TableRow row = changeRow(change.number(), List.of(SYS_ID));
         String number = row.value(columns.number()) == null ? change.number() : row.value(columns.number());
         api.update(columns.table(), row.sysId(), records.changeBody(change), true, "update " + number);
-        Map<String, ServiceNowRow> held = new LinkedHashMap<>();
+        Map<String, TableRow> held = new LinkedHashMap<>();
         tasksOf(List.of(row.sysId())).getOrDefault(row.sysId(), List.of())
                 .forEach(task -> held.putIfAbsent(task.value(taskColumns.number()), task));
         for (ChangeTask task : change.tasks()) {
-            ServiceNowRow found = task.number() == null ? null : held.remove(task.number());
+            TableRow found = task.number() == null ? null : held.remove(task.number());
             if (found == null) {
                 insertTask(number, task);
             } else if (!records.taskStateOf(found, TaskState.OPEN).frozen()) {
@@ -173,10 +173,10 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         ChangeFields columns = fields.change();
         List<String> approverColumns = Stream.of(columns.l1Manager(), columns.l2Manager(),
                 columns.businessApprover(), columns.supportApprover()).filter(column -> !column.isEmpty()).toList();
-        ServiceNowRow change = changeRow(changeNumber, Stream.concat(Stream.of(SYS_ID), approverColumns.stream())
+        TableRow change = changeRow(changeNumber, Stream.concat(Stream.of(SYS_ID), approverColumns.stream())
                 .toList());
         String number = Objects.requireNonNullElse(change.value(columns.number()), changeNumber);
-        List<ServiceNowRow> waiting;
+        List<TableRow> waiting;
         String reminder;
         if (approval.role() != null) {
             String approver = change.display(approverColumnOf(approval.role()));
@@ -185,7 +185,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
             reminder = "Beadle reminds you that " + number + " waits for your approval as its "
                     + approval.role().label() + ".";
         } else {
-            ServiceNowRow task = taskRow(change.sysId(), number, approval.task());
+            TableRow task = taskRow(change.sysId(), number, approval.task());
             waiting = requestedOf(task.sysId(), approval.task());
             reminder = "Beadle reminds you that the change task " + approval.task() + " of " + number
                     + " waits for your approval.";
@@ -193,7 +193,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         if (waiting.isEmpty()) {
             throw new IllegalStateException("ProTech has nobody to remind on " + number);
         }
-        for (ServiceNowRow row : waiting) {
+        for (TableRow row : waiting) {
             api.update(fields.approval().table(), row.sysId(), Map.of(fields.approval().comments(), reminder), true,
                     "remind " + row.display(fields.approval().approver()) + " on " + number);
         }
@@ -248,7 +248,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         String updatedSince = since == null ? "" : "^" + UPDATED + ">" + dateTime(since);
         Map<String, String> changeOfTask = new HashMap<>();
         Map<String, Instant> tasksAt = new HashMap<>();
-        for (ServiceNowRow row : api.list(task.table(), task.change() + "." + change.number() + "IN"
+        for (TableRow row : api.list(task.table(), task.change() + "." + change.number() + "IN"
                         + String.join(",", numbers), List.of(SYS_ID, UPDATED, task.number(), task.change()),
                 MAX_TASKS * 2 * numbers.size(), "poll the change tasks")) {
             String number = row.display(task.change());
@@ -260,14 +260,14 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 tasksAt.merge(number, updated, (first, second) -> max(first, second));
             }
         }
-        Map<String, ServiceNowRow> changes = api.list(change.table(), change.number() + "IN"
+        Map<String, TableRow> changes = api.list(change.table(), change.number() + "IN"
                         + String.join(",", numbers) + updatedSince, List.of(SYS_ID, UPDATED, change.number(),
                         change.state()), numbers.size(), "poll the changes").stream()
                 .filter(row -> row.value(change.number()) != null)
                 .collect(toMap(row -> row.value(change.number()), row -> row, (first, second) -> first));
         List<String> approving = Stream.concat(numbers.stream(), changeOfTask.keySet().stream().sorted()).toList();
         Map<String, Instant> approvalsAt = new HashMap<>();
-        for (ServiceNowRow row : api.list(approval.table(), approval.approving() + "." + change.number() + "IN"
+        for (TableRow row : api.list(approval.table(), approval.approving() + "." + change.number() + "IN"
                         + String.join(",", approving) + updatedSince, List.of(SYS_ID, UPDATED, approval.approving()),
                 APPROVALS_PER_RECORD * approving.size(), "poll the approvals")) {
             String approved = row.display(approval.approving());
@@ -279,7 +279,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         }
         Map<String, ChangeActivity> moved = new LinkedHashMap<>();
         for (String number : numbers) {
-            ServiceNowRow row = changes.get(number);
+            TableRow row = changes.get(number);
             if (row != null || approvalsAt.containsKey(number) || tasksAt.containsKey(number)) {
                 moved.put(number, new ChangeActivity(number, row == null ? null : records.changeStateOf(row, null),
                         row == null ? null : row.instant(UPDATED, null), approvalsAt.get(number),
@@ -291,12 +291,12 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
 
     private String insertTask(String changeNumber, ChangeTask task) {
         TaskFields columns = fields.task();
-        ServiceNowRow created = api.create(columns.table(), records.taskBody(changeNumber, task),
+        TableRow created = api.create(columns.table(), records.taskBody(changeNumber, task),
                 List.of(SYS_ID, columns.number()), "create a change task on " + changeNumber);
         return numberOf(created, columns.number());
     }
 
-    private ServiceNowRow changeRow(String changeNumber, List<String> columns) {
+    private TableRow changeRow(String changeNumber, List<String> columns) {
         ChangeFields change = fields.change();
         String number = safe(changeNumber);
         List<String> wanted = Stream.concat(columns.stream(), Stream.of(change.number())).distinct().toList();
@@ -305,16 +305,16 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 .orElseGet(() -> missing(changeNumber));
     }
 
-    private ServiceNowRow taskRow(String changeId, String changeNumber, String taskNumber) {
+    private TableRow taskRow(String changeId, String changeNumber, String taskNumber) {
         TaskFields task = fields.task();
         String number = safe(taskNumber);
-        List<ServiceNowRow> found = number == null ? List.of() : api.list(task.table(), task.change() + "="
+        List<TableRow> found = number == null ? List.of() : api.list(task.table(), task.change() + "="
                 + changeId + "^" + task.number() + "=" + number, List.of(SYS_ID, task.number()), 1, "find " + number);
         return found.stream().findFirst().orElseThrow(() -> new IllegalStateException("ProTech has no change task "
                 + taskNumber + " on " + changeNumber));
     }
 
-    private Map<String, List<ServiceNowRow>> tasksOf(List<String> changeIds) {
+    private Map<String, List<TableRow>> tasksOf(List<String> changeIds) {
         TaskFields task = fields.task();
         return api.list(task.table(), task.change() + "IN" + String.join(",", changeIds) + "^ORDERBY"
                                 + task.number(), records.taskColumns(), MAX_TASKS * 2 * changeIds.size(),
@@ -324,7 +324,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                         toList()));
     }
 
-    private Map<String, List<ServiceNowRow>> approvalsOf(List<String> approving) {
+    private Map<String, List<TableRow>> approvalsOf(List<String> approving) {
         String column = fields.approval().approving();
         return api.list(fields.approval().table(), column + "IN" + String.join(",", approving),
                         records.approvalColumns(), APPROVALS_PER_RECORD * approving.size(), "read the approvals")
@@ -332,7 +332,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 .collect(groupingBy(row -> row.value(column), LinkedHashMap::new, toList()));
     }
 
-    private List<ServiceNowRow> requestedOf(String approvingId, String number) {
+    private List<TableRow> requestedOf(String approvingId, String number) {
         String state = fields.approval().state();
         return api.list(fields.approval().table(), fields.approval().approving() + "=" + approvingId + "^" + state
                         + "IN" + String.join(",", records.requested()), records.approvalColumns(),
@@ -353,7 +353,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         return url + "/" + fields.change().table() + ".do?sysparm_query=" + fields.change().number() + "=" + number;
     }
 
-    private static String numberOf(ServiceNowRow created, String column) {
+    private static String numberOf(TableRow created, String column) {
         String number = created.value(column);
         if (number == null) {
             throw new UncheckedIOException(NO_NUMBER, new IOException(NO_NUMBER));
@@ -361,7 +361,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         return number;
     }
 
-    private static ServiceNowRow missing(String changeNumber) {
+    private static TableRow missing(String changeNumber) {
         throw new IllegalStateException("ProTech has no change " + changeNumber);
     }
 

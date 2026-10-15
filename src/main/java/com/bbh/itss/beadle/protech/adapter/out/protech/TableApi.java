@@ -31,7 +31,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
  * other than a failed sign-in) becomes an {@link IllegalStateException} with ProTech's message; ProTech out of reach,
  * a failed sign-in or a {@code 5xx} answer becomes an {@link UncheckedIOException}.
  */
-class ServiceNowTableApi {
+class TableApi {
 
     static final String PROTECH = "ProTech";
     static final String TABLE = "/api/now/table/{table}";
@@ -46,7 +46,7 @@ class ServiceNowTableApi {
 
     private final RestClient client;
 
-    ServiceNowTableApi(RestClient.Builder builder, ProTechProperties properties) {
+    TableApi(RestClient.Builder builder, ProTechProperties properties) {
         this.client = builder.baseUrl(CS.removeEnd(trimToEmpty(properties.url()), "/"))
                 .defaultHeaders(headers -> headers.setBasicAuth(defaultString(properties.username()),
                         defaultString(properties.password()), UTF_8))
@@ -54,23 +54,23 @@ class ServiceNowTableApi {
     }
 
     /** The records of a table that match an encoded query, each field with its value and its display value. */
-    List<ServiceNowRow> list(String table, String query, Collection<String> fields, int limit, String operation) {
+    List<TableRow> list(String table, String query, Collection<String> fields, int limit, String operation) {
         return rows(table, query, fields, limit, "all", operation);
     }
 
     /** The records of a table that match an encoded query, each field with its display value only. */
-    List<ServiceNowRow> search(String table, String query, Collection<String> fields, int limit, String operation) {
+    List<TableRow> search(String table, String query, Collection<String> fields, int limit, String operation) {
         return rows(table, query, fields, limit, "true", operation);
     }
 
     /** Inserts a record given by display values and answers the requested fields of the new record. */
-    ServiceNowRow create(String table, Map<String, Object> body, Collection<String> fields, String operation) {
+    TableRow create(String table, Map<String, Object> body, Collection<String> fields, String operation) {
         try {
             Result<Map<String, Object>> created = client.post()
                     .uri(TABLE + "?sysparm_input_display_value=true&sysparm_fields={fields}"
                             + "&sysparm_exclude_reference_link=true", table, String.join(",", fields))
                     .contentType(APPLICATION_JSON).accept(APPLICATION_JSON).body(body).retrieve().body(ROW);
-            return new ServiceNowRow(Optional.ofNullable(created).map(Result::result).orElse(Map.of()));
+            return new TableRow(Optional.ofNullable(created).map(Result::result).orElse(Map.of()));
         } catch (RestClientException e) {
             throw refusal(operation, e);
         }
@@ -87,7 +87,7 @@ class ServiceNowTableApi {
         }
     }
 
-    private List<ServiceNowRow> rows(String table, String query, Collection<String> fields, int limit,
+    private List<TableRow> rows(String table, String query, Collection<String> fields, int limit,
                                      String display, String operation) {
         try {
             Result<List<Map<String, Object>>> found = client.get()
@@ -95,7 +95,7 @@ class ServiceNowTableApi {
                                     + "&sysparm_display_value={display}&sysparm_exclude_reference_link=true",
                             table, query, String.join(",", fields), limit, display)
                     .accept(APPLICATION_JSON).retrieve().body(ROWS);
-            return emptyIfNull(found == null ? null : found.result()).stream().map(ServiceNowRow::new).toList();
+            return emptyIfNull(found == null ? null : found.result()).stream().map(TableRow::new).toList();
         } catch (RestClientException e) {
             throw refusal(operation, e);
         }

@@ -17,13 +17,13 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
  * object with its {@code value} and {@code display_value} ({@code sysparm_display_value=all}). Date-time values are
  * in the internal form of ServiceNow, {@code yyyy-MM-dd HH:mm:ss} in UTC.
  */
-record ServiceNowRow(Map<String, Object> fields) {
+record TableRow(Map<String, Object> fields) {
 
     static final String SYS_ID = "sys_id";
     static final String UPDATED = "sys_updated_on";
     static final DateTimeFormatter DATE_TIME = ofPattern("yyyy-MM-dd HH:mm:ss").withZone(UTC);
 
-    ServiceNowRow {
+    TableRow {
         fields = fields.entrySet().stream().filter(field -> field.getValue() != null)
                 .collect(toUnmodifiableMap(Entry::getKey, Entry::getValue));
     }

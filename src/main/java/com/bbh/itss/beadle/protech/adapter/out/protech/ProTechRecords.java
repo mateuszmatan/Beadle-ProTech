@@ -31,9 +31,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.SYS_ID;
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.UPDATED;
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.dateTime;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.SYS_ID;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.UPDATED;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.dateTime;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.REQUESTED;
@@ -53,11 +53,11 @@ import static org.apache.commons.lang3.Strings.CI;
  * does not answer, because it is not mapped or ProTech has no such field, keeps the value Beadle knows; the risk
  * assessment and the privileged access are written as text and never read back.
  */
-class ServiceNowRecords {
+class ProTechRecords {
 
     private final ProTechFields fields;
 
-    ServiceNowRecords(ProTechFields fields) {
+    ProTechRecords(ProTechFields fields) {
         this.fields = fields;
     }
 
@@ -173,8 +173,8 @@ class ServiceNowRecords {
      * The change as ProTech holds it: its texts, schedule and fields from {@code change}, its state, a workflow step
      * when the state moved since Beadle saw it, its tasks with their approvals, and the approvals of its approvers.
      */
-    ProductionChange changeOf(ProductionChange known, ServiceNowRow change, List<ServiceNowRow> tasks,
-                              Map<String, List<ServiceNowRow>> approvals, String url, Instant now) {
+    ProductionChange changeOf(ProductionChange known, TableRow change, List<TableRow> tasks,
+                              Map<String, List<TableRow>> approvals, String url, Instant now) {
         ChangeFields columns = fields.change();
         ChangeTemplate template = templateOf(getIfNull(known.template(), () -> ChangeTemplate.builder().build()),
                 change);
@@ -194,15 +194,15 @@ class ServiceNowRecords {
     }
 
     /** The state of {@code change}, or {@code fallback} when ProTech answers a value no state lists. */
-    ChangeState changeStateOf(ServiceNowRow change, ChangeState fallback) {
+    ChangeState changeStateOf(TableRow change, ChangeState fallback) {
         return stateOf(fields.changeStates(), change, fields.change().state(), fallback);
     }
 
-    TaskState taskStateOf(ServiceNowRow task, TaskState fallback) {
+    TaskState taskStateOf(TableRow task, TaskState fallback) {
         return stateOf(fields.taskStates(), task, fields.task().state(), fallback);
     }
 
-    ApprovalState approvalOf(ServiceNowRow row, String column) {
+    ApprovalState approvalOf(TableRow row, String column) {
         return stateOf(fields.approvalStates(), row, column, NOT_APPROVED);
     }
 
@@ -211,7 +211,7 @@ class ServiceNowRecords {
         return fields.approvalStates().get(REQUESTED);
     }
 
-    private ChangeTemplate templateOf(ChangeTemplate known, ServiceNowRow change) {
+    private ChangeTemplate templateOf(ChangeTemplate known, TableRow change) {
         ChangeFields columns = fields.change();
         Approvers approvers = known.approvers();
         Planning planning = known.planning();
@@ -248,7 +248,7 @@ class ServiceNowRecords {
                 .build();
     }
 
-    private ChangeSchedule scheduleOf(ChangeSchedule known, ServiceNowRow change) {
+    private ChangeSchedule scheduleOf(ChangeSchedule known, TableRow change) {
         ChangeFields columns = fields.change();
         return new ChangeSchedule(change.instant(columns.installationStart(), known.installationStart()),
                 change.instant(columns.installationEnd(), known.installationEnd()),
@@ -259,13 +259,13 @@ class ServiceNowRecords {
                 change.instant(columns.downtimeEnd(), known.downtimeEnd()));
     }
 
-    private List<ChangeTask> tasksOf(List<ChangeTask> known, List<ServiceNowRow> rows,
-                                     Map<String, List<ServiceNowRow>> approvals) {
+    private List<ChangeTask> tasksOf(List<ChangeTask> known, List<TableRow> rows,
+                                     Map<String, List<TableRow>> approvals) {
         TaskFields columns = fields.task();
         Map<String, ChangeTask> byNumber = known.stream().filter(task -> task.number() != null)
                 .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
         List<String> order = List.copyOf(byNumber.keySet());
-        Comparator<ServiceNowRow> listed = comparing(row -> order.contains(row.value(columns.number()))
+        Comparator<TableRow> listed = comparing(row -> order.contains(row.value(columns.number()))
                 ? order.indexOf(row.value(columns.number())) : order.size());
         return rows.stream().sorted(listed.thenComparing(row -> row.value(columns.number()),
                         nullsLast(Comparator.<String>naturalOrder())))
@@ -274,7 +274,7 @@ class ServiceNowRecords {
                 .toList();
     }
 
-    private ChangeTask taskOf(ChangeTask known, ServiceNowRow row, List<ServiceNowRow> approvals) {
+    private ChangeTask taskOf(ChangeTask known, TableRow row, List<TableRow> approvals) {
         TaskFields columns = fields.task();
         TaskDetails details = known == null ? TaskDetails.builder().build() : known.details();
         TaskDetails read = details.toBuilder()
@@ -300,7 +300,7 @@ class ServiceNowRecords {
                 taskStateOf(row, known == null ? TaskState.OPEN : known.state()));
     }
 
-    private List<ChangeApproval> approvalsOf(Approvers named, ChangeState state, List<ServiceNowRow> rows) {
+    private List<ChangeApproval> approvalsOf(Approvers named, ChangeState state, List<TableRow> rows) {
         String approverColumn = fields.approval().approver();
         return Stream.of(ApprovalRole.values()).map(role -> {
             String approver = role.approverIn(named);
@@ -312,7 +312,7 @@ class ServiceNowRecords {
         }).toList();
     }
 
-    List<String> approvers(Collection<ServiceNowRow> approvals) {
+    List<String> approvers(Collection<TableRow> approvals) {
         Set<String> names = new LinkedHashSet<>();
         approvals.stream().map(row -> row.display(fields.approval().approver()))
                 .filter(name -> name != null && !name.isBlank()).forEach(names::add);
@@ -337,7 +337,7 @@ class ServiceNowRecords {
         return reached < 0 ? NOT_APPROVED : reached == 0 ? REQUESTED : APPROVED;
     }
 
-    private static <S extends Enum<S>> S stateOf(Map<S, List<String>> states, ServiceNowRow row, String column,
+    private static <S extends Enum<S>> S stateOf(Map<S, List<String>> states, TableRow row, String column,
                                                  S fallback) {
         if (!row.has(column)) {
             return fallback;
