@@ -37,6 +37,7 @@ a `5xx` of ProTech answers `502`. `Change` and `ChangeTask` are the JSON of the 
 | `POST /api/protech/changes/{number}/reminders` | `{"role": "BUSINESS"}` or `{"task": "CTASK0001234"}` | `["Rebecca Lawson", ...]`, the people reminded |
 | `GET /api/protech/lookups/{kind}?q=&limit=20` | | `[{"value": "...", "detail": "..."}]`; `kind` is `users`, `departments`, `assignment-groups`, `releases`, `configuration-items`, `incidents`, `problems` or `clients`, `limit` 1 to 100 |
 | `GET /api/protech/call-log?correlationId=&from=&to=&page=0&size=50` | | the call log, newest first, for diagnosis (`from` inclusive, `to` exclusive, `size` up to 500) |
+| `POST /api/protech/webhook` | `{"number": "CHG0001234"}`, sent by ProTech when it moved the change | `202`; the change is looked at at once (see below), a change not followed is left alone |
 | `GET /actuator/health` | | open without a token, with `/liveness` and `/readiness`; a path with a dot segment, `;` or an encoded character needs the token |
 
 ### Callbacks to Beadle-GUI
@@ -45,8 +46,11 @@ Every change raised or read through the API is written down in `BEADLE_PROTECH_C
 knows, the time up to which it knows what ProTech did, and the correlation id of the user action. A ticker looks
 every `beadle.protech.tick` (10 seconds) at ProTech: the demo ProTech at every tick, the live one once
 `beadle.protech.poll` (one minute) has passed, with three Table API queries for the changes, change tasks and
-approvals updated since the earliest last look less a minute. For each change that moved past what Beadle-GUI knows
-it posts one callback
+approvals updated since the earliest last look less a minute. ProTech may also call the webhook
+`POST /api/protech/webhook` with the number of a change it moved (a business rule, see
+[docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md)): that change is then looked at at once, the same way, instead of
+at the next poll. Without the business rule the live adapter only polls. For each change that moved past what
+Beadle-GUI knows it posts one callback
 
 ```json
 {"number": "CHG0001234", "event": "STATE_CHANGED", "state": "IMPLEMENTATION", "at": "2026-10-15T09:00:00Z", "correlationId": "..."}

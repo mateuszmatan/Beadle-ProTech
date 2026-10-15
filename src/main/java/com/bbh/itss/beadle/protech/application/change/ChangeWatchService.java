@@ -12,6 +12,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.change.WatchReport;
+import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
 import lombok.RequiredArgsConstructor;
 
 import java.time.Clock;
@@ -26,16 +27,18 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.SYSTEM_USER;
+import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static java.util.UUID.randomUUID;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 /**
  * Watches the changes Beadle-GUI knows for what ProTech does to them. Each tick looks at ProTech once its poll
- * interval has passed (the demo ProTech at every tick, the live one every {@code beadle.protech.poll}), asks for what
- * moved since the earliest last look minus {@link #MARGIN}, and sends Beadle-GUI one callback per change that moved
- * past what it knows, under the correlation id of the user action that last touched the change. A change is marked
+ * interval has passed (the demo ProTech at every tick, the live one every {@code beadle.protech.poll}), and ProTech's
+ * webhook has one change looked at at once. A look asks for what moved since the earliest last look minus
+ * {@link #MARGIN}, and sends Beadle-GUI one callback per change that moved past what it knows, under the correlation id of the user action that last touched the change. A change is marked
  * reported only once Beadle-GUI took its callback, so a failed callback is sent again at the next look; the report is
  * merged over the change as it is written down by then, which keeps the read with which Beadle-GUI answers the
  * callback and any action of Beadle-GUI noted since the look.
@@ -65,7 +68,20 @@ public class ChangeWatchService implements ChangeWatchUseCase {
             return WatchReport.NOTHING;
         }
         lookedAt = now;
-        List<TrackedChange> watched = tracked.watched();
+        return lookAt(tracked.watched(), now);
+    }
+
+    @Override
+    @WithoutTransaction
+    public synchronized WatchReport look(String number) {
+        String wanted = trimToNull(number);
+        if (wanted == null) {
+            throw InvalidRequestException.of("number", REQUIRED);
+        }
+        return lookAt(tracked.find(wanted).filter(TrackedChange::watched).stream().toList(), now(clock));
+    }
+
+    private WatchReport lookAt(List<TrackedChange> watched, Instant now) {
         if (watched.isEmpty()) {
             return WatchReport.NOTHING;
         }

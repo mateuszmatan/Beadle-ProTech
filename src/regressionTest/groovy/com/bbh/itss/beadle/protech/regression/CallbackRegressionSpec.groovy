@@ -171,6 +171,33 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
         gui.callbacksFor(number).last().header('X-Correlation-Id') == resync
     }
 
+    def "ProTech's webhook has a change looked at at once, and the callback is still sent only once"() {
+        given:
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+
+        expect: 'the webhook needs the token and the number of a change, and leaves a change not followed alone'
+        anonymous.post('/api/protech/webhook', [number: number]).status == 401
+        api.post('/api/protech/webhook', [number: ' ']).status == 400
+        api.post('/api/protech/webhook', [number: 'CHG0099999']).status == 202
+
+        when:
+        moveTo(start + ofMinutes(2))
+        def answer = api.post('/api/protech/webhook', [number: number])
+
+        then:
+        answer.status == 202
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+        }
+
+        when: 'ProTech calls the webhook again for the same move'
+        api.post('/api/protech/webhook', [number: number])
+
+        then:
+        events(number).size() == 1
+    }
+
     /** The event, the state and the time of every callback Beadle-GUI got for {@code number}, oldest first. */
     private List<List> events(String number) {
         gui.callbacksFor(number).collect { [it.body.event, it.body.state, Instant.parse(it.body.at as String)] }

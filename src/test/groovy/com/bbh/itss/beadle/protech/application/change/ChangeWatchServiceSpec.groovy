@@ -8,6 +8,8 @@ import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback
 import com.bbh.itss.beadle.protech.domain.change.WatchReport
+import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
+import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem
 import spock.lang.Specification
 import spock.util.time.MutableClock
 
@@ -18,6 +20,7 @@ import static com.bbh.itss.beadle.protech.application.change.ChangeWatchService.
 import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.APPROVAL_CHANGED
 import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.STATE_CHANGED
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.BUSINESS_APPROVAL
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CLOSED
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CTASK_APPROVAL
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.beadle.protech.support.CallLogFixtures.CALLED
@@ -159,6 +162,58 @@ class ChangeWatchServiceSpec extends Specification {
         1 * proTech.activity(['CHG0031001'], CALLED.minus(MARGIN)) >> [:]
         1 * tracked.seen(['CHG0031001'], NOW.plusSeconds(60))
         0 * callbacks._
+    }
+
+    def "a webhook look asks ProTech about one followed change at once, whatever the poll interval"() {
+        given:
+        def change = trackedChange(number: 'CHG0031002', lastSeenAt: CALLED.plusSeconds(30), correlationId: 'corr-2')
+        def activity = new ChangeActivity('CHG0031002', null, null, NOW.minusSeconds(3), null)
+        proTech.pollEvery() >> LIVE
+        tracked.watched() >> []
+        service.tick()
+
+        when:
+        def report = service.look('CHG0031002')
+
+        then:
+        1 * tracked.find('CHG0031002') >> Optional.of(change)
+        1 * proTech.activity(['CHG0031002'], CALLED.plusSeconds(30).minus(MARGIN)) >> [CHG0031002: activity]
+        1 * callbacks.notify(new ChangeCallback('CHG0031002', APPROVAL_CHANGED, DRAFT, NOW.minusSeconds(3), 'corr-2'))
+        1 * tracked.reported(change, activity, NOW)
+        report.sent()*.number() == ['CHG0031002']
+
+        when: 'the look leaves the poll interval as it was'
+        clock.instant = NOW.plusSeconds(30)
+        def tick = service.tick()
+
+        then:
+        0 * tracked.watched()
+        tick == WatchReport.NOTHING
+    }
+
+    def "a webhook look at a change not followed, or no longer, asks ProTech nothing"() {
+        when:
+        def report = service.look(number)
+
+        then:
+        1 * tracked.find(number) >> found
+        0 * proTech.activity(*_)
+        report == WatchReport.NOTHING
+
+        where:
+        number       || found
+        'CHG0039999' || Optional.empty()
+        'CHG0031001' || Optional.of(trackedChange(state: CLOSED))
+    }
+
+    def "a webhook look needs the number of a change"() {
+        when:
+        service.look(' ')
+
+        then:
+        def e = thrown(InvalidRequestException)
+        e.problems() == [new FieldProblem('number', 'is required')]
+        0 * tracked._
     }
 
     def "a look reaches back from the last move Beadle-GUI knows, or from now, when a change was never looked at"() {

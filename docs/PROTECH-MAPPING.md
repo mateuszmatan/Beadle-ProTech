@@ -200,6 +200,32 @@ the value and the detail; a `^` in it is doubled, as the encoded query syntax wa
 | `problems` | `problem` | `number` | `short_description` | |
 | `clients` | `core_company` | `name` | `country` | `customer=true` |
 
+## The webhook (optional)
+
+The poll finds every move within `beadle.protech.poll`. To have Beadle-GUI hear of a move at once, ProTech can call
+`POST {Beadle-ProTech}/api/protech/webhook` with `{"number": "CHG0001234"}` and `Authorization: Bearer
+<BEADLE_SERVICE_TOKEN>` whenever it updates a change, a change task or an approval: the number is always the one of
+the change (for a task, of its change; for an approval, of the change it or its task belongs to). Beadle-ProTech
+then looks at that change as the poll does (the same three queries, for that change only) and calls Beadle-GUI back
+if it moved past what Beadle-GUI knows; it answers `202`, also for a change it does not follow, and leaves the poll
+as it was. A move reported by both the webhook and the poll is called back once.
+
+In ProTech this is an asynchronous business rule after insert and update on `change_request`, `change_task` and
+`sysapproval_approver` (for the approvals, only of a change request or a change task), which sends an outbound REST
+message, for example:
+
+```javascript
+var message = new sn_ws.RESTMessageV2();
+message.setEndpoint(gs.getProperty('x_bbh.beadle_protech.webhook_url'));   // https://.../api/protech/webhook
+message.setHttpMethod('POST');
+message.setRequestHeader('Content-Type', 'application/json');
+message.setRequestHeader('Authorization', 'Bearer ' + gs.getProperty('x_bbh.beadle_protech.token')); // password2
+message.setRequestBody(JSON.stringify({number: changeNumber}));             // the number of the change
+message.executeAsync();
+```
+
+Keep the token in an encrypted (`password2`) system property.
+
 ## What the service account needs in ProTech
 
 Read on `change_request`, `change_task`, `sysapproval_approver` and the lookup tables; create and write on
