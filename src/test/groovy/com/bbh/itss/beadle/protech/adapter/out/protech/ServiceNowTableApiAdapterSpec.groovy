@@ -241,6 +241,43 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         change.tasks() == []
     }
 
+    def "a long list of changes is read #batch changes, tasks or approvals at a time, so that no URL grows too long"() {
+        given: 'Beadle-GUI knows one change more than a batch, and the last one has two tasks'
+        List<String> numbers = (1..batch + 1).collect { 'CHG00' + (31000 + it) }
+        List<String> changeIds = (1..batch + 1).collect { 'c' + it.toString().padLeft(32, '0') }
+        List<Map> changes = (0..batch).collect { changeRow(sys_id: field(changeIds[it]), number: field(numbers[it])) }
+        List<String> taskIds = ['t' + '1'.padLeft(32, '0'), 't' + '2'.padLeft(32, '0')]
+        List<Map> tasks = taskIds.withIndex().collect { id, index ->
+            taskRow('x', 'CTASK00' + (41001 + index), '1', 'Open', 'requested') +
+                    [sys_id: field(id), change_request: field(changeIds.last(), numbers.last())]
+        }
+        List<String> queries = []
+        expectList('change_request', queries, 'numberIN' + numbers.take(batch).join(','), changes.take(batch))
+        expectList('change_request', queries, 'numberIN' + numbers.last(), [changes.last()])
+        expectList('change_task', queries, 'change_requestIN' + changeIds.take(batch).join(',') + '^ORDERBYnumber', [])
+        expectList('change_task', queries, 'change_requestIN' + changeIds.last() + '^ORDERBYnumber', tasks)
+        expectList('sysapproval_approver', queries, 'sysapprovalIN' + changeIds.take(batch).join(','),
+                [approvalRow(changeIds.first(), 'Rebecca Lawson', 'approved')])
+        expectList('sysapproval_approver', queries, 'sysapprovalIN' + ([changeIds.last()] + taskIds).join(','),
+                [approvalRow(taskIds.first(), 'Thomas Ashby', 'requested')])
+
+        when:
+        def read = proTech.read(numbers.collect { raised(number: it, tasks: []) })
+
+        then:
+        read.keySet() as List == numbers
+        read[numbers.first()].approvals().find { it.role() == BUSINESS }.state() == APPROVED
+        read[numbers.last()].tasks()*.number() == ['CTASK0041001', 'CTASK0041002']
+        read[numbers.last()].tasks()*.approvers() == [['Thomas Ashby'], []]
+        read.values().every { it.state() == IMPLEMENTATION }
+        queries.size() == 6
+        queries.every { it.length() < 4096 }
+        server.verify()
+
+        where:
+        batch = ServiceNowTableApiAdapter.IN_BATCH
+    }
+
     def "reading changes ProTech does not have asks once and answers nothing"() {
         given:
         expect(GET, 'change_request', [sysparm_query: 'numberINCHG0031001']).andRespond(rows())
@@ -457,7 +494,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
 
     def "the changes are polled in batches, every beadle.protech.poll, and a number ProTech cannot read is not asked"() {
         given:
-        int batch = ServiceNowTableApiAdapter.POLL_BATCH
+        int batch = ServiceNowTableApiAdapter.IN_BATCH
         List<String> numbers = (1..batch + 1).collect { 'CHG00' + (31000 + it) }
         expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers.take(batch).join(',')]).andRespond(rows())
         expect(GET, 'change_request', [:]).andRespond(rows())
@@ -475,9 +512,39 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         server.verify()
     }
 
+    def "the approvals of a change with many tasks are polled #batch numbers at a time"() {
+        given:
+        List<String> tasks = (1..batch).collect { 'CTASK00' + (41000 + it) }
+        List<String> queries = []
+        expectList('change_task', queries, 'change_request.numberINCHG0031001', tasks.collect {
+            pollRow('t' + it, '2026-10-14 08:00:00', [number: field(it), change_request: field('c1', 'CHG0031001')])
+        })
+        expectList('change_request', queries, 'numberINCHG0031001', [])
+        expectList('sysapproval_approver', queries, 'sysapproval.numberIN' + (['CHG0031001'] + tasks.take(batch - 1)).join(','),
+                [pollRow('a1', '2026-10-15 08:59:40', [sysapproval: field('t1', tasks.first())])])
+        expectList('sysapproval_approver', queries, 'sysapproval.numberIN' + tasks.last(),
+                [pollRow('a2', '2026-10-15 08:59:50', [sysapproval: field('t2', tasks.last())])])
+
+        expect:
+        proTech.activity(['CHG0031001'], null) == [CHG0031001: new ChangeActivity('CHG0031001', null, null,
+                at('2026-10-15T08:59:50Z'), at('2026-10-14T08:00:00Z'))]
+        queries.size() == 4
+        server.verify()
+
+        where:
+        batch = ServiceNowTableApiAdapter.IN_BATCH
+    }
+
     private ServiceNowTableApiAdapter adapter(ProTechFields fields) {
         new ServiceNowTableApiAdapter(new ProTechProperties(URL + '/', 'beadle', 'secret', null, fields), builder,
                 Clock.fixed(NOW, UTC))
+    }
+
+    /** Expects a GET of {@code table} whose query is {@code query}, notes its URL, and answers {@code rows}. */
+    private void expectList(String table, List<String> urls, String query, List<Map> answer) {
+        expect(GET, table, [sysparm_query: query]).andExpect({ ClientHttpRequest request ->
+            urls << request.URI.toString()
+        } as RequestMatcher).andRespond(rows(answer as Map[]))
     }
 
     private void findChange(String fields) {

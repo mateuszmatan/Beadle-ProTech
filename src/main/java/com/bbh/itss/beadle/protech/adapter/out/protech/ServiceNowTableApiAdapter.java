@@ -67,8 +67,11 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
 
     static final int APPROVALS_PER_RECORD = 20;
     static final String NO_NUMBER = "ProTech answered without the number of the new record";
-    /** How many changes one poll asks about, so that the query stays well within the length of a URL. */
-    static final int POLL_BATCH = 50;
+    /**
+     * How many numbers or sys_ids one {@code IN} query lists, so that its URL stays well within the length of a request
+     * line: 50 sys_ids of 32 characters take less than 2 KB, encoded. Longer lists are asked in batches of this size.
+     */
+    static final int IN_BATCH = 50;
 
     private final TableApi api;
     private final ProTechRecords records;
@@ -119,10 +122,13 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         if (numbers.isEmpty()) {
             return Map.of();
         }
-        Map<String, TableRow> changes = api.list(columns.table(), columns.number() + "IN" + String.join(",",
-                        numbers), records.changeColumns(), numbers.size(), "read the changes " + String.join(", ", numbers))
-                .stream().filter(row -> row.value(columns.number()) != null)
-                .collect(toMap(row -> row.value(columns.number()), row -> row, (first, second) -> first));
+        Map<String, TableRow> changes = new LinkedHashMap<>();
+        for (List<String> batch : partition(numbers, IN_BATCH)) {
+            api.list(columns.table(), columns.number() + "IN" + String.join(",", batch), records.changeColumns(),
+                            batch.size(), "read the changes " + String.join(", ", batch))
+                    .stream().filter(row -> row.value(columns.number()) != null)
+                    .forEach(row -> changes.putIfAbsent(row.value(columns.number()), row));
+        }
         if (changes.isEmpty()) {
             return Map.of();
         }
@@ -238,7 +244,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         List<String> wanted = numbers.stream().map(ServiceNowTableApiAdapter::safe).filter(Objects::nonNull)
                 .distinct().toList();
         Map<String, ChangeActivity> moved = new LinkedHashMap<>();
-        partition(wanted, POLL_BATCH).forEach(batch -> moved.putAll(activityOf(batch, since)));
+        partition(wanted, IN_BATCH).forEach(batch -> moved.putAll(activityOf(batch, since)));
         return moved;
     }
 
@@ -268,9 +274,12 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 .collect(toMap(row -> row.value(change.number()), row -> row, (first, second) -> first));
         List<String> approving = Stream.concat(numbers.stream(), changeOfTask.keySet().stream().sorted()).toList();
         Map<String, Instant> approvalsAt = new HashMap<>();
-        for (TableRow row : api.list(approval.table(), approval.approving() + "." + change.number() + "IN"
-                        + String.join(",", approving) + updatedSince, List.of(SYS_ID, UPDATED, approval.approving()),
-                APPROVALS_PER_RECORD * approving.size(), "poll the approvals")) {
+        List<TableRow> approvals = partition(approving, IN_BATCH).stream()
+                .flatMap(batch -> api.list(approval.table(), approval.approving() + "." + change.number() + "IN"
+                                + String.join(",", batch) + updatedSince, List.of(SYS_ID, UPDATED, approval.approving()),
+                        APPROVALS_PER_RECORD * batch.size(), "poll the approvals").stream())
+                .toList();
+        for (TableRow row : approvals) {
             String approved = row.display(approval.approving());
             String number = numbers.contains(approved) ? approved : changeOfTask.get(approved);
             Instant updated = row.instant(UPDATED, null);
@@ -315,21 +324,24 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 + taskNumber + " on " + changeNumber));
     }
 
+    /** The tasks of the changes by the sys_id of their change, asked {@value #IN_BATCH} changes at a time. */
     private Map<String, List<TableRow>> tasksOf(List<String> changeIds) {
         TaskFields task = fields.task();
-        return api.list(task.table(), task.change() + "IN" + String.join(",", changeIds) + "^ORDERBY"
-                                + task.number(), records.taskColumns(), MAX_TASKS * 2 * changeIds.size(),
-                        "read the change tasks").stream()
+        return partition(changeIds, IN_BATCH).stream()
+                .flatMap(batch -> api.list(task.table(), task.change() + "IN" + String.join(",", batch) + "^ORDERBY"
+                                + task.number(), records.taskColumns(), MAX_TASKS * 2 * batch.size(),
+                        "read the change tasks").stream())
                 .filter(row -> row.value(task.change()) != null)
-                .collect(groupingBy(row -> row.value(task.change()), LinkedHashMap::new,
-                        toList()));
+                .collect(groupingBy(row -> row.value(task.change()), LinkedHashMap::new, toList()));
     }
 
+    /** The approvals of the changes and tasks by the sys_id they approve, asked {@value #IN_BATCH} at a time. */
     private Map<String, List<TableRow>> approvalsOf(List<String> approving) {
         String column = fields.approval().approving();
-        return api.list(fields.approval().table(), column + "IN" + String.join(",", approving),
-                        records.approvalColumns(), APPROVALS_PER_RECORD * approving.size(), "read the approvals")
-                .stream().filter(row -> row.value(column) != null)
+        return partition(approving, IN_BATCH).stream()
+                .flatMap(batch -> api.list(fields.approval().table(), column + "IN" + String.join(",", batch),
+                        records.approvalColumns(), APPROVALS_PER_RECORD * batch.size(), "read the approvals").stream())
+                .filter(row -> row.value(column) != null)
                 .collect(groupingBy(row -> row.value(column), LinkedHashMap::new, toList()));
     }
 
