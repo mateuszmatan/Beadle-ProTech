@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.adapter.out.servicenow;
+package com.bbh.itss.beadle.protech.adapter.out.protech;
 
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;

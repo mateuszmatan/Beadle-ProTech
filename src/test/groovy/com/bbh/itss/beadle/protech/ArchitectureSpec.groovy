@@ -11,6 +11,6 @@ class ArchitectureSpec extends ArchitectureSpecification {
 
     @Override
     String httpAdapter() {
-        'com.bbh.itss.beadle.protech.adapter.out.servicenow..'
+        'com.bbh.itss.beadle.protech.adapter.out.protech..'
     }
 }

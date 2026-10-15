@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.adapter.out.servicenow;
+package com.bbh.itss.beadle.protech.adapter.out.protech;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;

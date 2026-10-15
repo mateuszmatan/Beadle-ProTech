@@ -1,6 +1,6 @@
-package com.bbh.itss.beadle.protech.adapter.out.servicenow;
+package com.bbh.itss.beadle.protech.adapter.out.protech;
 
-import com.bbh.itss.beadle.protech.application.change.port.out.ServiceNowPort;
+import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRole;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalState;
@@ -58,7 +58,7 @@ import static org.apache.commons.lang3.ObjectUtils.max;
 
 @Component
 @RequiredArgsConstructor
-class DemoServiceNowAdapter implements ServiceNowPort {
+class DemoProTechAdapter implements ProTechPort {
 
     static final Duration STAGE = ofMinutes(2);
     static final Duration SHORT_NOTICE = ofHours(24);

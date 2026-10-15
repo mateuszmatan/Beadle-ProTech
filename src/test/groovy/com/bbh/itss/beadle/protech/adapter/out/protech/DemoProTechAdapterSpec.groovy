@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.adapter.out.servicenow
+package com.bbh.itss.beadle.protech.adapter.out.protech
 
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
@@ -13,9 +13,9 @@ import spock.util.time.MutableClock
 import java.time.Duration
 import java.time.Instant
 
-import static com.bbh.itss.beadle.protech.adapter.out.servicenow.DemoServiceNowAdapter.CLOSED_REFUSAL
-import static com.bbh.itss.beadle.protech.adapter.out.servicenow.DemoServiceNowAdapter.taskStateOf
-import static com.bbh.itss.beadle.protech.adapter.out.servicenow.DemoServiceNowAdapter.workflowOf
+import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.CLOSED_REFUSAL
+import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.taskStateOf
+import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.workflowOf
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.BUSINESS
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L2
@@ -47,7 +47,7 @@ import static java.time.Duration.ofMinutes
 import static java.time.Duration.ofSeconds
 import static java.time.Instant.MAX
 
-class DemoServiceNowAdapterSpec extends Specification {
+class DemoProTechAdapterSpec extends Specification {
 
     static final ChangeSchedule SHORT_NOTICE = scheduleFrom(RAISED.plus(ofHours(20)))
     static final ChangeSchedule SOON = scheduleFrom(RAISED.plus(ofHours(1)))
@@ -56,30 +56,30 @@ class DemoServiceNowAdapterSpec extends Specification {
     static final List<String> ARCHITECTS = DemoApprovers.of('Technology Architecture')
 
     MutableClock clock = new MutableClock(RAISED)
-    def serviceNow = new DemoServiceNowAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
+    def proTech = new DemoProTechAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
 
     def "each raised change gets a new CHG number and each task created on it a new CTASK number"() {
         when:
-        def first = serviceNow.raise(change(0))
-        def second = serviceNow.raise(change(0))
-        def numbers = [serviceNow.createTask(first.number(), CHECK), serviceNow.createTask(first.number(), CHECK),
-                       serviceNow.createTask(second.number(), CHECK)]
+        def first = proTech.raise(change(0))
+        def second = proTech.raise(change(0))
+        def numbers = [proTech.createTask(first.number(), CHECK), proTech.createTask(first.number(), CHECK),
+                       proTech.createTask(second.number(), CHECK)]
 
         then:
-        !serviceNow.connected()
+        !proTech.connected()
         first.number() ==~ /CHG\d{7}/
         first.url() == null
         second.number() != first.number()
         numbers.every { it ==~ /CTASK\d{7}/ }
         numbers.toSet().size() == 3
-        serviceNow.read([change(0).numbered(first.number(), null)])[first.number()].tasks()*.number() ==
+        proTech.read([change(0).numbered(first.number(), null)])[first.number()].tasks()*.number() ==
                 numbers.take(2)
     }
 
     def "a created task is open, named its group's approvers and asked for approval when its change reaches CTask approval"() {
         given:
         def known = raise(change(0))
-        def number = serviceNow.createTask(known.number(), CHECK)
+        def number = proTech.createTask(known.number(), CHECK)
 
         expect:
         ARCHITECTS.size() == 2
@@ -109,18 +109,18 @@ class DemoServiceNowAdapterSpec extends Specification {
     def "every change task has its own approvers and approval, and the change is In Progress only once all are approved"() {
         given:
         def known = raise(change(0))
-        def release = serviceNow.createTask(known.number(), ChangeTask.of(details(1,
+        def release = proTech.createTask(known.number(), ChangeTask.of(details(1,
                 [assignmentGroup: 'Release Management', application: 'CertScanner'])))
-        def database = serviceNow.createTask(known.number(), ChangeTask.of(details(2,
+        def database = proTech.createTask(known.number(), ChangeTask.of(details(2,
                 [assignmentGroup: 'Database Administration'])))
 
         when:
         clock.instant = RAISED.plus(ofMinutes(10))
-        def requested = serviceNow.read([known])[known.number()]
+        def requested = proTech.read([known])[known.number()]
         clock.instant = RAISED.plus(ofMinutes(12))
-        def oneApproved = serviceNow.read([known])[known.number()]
+        def oneApproved = proTech.read([known])[known.number()]
         clock.instant = RAISED.plus(ofMinutes(14))
-        def allApproved = serviceNow.read([known])[known.number()]
+        def allApproved = proTech.read([known])[known.number()]
 
         then:
         requested.state() == CTASK_APPROVAL
@@ -142,19 +142,19 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = schedule().validationEnd().plus(ofDays(1))
 
         expect:
-        serviceNow.read([known])[known.number()].state() == CTASK_APPROVAL
+        proTech.read([known])[known.number()].state() == CTASK_APPROVAL
     }
 
     def "a change task added to a change In Progress sends it back to CTask approval until the new task is approved"() {
         given:
         def known = raise(change(1))
         clock.instant = RAISED.plus(ofMinutes(30))
-        def added = serviceNow.createTask(known.number(), CHECK)
+        def added = proTech.createTask(known.number(), CHECK)
 
         when:
-        def reopened = serviceNow.read([known])[known.number()]
+        def reopened = proTech.read([known])[known.number()]
         clock.instant = RAISED.plus(ofMinutes(34))
-        def approved = serviceNow.read([known])[known.number()]
+        def approved = proTech.read([known])[known.number()]
 
         then:
         reopened.state() == CTASK_APPROVAL
@@ -175,11 +175,11 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = RAISED.plus(ofMinutes(30))
 
         when:
-        serviceNow.update(known.toBuilder().tasks([moved]).build())
+        proTech.update(known.toBuilder().tasks([moved]).build())
         clock.instant = RAISED.plus(ofMinutes(30)).plusSeconds(3)
-        def asked = serviceNow.read([known])[known.number()]
+        def asked = proTech.read([known])[known.number()]
         clock.instant = RAISED.plus(ofMinutes(32)).plusSeconds(3)
-        def approved = serviceNow.read([known])[known.number()]
+        def approved = proTech.read([known])[known.number()]
 
         then:
         known.tasks()[0].details().assignmentGroup() == 'Technology Architecture'
@@ -197,15 +197,15 @@ class DemoServiceNowAdapterSpec extends Specification {
         def task = known.tasks()[0].number()
 
         when:
-        def l1 = serviceNow.remind(known.number(), ApprovalRef.of(L1))
-        def ctask = serviceNow.remind(known.number(), ApprovalRef.ofTask(task))
+        def l1 = proTech.remind(known.number(), ApprovalRef.of(L1))
+        def ctask = proTech.remind(known.number(), ApprovalRef.ofTask(task))
 
         then:
         l1 == ['Olivia Bennett']
         ctask == ARCHITECTS
-        serviceNow.sent() == [
-                new DemoServiceNowAdapter.SentReminder(known.number(), ApprovalRef.of(L1), l1, clock.instant()),
-                new DemoServiceNowAdapter.SentReminder(known.number(), ApprovalRef.ofTask(task), ctask,
+        proTech.sent() == [
+                new DemoProTechAdapter.SentReminder(known.number(), ApprovalRef.of(L1), l1, clock.instant()),
+                new DemoProTechAdapter.SentReminder(known.number(), ApprovalRef.ofTask(task), ctask,
                         clock.instant())]
     }
 
@@ -216,7 +216,7 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = at
 
         when:
-        serviceNow.remind(unknown ? 'CHG0000001' : known.number(), approval)
+        proTech.remind(unknown ? 'CHG0000001' : known.number(), approval)
 
         then:
         def refused = thrown(IllegalStateException)
@@ -236,7 +236,7 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = SOON.validationEnd()
 
         when:
-        serviceNow.createTask(unknown ? 'CHG0000001' : known.number(), CHECK)
+        proTech.createTask(unknown ? 'CHG0000001' : known.number(), CHECK)
 
         then:
         def refused = thrown(IllegalStateException)
@@ -312,11 +312,11 @@ class DemoServiceNowAdapterSpec extends Specification {
 
         when:
         clock.instant = RAISED.plus(ofMinutes(5))
-        def approving = serviceNow.read([known])[known.number()]
+        def approving = proTech.read([known])[known.number()]
         clock.instant = schedule().installationStart().plus(ofMinutes(30))
-        def installing = serviceNow.read([known])[known.number()]
+        def installing = proTech.read([known])[known.number()]
         clock.instant = schedule().validationEnd()
-        def closed = serviceNow.read([known])[known.number()]
+        def closed = proTech.read([known])[known.number()]
 
         then:
         approving.state() == PRIMARY_APPROVAL
@@ -347,11 +347,11 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = RAISED.plus(ofMinutes(1))
 
         when:
-        serviceNow.update(requested)
-        def before = serviceNow.read([known])[known.number()]
+        proTech.update(requested)
+        def before = proTech.read([known])[known.number()]
         clock.instant = RAISED.plus(ofMinutes(1)).plusSeconds(3)
-        def after = serviceNow.read([known])[known.number()]
-        def again = serviceNow.read([known])[known.number()]
+        def after = proTech.read([known])[known.number()]
+        def again = proTech.read([known])[known.number()]
 
         then:
         before.shortDescription() == known.shortDescription()
@@ -375,15 +375,15 @@ class DemoServiceNowAdapterSpec extends Specification {
     def "a canceled task keeps its text when an update sends it again"() {
         given:
         def known = raise(change(2))
-        serviceNow.update(known.toBuilder().tasks([known.tasks()[0]]).build())
+        proTech.update(known.toBuilder().tasks([known.tasks()[0]]).build())
         clock.instant = RAISED.plusSeconds(3)
         def canceled = known.tasks()[1]
 
         when:
-        serviceNow.update(known.toBuilder().tasks([known.tasks()[0], ctask(canceled.number(), 'Back again',
+        proTech.update(known.toBuilder().tasks([known.tasks()[0], ctask(canceled.number(), 'Back again',
                 'Back again.', OPEN)]).build())
         clock.instant = RAISED.plusSeconds(6)
-        def after = serviceNow.read([known])[known.number()]
+        def after = proTech.read([known])[known.number()]
 
         then:
         after.tasks().collect { [it.number(), it.details(), it.state()] } == [
@@ -399,9 +399,9 @@ class DemoServiceNowAdapterSpec extends Specification {
         def requested = known.toBuilder().shortDescription('Renamed').schedule(moved).build()
 
         when:
-        serviceNow.update(requested)
+        proTech.update(requested)
         clock.instant = SOON.installationStart().plus(ofMinutes(11))
-        def after = serviceNow.read([known])[known.number()]
+        def after = proTech.read([known])[known.number()]
 
         then:
         after.state() == IMPLEMENTATION
@@ -416,13 +416,13 @@ class DemoServiceNowAdapterSpec extends Specification {
         def implementing = raise(change(1))
         def escalated = raise(change(1, SHORT_NOTICE))
         clock.instant = RAISED.plus(ofMinutes(30))
-        def reached = serviceNow.read([implementing, escalated])
+        def reached = proTech.read([implementing, escalated])
 
         when:
-        serviceNow.update(implementing.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(6)))).build())
-        serviceNow.update(escalated.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(1)))).build())
+        proTech.update(implementing.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(6)))).build())
+        proTech.update(escalated.toBuilder().schedule(scheduleFrom(RAISED.plus(ofHours(1)))).build())
         clock.instant = RAISED.plus(ofMinutes(31))
-        def after = serviceNow.read([implementing, escalated])
+        def after = proTech.read([implementing, escalated])
 
         then:
         reached[implementing.number()].state() == IMPLEMENTATION
@@ -438,7 +438,7 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = SOON.validationEnd()
 
         when:
-        serviceNow.update(unknown ? known.toBuilder().number('CHG0000001').build() : known)
+        proTech.update(unknown ? known.toBuilder().number('CHG0000001').build() : known)
 
         then:
         def refused = thrown(IllegalStateException)
@@ -456,8 +456,8 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = RAISED.plus(ofMinutes(3))
 
         when:
-        def copy = serviceNow.read([known])[known.number()]
-        def again = serviceNow.read([known])[known.number()]
+        def copy = proTech.read([known])[known.number()]
+        def again = proTech.read([known])[known.number()]
 
         then:
         copy.state() == BUSINESS_APPROVAL
@@ -473,10 +473,10 @@ class DemoServiceNowAdapterSpec extends Specification {
         def implementing = raise(change(1))
         clock.instant = RAISED.plus(ofMinutes(30))
         def moved = scheduleFrom(RAISED.plus(ofHours(6)))
-        serviceNow.update(implementing.toBuilder().schedule(moved).build())
+        proTech.update(implementing.toBuilder().schedule(moved).build())
         clock.instant = RAISED.plus(ofMinutes(31))
-        def copy = serviceNow.read([implementing])[implementing.number()]
-        def restarted = new DemoServiceNowAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
+        def copy = proTech.read([implementing])[implementing.number()]
+        def restarted = new DemoProTechAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
 
         when:
         clock.instant = RAISED.plus(ofHours(1))
@@ -499,26 +499,26 @@ class DemoServiceNowAdapterSpec extends Specification {
         clock.instant = RAISED.plus(ofHours(1))
 
         expect:
-        serviceNow.read([known])[known.number()].workflow() == [new WorkflowStep(DRAFT, RAISED.plus(ofHours(1)))]
+        proTech.read([known])[known.number()].workflow() == [new WorkflowStep(DRAFT, RAISED.plus(ofHours(1)))]
     }
 
     private ProductionChange raise(ProductionChange change) {
         def bare = change.toBuilder().tasks([]).build()
-        def raised = serviceNow.raise(bare)
+        def raised = proTech.raise(bare)
         bare.numbered(raised.number(), raised.url())
-                .withTasks(change.tasks().collect { it.numbered(serviceNow.createTask(raised.number(), it)) })
+                .withTasks(change.tasks().collect { it.numbered(proTech.createTask(raised.number(), it)) })
     }
 
     private List approvals(ProductionChange known, Duration after) {
         clock.instant = RAISED.plus(after)
-        serviceNow.read([known])[known.number()].tasks().collect {
+        proTech.read([known])[known.number()].tasks().collect {
             [it.number(), it.state(), it.approval(), it.approvers()]
         }
     }
 
     private List changeApprovals(ProductionChange known, Duration after) {
         clock.instant = RAISED.plus(after)
-        serviceNow.read([known])[known.number()].approvals()*.state()
+        proTech.read([known])[known.number()].approvals()*.state()
     }
 
     static ProductionChange change(int tasks, ChangeSchedule schedule = schedule()) {

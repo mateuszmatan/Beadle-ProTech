@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.adapter.out.servicenow
+package com.bbh.itss.beadle.protech.adapter.out.protech
 
 import com.bbh.itss.beadle.protech.domain.change.Lookup
 import com.bbh.itss.beadle.protech.domain.change.LookupKind
