@@ -18,8 +18,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 /**
  * Stands in for Beadle-GUI: a {@link MockRestServiceServer} bound to the {@link RestClient.Builder} of the service
- * takes every callback, answers {@code 202}, or {@code 503} as many times as a spec asked for a change, and keeps every
- * request it got.
+ * takes every callback, answers {@code 202}, or {@code 503} as many times as a spec asked for a change, runs what a
+ * spec asked to do when a change's callback arrives (Beadle-GUI reads the change again before it answers), and keeps
+ * every request it got.
  */
 class GuiCallbacks {
 
@@ -27,6 +28,7 @@ class GuiCallbacks {
     final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).ignoreExpectOrder(true).build()
     private final List<Callback> received = new CopyOnWriteArrayList<>()
     private final Map<String, Integer> refusals = new ConcurrentHashMap<>()
+    private final Map<String, Closure> actions = new ConcurrentHashMap<>()
 
     GuiCallbacks() {
         server.expect(manyTimes(), { ClientHttpRequest request -> } as RequestMatcher)
@@ -41,9 +43,17 @@ class GuiCallbacks {
         refusals[number] = times
     }
 
+    /** Runs {@code action} whenever a callback for {@code number} arrives, before it is answered, as Beadle-GUI does. */
+    void onCallback(String number, Closure action) {
+        actions[number] = action
+    }
+
     private answer(MockClientHttpRequest request) {
         def body = Json.parse(request.bodyAsString) as Map
         int status = refused(body?.number as String) ? SERVICE_UNAVAILABLE.value() : ACCEPTED.value()
+        if (status == ACCEPTED.value() && body?.number != null) {
+            actions[body.number as String]?.call(body)
+        }
         received << new Callback(request.method.name(), request.URI.toString(),
                 request.headers.toSingleValueMap().collectEntries { name, value -> [name.toLowerCase(), value] },
                 body, status)

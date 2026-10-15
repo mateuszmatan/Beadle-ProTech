@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.regression
 
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
+import com.bbh.itss.beadle.protech.support.Json
 
 import java.time.Instant
 
@@ -135,6 +136,39 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
         callLog('GUI')*.outcome == ['FAILURE', 'FAILURE', 'SUCCESS']
         callLog('GUI').findAll { it.outcome == 'FAILURE' }
                 .every { it.message.startsWith("Beadle-GUI could not take the callback for $number: 503") }
+    }
+
+    def "the read with which Beadle-GUI answers a callback is kept, and the next callback goes back to it"() {
+        given: 'a change Beadle-GUI raised, which it reads again under a correlation id of its own on every callback'
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+        String resync = UUID.randomUUID().toString()
+        def known = draft(start, start + ofDays(3)).toBuilder().number(number).build()
+        gui.onCallback(number) {
+            def response = api.withHeaders(['X-Correlation-Id': resync])
+                    .postRaw('/api/protech/changes/read', 'application/json', Json.jackson([known]))
+            assert response.status == 200: response
+        }
+
+        when:
+        moveTo(start + ofMinutes(2))
+
+        then: 'the change is known in the state Beadle-GUI read, under the correlation id of that read'
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+            assert tracked(number).subMap('STATE', 'CORRELATION_ID') ==
+                    [STATE: 'BUSINESS_APPROVAL', CORRELATION_ID: resync]
+        }
+        gui.callbacksFor(number).first().header('X-Correlation-Id') == correlationId
+
+        when:
+        moveTo(start + ofMinutes(10))
+
+        then:
+        conditions.eventually {
+            assert gui.callbacksFor(number).size() == 2
+        }
+        gui.callbacksFor(number).last().header('X-Correlation-Id') == resync
     }
 
     /** The event, the state and the time of every callback Beadle-GUI got for {@code number}, oldest first. */

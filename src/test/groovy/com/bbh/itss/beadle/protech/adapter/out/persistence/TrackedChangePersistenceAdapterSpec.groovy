@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.adapter.out.persistence
 
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
@@ -107,7 +108,7 @@ class TrackedChangePersistenceAdapterSpec extends Specification {
         noExceptionThrown()
     }
 
-    def "the open changes are watched by number, a saved change is written as it is and a look notes when it was"() {
+    def "the open changes are watched by number, a reported change takes the activity and a look notes when it was"() {
         given:
         adapter.track([trackedChange(number: 'CHG0031003'), trackedChange(number: 'CHG0031001', state: null),
                        trackedChange(number: 'CHG0031002', state: CLOSED)])
@@ -116,13 +117,43 @@ class TrackedChangePersistenceAdapterSpec extends Specification {
         adapter.watched()*.number() == ['CHG0031001', 'CHG0031003']
 
         when:
-        adapter.save(trackedChange(number: 'CHG0031003', state: CLOSED, lastEventAt: LATER, correlationId: 'corr-9'))
+        adapter.reported(trackedChange(number: 'CHG0031003'), new ChangeActivity('CHG0031003', CLOSED, LATER, null,
+                null), LATER)
         adapter.seen(['CHG0031001', 'CHG0031009'], LATER)
 
         then:
         adapter.watched() == [trackedChange(number: 'CHG0031001', state: null, lastSeenAt: LATER)]
         adapter.find('CHG0031003') == Optional.of(trackedChange(number: 'CHG0031003', state: CLOSED,
-                lastEventAt: LATER, correlationId: 'corr-9'))
+                lastSeenAt: LATER, lastEventAt: LATER))
+    }
+
+    def "a report keeps the read and the action Beadle-GUI noted on the change since the look"() {
+        given: 'the watch looks at the change and finds it moved'
+        adapter.track([trackedChange()])
+        def looked = adapter.watched().first()
+        def activity = new ChangeActivity('CHG0031001', PRIMARY_APPROVAL, CALLED.plusSeconds(60), null, null)
+
+        and: 'Beadle-GUI reads the change while it takes the callback, and then reminds an approver'
+        adapter.track([trackedChange(state: IMPLEMENTATION, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-read')])
+        adapter.touch('CHG0031001', LATER.plusSeconds(5), 'corr-remind')
+
+        when:
+        adapter.reported(looked, activity, CALLED.plusSeconds(90))
+
+        then:
+        adapter.find('CHG0031001') == Optional.of(trackedChange(state: IMPLEMENTATION, lastSeenAt: LATER.plusSeconds(5),
+                lastEventAt: LATER.plusSeconds(5), correlationId: 'corr-remind'))
+    }
+
+    def "a look never moves back the time a change was last seen"() {
+        given:
+        adapter.track([trackedChange(lastSeenAt: LATER)])
+
+        when:
+        adapter.seen(['CHG0031001'], CALLED.plusSeconds(60))
+
+        then:
+        adapter.find('CHG0031001').get().lastSeenAt() == LATER
     }
 
     def "a look at more changes than Oracle takes in one list notes them all"() {
@@ -138,9 +169,10 @@ class TrackedChangePersistenceAdapterSpec extends Specification {
         adapter.watched().size() == 1001
     }
 
-    def "a change that cannot be saved fails the save"() {
+    def "a report that cannot be written down fails"() {
         when:
-        adapter.save(trackedChange(number: 'CHG' + '9' * 40))
+        adapter.reported(trackedChange(number: 'CHG' + '9' * 40), new ChangeActivity('CHG' + '9' * 40, CLOSED, LATER,
+                null, null), LATER)
 
         then:
         thrown(RuntimeException)

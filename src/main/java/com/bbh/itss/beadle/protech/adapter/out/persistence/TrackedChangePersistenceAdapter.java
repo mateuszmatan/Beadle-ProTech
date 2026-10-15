@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.adapter.out.persistence;
 
 import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort;
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -68,8 +69,12 @@ class TrackedChangePersistenceAdapter implements TrackedChangePort {
     }
 
     @Override
-    public void save(TrackedChange change) {
-        ownTransaction.executeWithoutResult(status -> changes.save(TrackedChangeEntity.of(change)));
+    public void reported(TrackedChange looked, ChangeActivity activity, Instant at) {
+        ownTransaction.executeWithoutResult(status -> {
+            TrackedChange current = changes.lockById(looked.number()).map(TrackedChangeEntity::toDomain)
+                    .orElse(looked);
+            changes.save(TrackedChangeEntity.of(current.reported(looked, activity, at)));
+        });
     }
 
     @Override
@@ -79,7 +84,7 @@ class TrackedChangePersistenceAdapter implements TrackedChangePort {
     }
 
     private void merge(TrackedChange change, boolean follow) {
-        Optional<TrackedChange> known = changes.findById(change.number()).map(TrackedChangeEntity::toDomain);
+        Optional<TrackedChange> known = changes.lockById(change.number()).map(TrackedChangeEntity::toDomain);
         if (known.isPresent() || follow) {
             changes.save(TrackedChangeEntity.of(known.map(found -> found.updatedBy(change)).orElse(change)));
         }

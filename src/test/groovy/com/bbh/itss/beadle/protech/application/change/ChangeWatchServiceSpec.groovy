@@ -73,8 +73,8 @@ class ChangeWatchServiceSpec extends Specification {
         1 * callbacks.notify(new ChangeCallback('CHG0031002', APPROVAL_CHANGED, BUSINESS_APPROVAL, NOW.minusSeconds(3), 'corr-2')) >> {
             callers << CallerContext.current()
         }
-        1 * tracked.save(moved.reported(movedTo, NOW))
-        1 * tracked.save(approved.reported(approvedAt, NOW))
+        1 * tracked.reported(moved, movedTo, NOW)
+        1 * tracked.reported(approved, approvedAt, NOW)
         1 * tracked.seen(['CHG0031003', 'CHG0031004'], NOW)
         report.sent()*.number() == ['CHG0031001', 'CHG0031002']
         report.failures() == [:]
@@ -97,7 +97,7 @@ class ChangeWatchServiceSpec extends Specification {
 
         then:
         1 * callbacks.notify(_) >> { throw new UncheckedIOException('Beadle-GUI could not take the callback for CHG0031001: 503', new IOException()) }
-        0 * tracked.save(_)
+        0 * tracked.reported(*_)
         0 * tracked.seen(*_)
         failed.sent() == []
         failed.failures() == [CHG0031001: 'Beadle-GUI could not take the callback for CHG0031001: 503']
@@ -108,8 +108,26 @@ class ChangeWatchServiceSpec extends Specification {
 
         then:
         1 * callbacks.notify(new ChangeCallback('CHG0031001', STATE_CHANGED, BUSINESS_APPROVAL, NOW, 'corr-1'))
-        1 * tracked.save(moved.reported(activity, NOW.plusSeconds(10)))
+        1 * tracked.reported(moved, activity, NOW.plusSeconds(10))
         sent.sent()*.number() == ['CHG0031001']
+    }
+
+    def "a change whose report cannot be written down is reported as failed, and told again at the next look"() {
+        given:
+        def moved = trackedChange()
+        def activity = new ChangeActivity('CHG0031001', BUSINESS_APPROVAL, NOW, null, null)
+        proTech.pollEvery() >> DEMO
+        tracked.watched() >> [moved]
+        proTech.activity(*_) >> [CHG0031001: activity]
+
+        when:
+        def report = service.tick()
+
+        then:
+        1 * callbacks.notify(_)
+        1 * tracked.reported(moved, activity, NOW) >> { throw new IllegalStateException('database down') }
+        report.sent() == []
+        report.failures() == [CHG0031001: 'database down']
     }
 
     def "the live ProTech is looked at once its poll interval has passed, also after a failed look"() {

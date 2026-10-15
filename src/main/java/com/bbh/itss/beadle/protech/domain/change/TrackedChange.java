@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.domain.change;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.APPROVAL_CHANGED;
@@ -69,10 +70,17 @@ public record TrackedChange(String number, ChangeState state, Instant lastSeenAt
         return Optional.empty();
     }
 
-    /** This change once Beadle-GUI took the callback about {@code activity}: everything in it is known. */
-    public TrackedChange reported(ChangeActivity activity, Instant now) {
-        return new TrackedChange(number, getIfNull(activity.state(), state), max(lastSeenAt, now),
-                max(lastEventAt, activity.latest()), correlationId);
+    /**
+     * This change, as it is written down now, once Beadle-GUI took the callback about {@code activity}, which was
+     * found on the change as it was {@code looked} at: every move in the activity is known. What was noted on the
+     * change since the look is kept, since Beadle-GUI answers a callback by reading the change and may act on it
+     * meanwhile: a state it read since is at least as new as the activity's, a later move it knows of stays known, and
+     * the correlation id of its latest action stays the one later callbacks go back to.
+     */
+    public TrackedChange reported(TrackedChange looked, ChangeActivity activity, Instant now) {
+        ChangeState known = Objects.equals(state, looked.state()) ? getIfNull(activity.state(), state) : state;
+        return new TrackedChange(number, known, max(lastSeenAt, now), max(lastEventAt, activity.latest()),
+                correlationId);
     }
 
     private boolean unknown(Instant movedAt) {

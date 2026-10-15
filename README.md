@@ -55,7 +55,9 @@ to `{beadle.gui.url}/api/callbacks/protech` with the service token, `X-Beadle-Us
 when the change reached another state, otherwise `APPROVAL_CHANGED` when an approval of the change or of a task was
 requested or given, otherwise `TASK_CHANGED` when a task went in progress; one callback covers the change, since
 Beadle-GUI reads all of it again. The change counts as reported only once Beadle-GUI answered `2xx`: a callback it
-does not take is logged and sent again at the next look, and the ticker never fails a request. What Beadle-GUI did
+does not take is logged and sent again at the next look, and the ticker never fails a request. The report is merged
+over the change as it is written down by then, so the read with which Beadle-GUI answers the callback, and any action
+of Beadle-GUI since the look, keep their state, times and correlation id. What Beadle-GUI did
 itself (a task created, an update, a reminder) is no news to it and is not called back. A closed change is no
 longer followed. The live poll compares ProTech's `sys_updated_on` with the clock of Beadle-ProTech, so the two
 clocks must agree within the minute of margin.

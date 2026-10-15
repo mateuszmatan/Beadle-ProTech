@@ -84,12 +84,31 @@ class TrackedChangeSpec extends Specification {
     }
 
     def "a reported change knows the new state and every move until the latest one"() {
+        given:
+        def looked = trackedChange()
+
         expect:
-        trackedChange().reported(new ChangeActivity('CHG0031001', IMPLEMENTATION, CALLED.plusSeconds(60),
+        looked.reported(looked, new ChangeActivity('CHG0031001', IMPLEMENTATION, CALLED.plusSeconds(60),
                 LATER, CALLED.plusSeconds(120)), LATER.plusSeconds(5)) ==
                 trackedChange(state: IMPLEMENTATION, lastSeenAt: LATER.plusSeconds(5), lastEventAt: LATER)
-        trackedChange().reported(new ChangeActivity('CHG0031001', null, null, null, LATER), LATER) ==
+        looked.reported(looked, new ChangeActivity('CHG0031001', null, null, null, LATER), LATER) ==
                 trackedChange(lastSeenAt: LATER, lastEventAt: LATER)
+    }
+
+    def "a report keeps what Beadle-GUI #noted since the look"() {
+        given:
+        def looked = trackedChange()
+        def activity = new ChangeActivity('CHG0031001', PRIMARY_APPROVAL, CALLED.plusSeconds(60), null, null)
+
+        expect:
+        current.reported(looked, activity, CALLED.plusSeconds(90)) == reported
+
+        where:
+        noted                                         | current                                                                                        || reported
+        'read: the newer state and its correlation id' | trackedChange(state: IMPLEMENTATION, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-2') || trackedChange(state: IMPLEMENTATION, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-2')
+        'read: the state of the activity'             | trackedChange(state: PRIMARY_APPROVAL, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-2') || trackedChange(state: PRIMARY_APPROVAL, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-2')
+        'did: a task, an update or a reminder'        | trackedChange(lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-3')                  || trackedChange(state: PRIMARY_APPROVAL, lastSeenAt: LATER, lastEventAt: LATER, correlationId: 'corr-3')
+        'nothing'                                     | trackedChange()                                                                                || trackedChange(state: PRIMARY_APPROVAL, lastSeenAt: CALLED.plusSeconds(90), lastEventAt: CALLED.plusSeconds(60))
     }
 
     def "the latest move of an activity is the last of its times"() {

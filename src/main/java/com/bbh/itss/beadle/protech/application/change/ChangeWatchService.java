@@ -36,7 +36,9 @@ import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
  * interval has passed (the demo ProTech at every tick, the live one every {@code beadle.protech.poll}), asks for what
  * moved since the earliest last look minus {@link #MARGIN}, and sends Beadle-GUI one callback per change that moved
  * past what it knows, under the correlation id of the user action that last touched the change. A change is marked
- * reported only once Beadle-GUI took its callback, so a failed callback is sent again at the next look.
+ * reported only once Beadle-GUI took its callback, so a failed callback is sent again at the next look; the report is
+ * merged over the change as it is written down by then, which keeps the read with which Beadle-GUI answers the
+ * callback and any action of Beadle-GUI noted since the look.
  */
 @UseCase
 @RequiredArgsConstructor
@@ -80,7 +82,7 @@ public class ChangeWatchService implements ChangeWatchUseCase {
             try {
                 CallerContext.run(new Caller(SYSTEM_USER, change.correlationId()),
                         () -> callbacks.notify(callback.get()));
-                tracked.save(change.reported(found, now));
+                tracked.reported(change, found, now);
                 sent.add(callback.get());
             } catch (RuntimeException e) {
                 failures.put(change.number(), defaultIfBlank(e.getMessage(), e.getClass().getSimpleName()));

@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change.port.out;
 
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 
 import java.time.Instant;
@@ -28,8 +29,13 @@ public interface TrackedChangePort {
     /** The changes followed and not closed, by number. */
     List<TrackedChange> watched();
 
-    void save(TrackedChange change);
+    /**
+     * Notes that Beadle-GUI took the callback about {@code activity}, found on the change as it was {@code looked}
+     * at {@code at}. The activity is merged, in a transaction of its own, over the change as it is written down by
+     * then (see {@link TrackedChange#reported}), so that what Beadle-GUI read or did since the look is kept.
+     */
+    void reported(TrackedChange looked, ChangeActivity activity, Instant at);
 
-    /** Notes that the changes were looked at {@code at} and nothing new was found. */
+    /** Notes that the changes were looked at {@code at} and nothing new was found; a later look noted stays. */
     void seen(Collection<String> numbers, Instant at);
 }
