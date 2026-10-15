@@ -42,6 +42,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
+import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.RAISED
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.copy
@@ -483,7 +484,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                         pollRow('a3', '2026-10-15 08:59:20', [sysapproval: field('x9', 'CTASK0099999')])))
 
         when:
-        def activity = proTech.activity(numbers.split(',') as List, since)
+        def activity = proTech.activity(watching(numbers.split(',') as List), since)
 
         then:
         activity == [CHG0031001: new ChangeActivity('CHG0031001', IMPLEMENTATION, at('2026-10-15T08:59:10Z'), null, at('2026-10-15T08:59:00Z')),
@@ -504,8 +505,8 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         expect(GET, 'sysapproval_approver', [sysparm_query: 'sysapproval.numberIN' + numbers.last()]).andRespond(rows())
 
         expect:
-        proTech.activity(numbers + ['^;', ' '], null) == [:]
-        proTech.activity(['^;'], NOW) == [:]
+        proTech.activity(watching(numbers + ['^;', ' ']), null) == [:]
+        proTech.activity(watching(['^;']), NOW) == [:]
         proTech.pollEvery() == Duration.ofMinutes(1)
         new ServiceNowTableApiAdapter(new ProTechProperties(URL, 'beadle', 'secret', Duration.ofSeconds(30), null),
                 builder, Clock.fixed(NOW, UTC)).pollEvery() == Duration.ofSeconds(30)
@@ -526,7 +527,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                 [pollRow('a2', '2026-10-15 08:59:50', [sysapproval: field('t2', tasks.last())])])
 
         expect:
-        proTech.activity(['CHG0031001'], null) == [CHG0031001: new ChangeActivity('CHG0031001', null, null,
+        proTech.activity(watching(['CHG0031001']), null) == [CHG0031001: new ChangeActivity('CHG0031001', null, null,
                 at('2026-10-15T08:59:50Z'), at('2026-10-14T08:00:00Z'))]
         queries.size() == 4
         server.verify()

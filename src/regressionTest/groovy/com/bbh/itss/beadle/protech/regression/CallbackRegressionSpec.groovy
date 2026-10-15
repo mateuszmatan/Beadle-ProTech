@@ -198,6 +198,32 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
         events(number).size() == 1
     }
 
+    def "a look that finds only the move Beadle-GUI was called back about is left out of the call log"() {
+        given: 'a change Beadle-GUI was told reached business approval'
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+        moveTo(start + ofMinutes(2))
+        conditions.eventually {
+            assert events(number).size() == 1
+            assert tracked(number).STATE == 'BUSINESS_APPROVAL'
+        }
+        def logged = looksAt(number, start + ofMinutes(2))
+
+        when: 'the change is looked at again within the minute the poll reaches back, which finds the same move'
+        2.times { assert api.post('/api/protech/webhook', [number: number]).status == 202 }
+
+        then: 'Beadle-GUI is not told again and the looks leave no row'
+        events(number).size() == 1
+        looksAt(number, start + ofMinutes(2)) == logged
+    }
+
+    /** The rows of the call log of the looks at {@code number} alone since {@code from}, as a webhook has them made. */
+    private List<Map> looksAt(String number, Instant from) {
+        def response = api.get("/api/protech/call-log?from=$from&size=500")
+        assert response.status == 200: response
+        (response.json.entries as List<Map>).findAll { it.operation == 'activity' && it.target ==~ /$number \S+/ }
+    }
+
     /** The event, the state and the time of every callback Beadle-GUI got for {@code number}, oldest first. */
     private List<List> events(String number) {
         gui.callbacksFor(number).collect { [it.body.event, it.body.state, Instant.parse(it.body.at as String)] }

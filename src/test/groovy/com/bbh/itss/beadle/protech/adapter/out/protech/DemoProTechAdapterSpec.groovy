@@ -39,6 +39,7 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CLOSED as TASK_CLOSED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
+import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.RAISED
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.ctask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
@@ -526,7 +527,7 @@ class DemoProTechAdapterSpec extends Specification {
                 new ChangeActivity(number, IMPLEMENTATION, APPROVED_AT, APPROVED_AT, null)
         activity(number, between(RAISED, installation), installation.minusSeconds(1)) ==
                 new ChangeActivity(number, IMPLEMENTATION, APPROVED_AT, APPROVED_AT, installation)
-        proTech.activity([number, 'CHG0000001'], null).keySet() == [number] as Set
+        proTech.activity(watching([number, 'CHG0000001']), null).keySet() == [number] as Set
     }
 
     def "a change the demo got late moved no earlier than when it got it"() {
@@ -535,9 +536,9 @@ class DemoProTechAdapterSpec extends Specification {
         def number = proTech.raise(change(0).toBuilder().createdAt(RAISED).build()).number()
 
         expect:
-        proTech.activity([number], RAISED.plus(ofMinutes(29))) ==
+        proTech.activity(watching([number]), RAISED.plus(ofMinutes(29))) ==
                 [(number): new ChangeActivity(number, CTASK_APPROVAL, RAISED.plus(ofMinutes(30)), null, null)]
-        proTech.activity([number], RAISED.plus(ofMinutes(30))) == [:]
+        proTech.activity(watching([number]), RAISED.plus(ofMinutes(30))) == [:]
     }
 
     def "a change adopted after a restart moved no earlier than its adoption"() {
@@ -547,13 +548,13 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.read([known])
 
         expect:
-        proTech.activity([known.number()], RAISED.plus(ofMinutes(4))) == [(known.number()): new ChangeActivity(
+        proTech.activity(watching([known.number()]), RAISED.plus(ofMinutes(4))) == [(known.number()): new ChangeActivity(
                 known.number(), PRIMARY_APPROVAL, RAISED.plus(ofMinutes(5)), null, null)]
     }
 
     private ChangeActivity activity(String number, Duration after, Instant since) {
         clock.instant = RAISED.plus(after)
-        proTech.activity([number], since)[number]
+        proTech.activity(watching([number]), since)[number]
     }
 
     private ProductionChange raise(ProductionChange change) {

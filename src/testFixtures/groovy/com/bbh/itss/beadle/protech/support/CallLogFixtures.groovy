@@ -22,4 +22,9 @@ class CallLogFixtures {
     static TrackedChange trackedChange(Map changes = [:]) {
         copy(changes, new TrackedChange('CHG0031001', DRAFT, CALLED, CALLED, 'corr-1'))
     }
+
+    /** The changes {@code numbers} as Beadle-GUI knows them, the way the watch hands them to ProTech for a look. */
+    static List<TrackedChange> watching(Collection<String> numbers) {
+        numbers.collect { trackedChange(number: it) }
+    }
 }

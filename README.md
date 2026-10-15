@@ -80,8 +80,10 @@ looks; it does not make up for a skew.
 (`X-Beadle-User`, or `system` for the ticker), the correlation id, the system (`PROTECH` or `GUI`), the operation
 (the method of the port: `raise`, `createTask`, `read`, `update`, `remind`, `find`, `activity`, `notify`), its
 target (what was created first, then the change, task, role or lookup the call was about), `SUCCESS` or `FAILURE`
-with the message, and the duration. A look at the activity that found nothing is left out, so that the ticks do
-not flood the log. The row is written in its own transaction, and a call log that cannot be written never fails
+with the message, and the duration. A look at the activity that calls for no callback is left out, so that the
+ticks do not flood the log: one that found nothing, and one that found only moves Beadle-GUI knows already (the move
+it was just called back about, or its own action, which the poll finds again for the minute it reaches back). A
+failed look is written. The row is written in its own transaction, and a call log that cannot be written never fails
 the call.
 
 ## Repository layout

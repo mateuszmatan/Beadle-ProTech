@@ -6,6 +6,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -36,8 +37,9 @@ public interface ProTechPort {
     Duration pollEvery();
 
     /**
-     * What ProTech did to the changes since {@code since}, by number; a change ProTech did nothing to, or does not
-     * know, may be left out.
+     * What ProTech did to the {@code watched} changes since {@code since}, by number; a change ProTech did nothing to,
+     * or does not know, may be left out. The changes come as Beadle-GUI knows them, so that the call log can tell a
+     * look that calls for a callback from one that found only what Beadle-GUI knows already.
      */
-    Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since);
+    Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since);
 }

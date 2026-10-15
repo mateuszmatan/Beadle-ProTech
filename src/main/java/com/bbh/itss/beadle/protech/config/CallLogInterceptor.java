@@ -10,11 +10,13 @@ import com.bbh.itss.beadle.protech.domain.calllog.Caller;
 import com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem;
 import com.bbh.itss.beadle.protech.domain.calllog.Outcome;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
@@ -54,7 +56,9 @@ import static org.springframework.util.ClassUtils.hasMethod;
  * the system, the operation (the name of the port method), its target (what the call was about, the number of what it
  * created first), the outcome with the message of a failure, and the duration. The row is written in a transaction
  * of its own and a call log that cannot be written never fails the call. A look at the activity of the changes that
- * found nothing is left out, so that the ticks of the watch do not flood the log; a failed one is written.
+ * calls for no callback is left out, so that the ticks of the watch do not flood the log: one that found nothing, or
+ * only moves Beadle-GUI knows already (the move it was just called back about, or its own action, which the poll
+ * finds again while it reaches back). A failed look is written.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -99,7 +103,7 @@ class CallLogInterceptor implements MethodInterceptor {
         long started = System.nanoTime();
         try {
             Object result = invocation.proceed();
-            if (!(QUIET.equals(method.getName()) && result instanceof Map<?, ?> found && found.isEmpty())) {
+            if (!quiet(method, invocation.getArguments(), result, at)) {
                 record(system.get(), method, targetOf(invocation.getArguments(), result), at, started, SUCCESS, null);
             }
             return result;
@@ -124,6 +128,21 @@ class CallLogInterceptor implements MethodInterceptor {
         }
     }
 
+    /**
+     * Whether the call is a look at the activity of the changes that calls for no callback: ProTech moved none of the
+     * changes looked at past what Beadle-GUI knows of it, which {@link TrackedChange#callbackFor} tells as the watch
+     * does.
+     */
+    private static boolean quiet(Method method, Object[] arguments, Object result, Instant at) {
+        if (!QUIET.equals(method.getName()) || !(result instanceof Map<?, ?> found) || arguments.length == 0
+                || !(arguments[0] instanceof Collection<?> watched)) {
+            return false;
+        }
+        return watched.stream().noneMatch(change -> change instanceof TrackedChange known
+                && found.get(known.number()) instanceof ChangeActivity activity
+                && known.callbackFor(activity, at).isPresent());
+    }
+
     /** What the call was about: the number of what it created, then its arguments. */
     static String targetOf(Object[] arguments, Object result) {
         String created = switch (result) {
@@ -143,6 +162,7 @@ class CallLogInterceptor implements MethodInterceptor {
                     : task.details() == null ? null : task.details().shortDescription();
             case ApprovalRef approval -> approval.role() != null ? approval.role().name() : approval.task();
             case ChangeCallback callback -> callback.number() + " " + callback.event();
+            case TrackedChange change -> change.number();
             case LookupKind kind -> kind.path();
             case Collection<?> values -> values.stream().filter(Objects::nonNull).map(CallLogInterceptor::describe)
                     .filter(StringUtils::isNotBlank).collect(joining(","));

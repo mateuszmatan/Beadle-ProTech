@@ -18,6 +18,7 @@ import com.bbh.itss.beadle.protech.domain.change.LookupKind
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -35,8 +36,11 @@ import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.FAILURE
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.SUCCESS
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
 import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.APPROVAL_CHANGED
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.BUSINESS_APPROVAL
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
+import static com.bbh.itss.beadle.protech.support.CallLogFixtures.trackedChange
+import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
@@ -74,7 +78,7 @@ class CallLogConfigurationSpec extends Specification {
                  update    : { ProductionChange change -> throw new IllegalStateException('ProTech does not change a closed change') },
                  remind    : { String number, ApprovalRef approval -> ['Olivia Bennett'] },
                  pollEvery : { statusCalls++; Duration.ZERO },
-                 activity  : { Collection<String> numbers, Instant since ->
+                 activity  : { Collection<TrackedChange> watched, Instant since ->
                      if (since == null) {
                          throw new UncheckedIOException('ProTech could not poll the changes: 503', new IOException())
                      }
@@ -196,27 +200,35 @@ class CallLogConfigurationSpec extends Specification {
         }
     }
 
-    def "a look at ProTech is written when it found something or failed, and left out when it found nothing"() {
-        given:
+    def "a look at ProTech is written when it calls for a callback or failed, and left out when it found nothing new to Beadle-GUI"() {
+        given: 'two changes Beadle-GUI knows in DRAFT, with every move until now'
         CallerContext.set(new Caller('system', 'poll-1'))
+        def watched = [trackedChange(lastEventAt: NOW), trackedChange(number: 'CHG0031002', lastEventAt: NOW)]
 
         expect:
         runner.run { ApplicationContext context ->
             def proTech = context.getBean(ProTechPort)
             assert proTech.pollEvery() == Duration.ZERO
-            assert proTech.activity(['CHG0031001', 'CHG0031002'], NOW) == [:]
+
+            assert proTech.activity(watched, NOW) == [:]
+            moved = [CHG0031001: new ChangeActivity('CHG0031001', DRAFT, NOW.minusSeconds(50), NOW.minusSeconds(20), NOW),
+                     CHG0031003: new ChangeActivity('CHG0031003', BUSINESS_APPROVAL, NOW, null, null)]
+            assert proTech.activity(watched, NOW.minusSeconds(60)) == moved
             assert recorded == []
-            moved = [CHG0031001: new ChangeActivity('CHG0031001', DRAFT, NOW, null, null)]
-            assert proTech.activity(['CHG0031001', 'CHG0031002'], NOW) == moved
+
+            moved = [CHG0031001: new ChangeActivity('CHG0031001', BUSINESS_APPROVAL, NOW, null, null)]
+            assert proTech.activity(watched, NOW.minusSeconds(60)) == moved
+            moved = [CHG0031002: new ChangeActivity('CHG0031002', null, null, NOW.plusSeconds(1), null)]
+            assert proTech.activity(watched, NOW.minusSeconds(60)) == moved
             try {
-                proTech.activity(['CHG0031001'], null)
+                proTech.activity(watching(['CHG0031001']), null)
                 assert false
             } catch (UncheckedIOException e) {
                 assert e.message == 'ProTech could not poll the changes: 503'
             }
-            assert recorded*.operation() == ['activity', 'activity']
-            assert recorded*.target() == ['CHG0031001,CHG0031002 2026-10-15T09:00:00Z', 'CHG0031001']
-            assert recorded*.outcome() == [SUCCESS, FAILURE]
+            assert recorded*.operation() == ['activity'] * 3
+            assert recorded*.target() == ['CHG0031001,CHG0031002 2026-10-15T08:59:00Z'] * 2 + ['CHG0031001']
+            assert recorded*.outcome() == [SUCCESS, SUCCESS, FAILURE]
             assert recorded.every { it.system() == PROTECH && it.userName() == 'system' && it.correlationId() == 'poll-1' }
             true
         }

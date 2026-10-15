@@ -88,7 +88,7 @@ public class ChangeWatchService implements ChangeWatchUseCase {
         Instant since = watched.stream().map(change -> getIfNull(change.lastSeenAt(), change.lastEventAt()))
                 .filter(Objects::nonNull).min(Instant::compareTo).orElse(now).minus(MARGIN);
         Map<String, ChangeActivity> activity = CallerContext.as(new Caller(SYSTEM_USER, randomUUID().toString()),
-                () -> proTech.activity(watched.stream().map(TrackedChange::number).toList(), since));
+                () -> proTech.activity(watched, since));
         List<ChangeCallback> sent = new ArrayList<>();
         Map<String, String> failures = new LinkedHashMap<>();
         List<String> quiet = new ArrayList<>();

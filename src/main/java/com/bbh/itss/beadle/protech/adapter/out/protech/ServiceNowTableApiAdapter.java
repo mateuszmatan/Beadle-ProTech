@@ -16,6 +16,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -240,9 +241,9 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
      * read, to tell which change the approval of a task belongs to.
      */
     @Override
-    public Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since) {
-        List<String> wanted = numbers.stream().map(ServiceNowTableApiAdapter::safe).filter(Objects::nonNull)
-                .distinct().toList();
+    public Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since) {
+        List<String> wanted = watched.stream().map(TrackedChange::number).map(ServiceNowTableApiAdapter::safe)
+                .filter(Objects::nonNull).distinct().toList();
         Map<String, ChangeActivity> moved = new LinkedHashMap<>();
         partition(wanted, IN_BATCH).forEach(batch -> moved.putAll(activityOf(batch, since)));
         return moved;

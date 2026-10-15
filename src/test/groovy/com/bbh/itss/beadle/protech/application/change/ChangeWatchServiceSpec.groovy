@@ -66,7 +66,7 @@ class ChangeWatchServiceSpec extends Specification {
 
         then:
         1 * tracked.watched() >> [moved, approved, still, unknown]
-        1 * proTech.activity(['CHG0031001', 'CHG0031002', 'CHG0031003', 'CHG0031004'], CALLED.minus(MARGIN)) >> {
+        1 * proTech.activity([moved, approved, still, unknown], CALLED.minus(MARGIN)) >> {
             pollCaller = CallerContext.current()
             [CHG0031001: movedTo, CHG0031002: approvedAt, CHG0031003: stillAt]
         }
@@ -159,7 +159,7 @@ class ChangeWatchServiceSpec extends Specification {
         service.tick()
 
         then:
-        1 * proTech.activity(['CHG0031001'], CALLED.minus(MARGIN)) >> [:]
+        1 * proTech.activity([trackedChange()], CALLED.minus(MARGIN)) >> [:]
         1 * tracked.seen(['CHG0031001'], NOW.plusSeconds(60))
         0 * callbacks._
     }
@@ -177,7 +177,7 @@ class ChangeWatchServiceSpec extends Specification {
 
         then:
         1 * tracked.find('CHG0031002') >> Optional.of(change)
-        1 * proTech.activity(['CHG0031002'], CALLED.plusSeconds(30).minus(MARGIN)) >> [CHG0031002: activity]
+        1 * proTech.activity([change], CALLED.plusSeconds(30).minus(MARGIN)) >> [CHG0031002: activity]
         1 * callbacks.notify(new ChangeCallback('CHG0031002', APPROVAL_CHANGED, DRAFT, NOW.minusSeconds(3), 'corr-2'))
         1 * tracked.reported(change, activity, NOW)
         report.sent()*.number() == ['CHG0031002']
