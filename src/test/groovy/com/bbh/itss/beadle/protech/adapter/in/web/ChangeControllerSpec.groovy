@@ -2,13 +2,17 @@ package com.bbh.itss.beadle.protech.adapter.in.web
 
 import com.bbh.itss.beadle.protech.application.change.ChangeService
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
+import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import com.bbh.itss.beadle.protech.support.ControllerSpecification
 import groovy.json.JsonOutput
+
+import java.time.Clock
 
 import static com.bbh.itss.beadle.protech.application.change.ChangeService.ONE_OF_ROLE_OR_TASK
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.BUSINESS
@@ -27,10 +31,11 @@ class ChangeControllerSpec extends ControllerSpecification {
     static final String SCHEDULE_REQUIRED = 'choose when the change is installed, validated and first used'
 
     ProTechPort proTech = Mock()
+    TrackedChangePort tracked = Mock()
 
     @Override
     Object controller() {
-        new ChangeController(new ChangeService(proTech))
+        new ChangeController(new ChangeService(proTech, tracked, Clock.systemUTC()))
     }
 
     def "a draft is raised in ProTech and answered 201 with its number and link"() {
@@ -44,6 +49,19 @@ class ChangeControllerSpec extends ControllerSpecification {
         1 * proTech.raise(draft) >> new RaisedChange('CHG0031001', 'https://bbh.service-now.com/CHG0031001')
         response.status == 201
         bodyOf(response) == [number: 'CHG0031001', url: 'https://bbh.service-now.com/CHG0031001']
+    }
+
+    def "a raised change is followed under the correlation id of the call of Beadle-GUI"() {
+        when:
+        def response = call(records(post('/api/protech/changes'), raised(number: null))
+                .header('X-Beadle-User', 'Mateusz Matan').header('X-Correlation-Id', 'corr-7'))
+
+        then:
+        1 * proTech.raise(_) >> new RaisedChange('CHG0031001', null)
+        1 * tracked.track({ List<TrackedChange> changes ->
+            changes*.number() == ['CHG0031001'] && changes*.correlationId() == ['corr-7']
+        })
+        response.status == 201
     }
 
     def "the demo ProTech answers a raised change without a link"() {

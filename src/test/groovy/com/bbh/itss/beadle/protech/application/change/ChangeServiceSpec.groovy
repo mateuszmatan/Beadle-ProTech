@@ -1,15 +1,23 @@
 package com.bbh.itss.beadle.protech.application.change
 
+import com.bbh.itss.beadle.protech.application.calllog.CallerContext
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
+import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort
+import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ProTechStatus
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
 import spock.lang.Specification
 
+import java.time.Instant
+
 import static com.bbh.itss.beadle.protech.application.change.ChangeService.ONE_OF_ROLE_OR_TASK
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.PRIMARY_APPROVAL
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
@@ -18,11 +26,24 @@ import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
+import static java.time.Clock.fixed
+import static java.time.ZoneOffset.UTC
 
 class ChangeServiceSpec extends Specification {
 
+    static final Instant NOW = Instant.parse('2026-10-15T09:00:00Z')
+
     ProTechPort proTech = Mock()
-    def service = new ChangeService(proTech)
+    TrackedChangePort tracked = Mock()
+    def service = new ChangeService(proTech, tracked, fixed(NOW, UTC))
+
+    def setup() {
+        CallerContext.set(new Caller('Mateusz Matan', 'corr-1'))
+    }
+
+    def cleanup() {
+        CallerContext.clear()
+    }
 
     def "the status says whether ProTech is reached and which ProTech it is"() {
         given:
@@ -38,7 +59,7 @@ class ChangeServiceSpec extends Specification {
         true      | LIVE
     }
 
-    def "a draft is raised in ProTech as it is and answers its number and its link"() {
+    def "a draft is raised in ProTech as it is, answers its number and its link and is followed from its draft"() {
         given:
         def draft = raised(number: null, tasks: [], workflow: [], approvals: [])
 
@@ -47,7 +68,18 @@ class ChangeServiceSpec extends Specification {
 
         then:
         1 * proTech.raise(draft) >> new RaisedChange('CHG0031002', 'https://protech/CHG0031002')
+        1 * tracked.track([TrackedChange.seen('CHG0031002', DRAFT, NOW, 'corr-1')])
         result == new RaisedChange('CHG0031002', 'https://protech/CHG0031002')
+    }
+
+    def "a change ProTech does not raise is not followed"() {
+        when:
+        service.raise(raised(number: null))
+
+        then:
+        1 * proTech.raise(_) >> { throw new UncheckedIOException('ProTech could not raise the change: 503', new IOException()) }
+        0 * tracked._
+        thrown(UncheckedIOException)
     }
 
     def "a change with #problem is refused with its fields and never reaches ProTech"() {
@@ -111,8 +143,22 @@ class ChangeServiceSpec extends Specification {
         def found = service.read(known)
 
         then:
-        1 * proTech.read(known) >> [CHG0031001: known[0]]
-        found == [CHG0031001: known[0]]
+        1 * proTech.read(known) >> [CHG0031001: known[0].toBuilder().state(PRIMARY_APPROVAL).build()]
+        1 * tracked.track([TrackedChange.seen('CHG0031001', PRIMARY_APPROVAL, NOW, 'corr-1')])
+        found == [CHG0031001: known[0].toBuilder().state(PRIMARY_APPROVAL).build()]
+    }
+
+    def "reading no change asks nothing of ProTech and follows nothing"() {
+        when:
+        def found = service.read(known)
+
+        then:
+        found == [:]
+        0 * proTech._
+        0 * tracked._
+
+        where:
+        known << [[], null]
     }
 
     def "a change without a number cannot be read"() {
@@ -121,6 +167,7 @@ class ChangeServiceSpec extends Specification {
 
         then:
         0 * proTech._
+        0 * tracked._
         def refused = thrown(InvalidRequestException)
         refused.problems*.field == ['[1].number']
     }
@@ -131,6 +178,7 @@ class ChangeServiceSpec extends Specification {
 
         then:
         1 * proTech.update(raised())
+        0 * tracked._
 
         where:
         number << ['CHG0031001', null]

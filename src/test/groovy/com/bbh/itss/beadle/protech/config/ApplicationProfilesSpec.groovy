@@ -24,7 +24,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('spring.datasource.url') == "jdbc:h2:file:${System.getProperty('user.home')}/bbh-devsecops/beadle-protech/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE"
         environment([], [BEADLE_PROTECH_DATA_DIR: '/var/beadle']).getProperty('spring.datasource.url')
                 .startsWith('jdbc:h2:file:/var/beadle/beadle-protech;')
-        env.getProperty('spring.jpa.hibernate.ddl-auto') == 'validate'
+        env.getProperty('spring.jpa.hibernate.ddl-auto') == 'none'
         env.getProperty('spring.liquibase.change-log') == 'classpath:db/changelog/db.changelog-master.yaml'
         env.getProperty('beadle.protech.url') == ''
         env.getProperty('beadle.protech.poll') == 'PT1M'

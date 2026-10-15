@@ -2,34 +2,42 @@ package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
 import com.bbh.itss.beadle.protech.application.WithoutTransaction;
+import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.change.port.in.ChangesUseCase;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
+import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechStatus;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
 import lombok.RequiredArgsConstructor;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeSchedule.UNPLANNED;
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTask.validateTasks;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIPTION_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.checkTemplateAndSchedule;
+import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 /**
  * Checks what Beadle-GUI sends before it reaches ProTech, so that a change ProTech would refuse is refused here
- * with the fields at fault, and passes the rest on. Nothing is stored: ProTech is the system of record of a change
- * and Beadle-GUI keeps its own copy.
+ * with the fields at fault, and passes the rest on. ProTech is the system of record of a change and Beadle-GUI keeps
+ * its own copy; Beadle-ProTech only follows the changes Beadle-GUI raised or read, in the state Beadle-GUI knows of,
+ * so that it can tell Beadle-GUI when ProTech moves them.
  */
 @UseCase
 @RequiredArgsConstructor
@@ -38,6 +46,8 @@ public class ChangeService implements ChangesUseCase {
     public static final String ONE_OF_ROLE_OR_TASK = "name either the role of the change approver or the change task";
 
     private final ProTechPort proTech;
+    private final TrackedChangePort tracked;
+    private final Clock clock;
 
     @Override
     @WithoutTransaction
@@ -51,7 +61,9 @@ public class ChangeService implements ChangesUseCase {
         ValidationProblems problems = new ValidationProblems();
         check(draft, problems);
         problems.throwIfAny();
-        return proTech.raise(draft);
+        RaisedChange raised = proTech.raise(draft);
+        tracked.track(List.of(TrackedChange.seen(raised.number(), DRAFT, now(clock), correlationId())));
+        return raised;
     }
 
     @Override
@@ -73,7 +85,16 @@ public class ChangeService implements ChangesUseCase {
             problems.require("[" + index + "].number", change == null ? null : trimToNull(change.number()), REQUIRED);
         }
         problems.throwIfAny();
-        return listed.isEmpty() ? Map.of() : proTech.read(listed);
+        if (listed.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ProductionChange> current = proTech.read(listed);
+        Instant now = now(clock);
+        String correlationId = correlationId();
+        tracked.track(current.entrySet().stream()
+                .map(change -> TrackedChange.seen(change.getKey(), change.getValue().state(), now, correlationId))
+                .toList());
+        return current;
     }
 
     @Override
@@ -105,6 +126,10 @@ public class ChangeService implements ChangesUseCase {
                 .fits("description", change.description(), DESCRIPTION_MAX);
         checkTemplateAndSchedule(change.template(), change.schedule(), null, problems);
         validateTasks(change.tasks(), getIfNull(change.schedule(), UNPLANNED), problems);
+    }
+
+    private static String correlationId() {
+        return CallerContext.current().correlationId();
     }
 
     private static String numbered(String changeNumber) {
