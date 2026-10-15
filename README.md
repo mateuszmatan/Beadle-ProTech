@@ -61,8 +61,14 @@ does not take is logged and sent again at the next look, and the ticker never fa
 over the change as it is written down by then, so the read with which Beadle-GUI answers the callback, and any action
 of Beadle-GUI since the look, keep their state, times and correlation id. What Beadle-GUI did
 itself (a task created, an update, a reminder) is no news to it and is not called back. A closed change is no
-longer followed. The live poll compares ProTech's `sys_updated_on` with the clock of Beadle-ProTech, so the two
-clocks must agree within the minute of margin.
+longer followed. The live poll compares ProTech's `sys_updated_on` with the time Beadle-ProTech noted on its own
+clock when Beadle-GUI last raised, read or acted on the change, so **the clocks of ProTech and Beadle-ProTech must be
+synchronised** (NTP on both sides keeps them well within a second). A skew does harm whatever its size: with
+ProTech's clock ahead by `s` seconds, an action of Beadle-GUI (a task, an update, a reminder) is called back to it as
+a move of ProTech for `s` seconds after it, and Beadle-GUI records it as an action of `system:protech`; with ProTech's
+clock behind, an approval or task move made within `s` seconds after such an action is not called back until the
+change moves again. The minute the poll reaches back only widens its window, so that no update is missed between two
+looks; it does not make up for a skew.
 
 ### Call log
 

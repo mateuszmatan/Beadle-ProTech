@@ -44,7 +44,11 @@ import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 @RequiredArgsConstructor
 public class ChangeWatchService implements ChangeWatchUseCase {
 
-    /** How far before the last look a poll reaches back, for the clocks of ProTech and Beadle to disagree a little. */
+    /**
+     * How far before the last look a poll reaches back, so that no update is missed between two looks. It widens the
+     * window of the poll only: whether a move is news to Beadle-GUI compares ProTech's {@code sys_updated_on} with
+     * times of Beadle-ProTech's clock, which needs the two clocks synchronised.
+     */
     static final Duration MARGIN = Duration.ofMinutes(1);
 
     private final TrackedChangePort tracked;

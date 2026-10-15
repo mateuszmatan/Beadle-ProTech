@@ -43,8 +43,12 @@ From the poll Beadle-ProTech calls Beadle-GUI back once per change that moved pa
 `STATE_CHANGED` when the `state` maps to another state than the one Beadle-GUI knows, otherwise `APPROVAL_CHANGED` when
 an approval of the change or of one of its tasks was updated after the last move Beadle-GUI knows of, otherwise
 `TASK_CHANGED` when one of its tasks was. What Beadle-GUI did itself (a task created, an update, a reminder) moves
-that mark to the moment it did it, so it is not called back for its own action. The comparison relies on the clocks of
-ProTech and Beadle-ProTech agreeing to within the minute the poll reaches back.
+that mark to the moment it did it, so it is not called back for its own action. That moment is taken from the clock
+of Beadle-ProTech while `sys_updated_on` comes from ProTech's, so the comparison needs the two clocks synchronised
+(NTP): ProTech ahead by `s` seconds calls Beadle-GUI back for its own actions for `s` seconds after each, ProTech
+behind by `s` seconds leaves an approval or task move within `s` seconds after an action of Beadle-GUI unreported
+until the change moves again. The minute the poll reaches back (`{since}`) only keeps updates between two looks from
+being missed; it does not make up for a skew.
 
 A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's message
 (`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is answered
