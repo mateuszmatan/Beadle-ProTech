@@ -15,13 +15,23 @@ import static java.time.Duration.ofSeconds
 class ServiceClient {
 
     final String baseUrl
+    final Map<String, String> headers
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(ofSeconds(5))
             .proxy(NO_PROXY)
             .build()
 
-    ServiceClient(String baseUrl) {
+    ServiceClient(String baseUrl, Map<String, String> headers = [:]) {
         this.baseUrl = baseUrl.replaceAll('/+$', '')
+        this.headers = headers.asImmutable()
+    }
+
+    ServiceClient withHeaders(Map<String, String> more) {
+        new ServiceClient(baseUrl, headers + more)
+    }
+
+    ServiceClient withoutHeader(String name) {
+        new ServiceClient(baseUrl, headers.findAll { !it.key.equalsIgnoreCase(name) })
     }
 
     Response get(String path) {
@@ -33,10 +43,7 @@ class ServiceClient {
     }
 
     Response postRaw(String path, String contentType, String body) {
-        send(HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(ofSeconds(30))
-                .header('Content-Type', contentType)
-                .POST(ofString(body)))
+        send(request(path, contentType).POST(ofString(body)))
     }
 
     Response put(String path, Object body) {
@@ -47,10 +54,12 @@ class ServiceClient {
         send(request(path).DELETE())
     }
 
-    private HttpRequest.Builder request(String path) {
-        HttpRequest.newBuilder(URI.create(baseUrl + path))
+    private HttpRequest.Builder request(String path, String contentType = 'application/json') {
+        def builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(ofSeconds(30))
-                .header('Content-Type', 'application/json')
+                .header('Content-Type', contentType)
+        headers.each { name, value -> builder.header(name, value) }
+        builder
     }
 
     private static HttpRequest.BodyPublisher json(Object body) {
