@@ -9,6 +9,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import com.bbh.itss.beadle.protech.support.ControllerSpecification
 import groovy.json.JsonOutput
 
@@ -188,13 +189,14 @@ class ChangeControllerSpec extends ControllerSpecification {
 
         then:
         response.status == status
-        bodyOf(response).detail == failure.message
+        bodyOf(response).detail == detail
 
         where:
-        failure                                                                           || status
-        new IllegalStateException('ProTech does not change a closed change')              || 409
+        failure                                                                           || status | detail
+        new RefusedException('ProTech does not change a closed change')                  || 409    | failure.message
         new UncheckedIOException('ProTech could not update CHG0031001: 503 Service Unavailable',
-                new IOException())                                                        || 502
+                new IOException())                                                        || 502    | failure.message
+        new IllegalStateException('Cannot cast the change to ProductionChange')           || 500    | 'Beadle-ProTech could not handle the request. The failure is in its log.'
     }
 
     def "a reminder goes to the approver of a role or the approvers of a task and answers whom it reached"() {
@@ -230,7 +232,7 @@ class ChangeControllerSpec extends ControllerSpecification {
 
     def "a reminder nobody can receive is a conflict"() {
         given:
-        proTech.remind(*_) >> { throw new IllegalStateException('ProTech has nobody to remind on CHG0031001') }
+        proTech.remind(*_) >> { throw new RefusedException('ProTech has nobody to remind on CHG0031001') }
 
         when:
         def response = call(json(post('/api/protech/changes/CHG0031001/reminders'), [role: 'L1']))

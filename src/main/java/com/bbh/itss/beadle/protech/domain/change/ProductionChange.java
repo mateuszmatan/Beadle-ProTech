@@ -2,6 +2,7 @@ package com.bbh.itss.beadle.protech.domain.change;
 
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Planning;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
 import lombok.Builder;
 
@@ -217,7 +218,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
 
     public List<ApprovalRef> toRemind(ApprovalRole role, String task) {
         if (!state.isOpen()) {
-            throw new IllegalStateException(number + " is closed in ProTech, so nobody is reminded to approve it");
+            throw new RefusedException(number + " is closed in ProTech, so nobody is reminded to approve it");
         }
         if (role != null && task != null) {
             throw InvalidRequestException.of("task", "Remind the approvers of either the change or one change task");
@@ -235,7 +236,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
                         .filter(found -> found.number() != null && !found.approvers().isEmpty())
                         .map(found -> ApprovalRef.ofTask(found.number()))).toList();
         if (awaited.isEmpty()) {
-            throw new IllegalStateException("Nobody named on " + number + " still has to approve it");
+            throw new RefusedException("Nobody named on " + number + " still has to approve it");
         }
         return awaited;
     }
@@ -329,7 +330,7 @@ public record ProductionChange(Long id, String number, Long productId, String pr
 
     private ChangeApproval approvalOf(ApprovalRole role) {
         return approvals.stream().filter(approval -> approval.role() == role).findFirst()
-                .orElseThrow(() -> new IllegalStateException("ProTech has no " + role.label() + " on " + number));
+                .orElseThrow(() -> new RefusedException("ProTech has no " + role.label() + " on " + number));
     }
 
     private ChangeTask taskOf(String task) {
@@ -340,10 +341,10 @@ public record ProductionChange(Long id, String number, Long productId, String pr
     private ApprovalRef remindable(ChangeApproval approval) {
         String role = approval.role().label();
         if (approval.state().approved()) {
-            throw new IllegalStateException("The " + role + " already approved " + number);
+            throw new RefusedException("The " + role + " already approved " + number);
         }
         if (approval.approver() == null) {
-            throw new IllegalStateException("No " + role + " is named on " + number
+            throw new RefusedException("No " + role + " is named on " + number
                     + ", so ProTech has nobody to remind");
         }
         return ApprovalRef.of(approval.role());
@@ -351,13 +352,13 @@ public record ProductionChange(Long id, String number, Long productId, String pr
 
     private static ApprovalRef remindable(String number, ChangeTask task) {
         if (!task.active()) {
-            throw new IllegalStateException(number + " is canceled in ProTech");
+            throw new RefusedException(number + " is canceled in ProTech");
         }
         if (task.approval().approved()) {
-            throw new IllegalStateException(number + " is already approved");
+            throw new RefusedException(number + " is already approved");
         }
         if (task.approvers().isEmpty()) {
-            throw new IllegalStateException("ProTech names no approvers of " + number + " yet");
+            throw new RefusedException("ProTech names no approvers of " + number + " yet");
         }
         return ApprovalRef.ofTask(number);
     }

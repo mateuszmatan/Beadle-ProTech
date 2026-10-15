@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.adapter.out.protech;
 
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -28,7 +29,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
  * authentication as the Beadle service account. Reads answer every field with its value and its display value
  * ({@code sysparm_display_value=all}); writes give the display values ({@code sysparm_input_display_value=true}), so
  * that a person, a group or a configuration item is named as Beadle shows it. A refusal of ProTech (a {@code 4xx}
- * other than a failed sign-in) becomes an {@link IllegalStateException} with ProTech's message; ProTech out of reach,
+ * other than a failed sign-in) becomes an {@link RefusedException} with ProTech's message; ProTech out of reach,
  * a failed sign-in or a {@code 5xx} answer becomes an {@link UncheckedIOException}.
  */
 class TableApi {
@@ -104,7 +105,7 @@ class TableApi {
     static RuntimeException refusal(String operation, RestClientException cause) {
         if (cause instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError()
                 && !UNAVAILABLE.contains(response.getStatusCode().value())) {
-            return new IllegalStateException(PROTECH + " refused to " + operation + ": " + messageOf(response));
+            return new RefusedException(PROTECH + " refused to " + operation + ": " + messageOf(response));
         }
         String reason = cause instanceof RestClientResponseException response
                 ? response.getStatusCode().value() + " " + messageOf(response)

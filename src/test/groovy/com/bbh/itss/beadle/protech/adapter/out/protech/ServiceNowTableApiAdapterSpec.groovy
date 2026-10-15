@@ -11,6 +11,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange
 import com.bbh.itss.beadle.protech.domain.change.Reminder
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.springframework.http.HttpMethod
@@ -160,7 +161,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         proTech.createTask('CHG0099999', task(1))
 
         then:
-        def refused = thrown(IllegalStateException)
+        def refused = thrown(RefusedException)
         refused.message == 'ProTech has no change CHG0099999'
     }
 
@@ -333,7 +334,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         proTech.remind('CHG0031001', approval)
 
         then:
-        def refused = thrown(IllegalStateException)
+        def refused = thrown(RefusedException)
         refused.message == message
 
         where:
@@ -382,7 +383,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                              error: [message: 'User Not Authenticated', detail: 'Required to provide Auth information'])),
                      withServerError(),
                      withStatus(CREATED).contentType(APPLICATION_JSON).body('{"result":{}}')]
-        type << [IllegalStateException, IllegalStateException, UncheckedIOException, UncheckedIOException,
+        type << [RefusedException, RefusedException, UncheckedIOException, UncheckedIOException,
                  UncheckedIOException]
         message << ['ProTech refused to raise the change: Operation Failed (Data Policy Exception: Category is mandatory)',
                     'ProTech refused to raise the change: Bad Request',

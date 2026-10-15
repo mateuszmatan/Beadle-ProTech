@@ -4,6 +4,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Approvers
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Planning
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import spock.lang.Specification
 
 import java.time.Instant
@@ -587,16 +588,16 @@ class ProductionChangeSpec extends Specification {
 
         where:
         refusal                         | state                        | role     | task           || type                    | message
-        'the change is closed'          | ChangeState.CLOSED           | null     | null           || IllegalStateException   | 'CHG0031001 is closed in ProTech, so nobody is reminded to approve it'
+        'the change is closed'          | ChangeState.CLOSED           | null     | null           || RefusedException        | 'CHG0031001 is closed in ProTech, so nobody is reminded to approve it'
         'it names a role and a task'    | PRIMARY_APPROVAL             | L1       | 'CTASK3'       || InvalidRequestException | 'Remind the approvers of either the change or one change task'
-        'the role already approved'     | PRIMARY_APPROVAL             | BUSINESS | null           || IllegalStateException   | 'The business approver already approved CHG0031001'
-        'the role names nobody'         | PRIMARY_APPROVAL             | L1       | null           || IllegalStateException   | 'No L1 approver is named on CHG0031001, so ProTech has nobody to remind'
-        'ProTech holds no such role'    | PRIMARY_APPROVAL             | SUPPORT  | null           || IllegalStateException   | 'ProTech has no support approver on CHG0031001'
+        'the role already approved'     | PRIMARY_APPROVAL             | BUSINESS | null           || RefusedException        | 'The business approver already approved CHG0031001'
+        'the role names nobody'         | PRIMARY_APPROVAL             | L1       | null           || RefusedException        | 'No L1 approver is named on CHG0031001, so ProTech has nobody to remind'
+        'ProTech holds no such role'    | PRIMARY_APPROVAL             | SUPPORT  | null           || RefusedException        | 'ProTech has no support approver on CHG0031001'
         'the task is not on the change' | CTASK_APPROVAL               | null     | 'CTASK9'       || InvalidRequestException | 'CTASK9 is not a change task of CHG0031001'
-        'the task is canceled'          | CTASK_APPROVAL               | null     | 'CTASK2'       || IllegalStateException   | 'CTASK2 is canceled in ProTech'
-        'the task is approved'          | CTASK_APPROVAL               | null     | 'CTASK0041001' || IllegalStateException   | 'CTASK0041001 is already approved'
-        'the task names no approvers'   | CTASK_APPROVAL               | null     | 'CTASK3'       || IllegalStateException   | 'ProTech names no approvers of CTASK3 yet'
-        'nobody named has to approve'   | CTASK_APPROVAL               | null     | null           || IllegalStateException   | 'Nobody named on CHG0031001 still has to approve it'
+        'the task is canceled'          | CTASK_APPROVAL               | null     | 'CTASK2'       || RefusedException        | 'CTASK2 is canceled in ProTech'
+        'the task is approved'          | CTASK_APPROVAL               | null     | 'CTASK0041001' || RefusedException        | 'CTASK0041001 is already approved'
+        'the task names no approvers'   | CTASK_APPROVAL               | null     | 'CTASK3'       || RefusedException        | 'ProTech names no approvers of CTASK3 yet'
+        'nobody named has to approve'   | CTASK_APPROVAL               | null     | null           || RefusedException        | 'Nobody named on CHG0031001 still has to approve it'
     }
 
     def "the reminders sent are kept on their approvals and survive the next read from ProTech"() {

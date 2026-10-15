@@ -2,6 +2,7 @@ package com.bbh.itss.beadle.protech.adapter.in.web;
 
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem;
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -34,8 +35,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(NOT_FOUND, "Not found", e.getMessage());
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    ProblemDetail conflict(IllegalStateException e) {
+    @ExceptionHandler(RefusedException.class)
+    ProblemDetail conflict(RefusedException e) {
         return problem(CONFLICT, "Conflict", e.getMessage());
     }
 

@@ -14,6 +14,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -149,7 +150,7 @@ class DemoProTechAdapter implements ProTechPort {
                 : change.approvals().stream().filter(found -> found.role() == approval.role())
                 .map(ChangeApproval::approver).filter(Objects::nonNull).toList();
         if (approvers.isEmpty()) {
-            throw new IllegalStateException("ProTech has nobody to remind on " + changeNumber);
+            throw new RefusedException("ProTech has nobody to remind on " + changeNumber);
         }
         reminders.add(new SentReminder(changeNumber, approval, approvers, now));
         return approvers;
@@ -236,17 +237,17 @@ class DemoProTechAdapter implements ProTechPort {
     private static List<String> approversOf(ProductionChange change, String task) {
         return change.tasks().stream().filter(found -> task.equals(found.number())).findFirst()
                 .map(ChangeTask::approvers)
-                .orElseThrow(() -> new IllegalStateException("ProTech has no change task " + task + " on "
+                .orElseThrow(() -> new RefusedException("ProTech has no change task " + task + " on "
                         + change.number()));
     }
 
     private Held open(String number, Held found, Instant now) {
         if (found == null) {
-            throw new IllegalStateException("ProTech has no change " + number);
+            throw new RefusedException("ProTech has no change " + number);
         }
         Held current = applied(found, now);
         if (current.stateAt(now) == CLOSED) {
-            throw new IllegalStateException(CLOSED_REFUSAL);
+            throw new RefusedException(CLOSED_REFUSAL);
         }
         return current;
     }

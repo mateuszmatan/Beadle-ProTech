@@ -8,6 +8,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Approvers
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import spock.lang.Specification
 import spock.util.time.MutableClock
 
@@ -223,7 +224,7 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.remind(unknown ? 'CHG0000001' : known.number(), approval)
 
         then:
-        def refused = thrown(IllegalStateException)
+        def refused = thrown(RefusedException)
         refused.message == message.replace('{CHG}', known.number())
 
         where:
@@ -243,7 +244,7 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.createTask(unknown ? 'CHG0000001' : known.number(), CHECK)
 
         then:
-        def refused = thrown(IllegalStateException)
+        def refused = thrown(RefusedException)
         refused.message == message
 
         where:
@@ -445,7 +446,7 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.update(unknown ? known.toBuilder().number('CHG0000001').build() : known)
 
         then:
-        def refused = thrown(IllegalStateException)
+        def refused = thrown(RefusedException)
         refused.message == message
 
         where:

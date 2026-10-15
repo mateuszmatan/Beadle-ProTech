@@ -16,6 +16,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
+import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -191,7 +192,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                     + " waits for your approval.";
         }
         if (waiting.isEmpty()) {
-            throw new IllegalStateException("ProTech has nobody to remind on " + number);
+            throw new RefusedException("ProTech has nobody to remind on " + number);
         }
         for (TableRow row : waiting) {
             api.update(fields.approval().table(), row.sysId(), Map.of(fields.approval().comments(), reminder), true,
@@ -310,7 +311,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         String number = safe(taskNumber);
         List<TableRow> found = number == null ? List.of() : api.list(task.table(), task.change() + "="
                 + changeId + "^" + task.number() + "=" + number, List.of(SYS_ID, task.number()), 1, "find " + number);
-        return found.stream().findFirst().orElseThrow(() -> new IllegalStateException("ProTech has no change task "
+        return found.stream().findFirst().orElseThrow(() -> new RefusedException("ProTech has no change task "
                 + taskNumber + " on " + changeNumber));
     }
 
@@ -362,7 +363,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
     }
 
     private static TableRow missing(String changeNumber) {
-        throw new IllegalStateException("ProTech has no change " + changeNumber);
+        throw new RefusedException("ProTech has no change " + changeNumber);
     }
 
     /** A number as ProTech spells them: letters, digits, {@code _} and {@code -}, nothing that ends a query. */
