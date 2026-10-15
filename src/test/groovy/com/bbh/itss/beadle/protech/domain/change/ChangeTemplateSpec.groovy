@@ -20,7 +20,6 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMER
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.VALIDATION_PLAN
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.suggestedFor
-import static com.bbh.itss.beadle.protech.domain.change.JiraVersion.UNRELEASED_NEWEST_FIRST
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.privileged
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
@@ -255,19 +254,6 @@ class ChangeTemplateSpec extends Specification {
         expect:
         new JiraIssue('CERT-1', 'Alerts', 'Done', null, LocalDate.parse('2026-10-01')).line() == 'CERT-1 Alerts (Done)'
         new JiraIssue('CERT-2', 'Mails', null, 'CERT-1', LocalDate.parse('2026-10-01')).line() == 'CERT-2 Mails'
-    }
-
-    def "FixVersions are ordered unreleased first, then released, each newest first"() {
-        given:
-        def versions = [new JiraVersion('CERT 4.0', true, LocalDate.parse('2026-07-01')),
-                        new JiraVersion('CERT 4.2', false, LocalDate.parse('2026-10-20')),
-                        new JiraVersion('CERT 4.1', true, LocalDate.parse('2026-09-01')),
-                        new JiraVersion('CERT 4.3', false, null),
-                        new JiraVersion('CERT 3.9', true, null)]
-
-        expect:
-        versions.sort(false, UNRELEASED_NEWEST_FIRST)*.name() ==
-                ['CERT 4.3', 'CERT 4.2', 'CERT 3.9', 'CERT 4.1', 'CERT 4.0']
     }
 
     private static List<String> problems(ChangeTemplate template) {

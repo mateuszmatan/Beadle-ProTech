@@ -24,9 +24,6 @@ final class Samples {
     record PersonView(String name) {
     }
 
-    record PersonRequest(String name, int age) implements Mirrors<Person> {
-    }
-
     record Team(String name, Person lead, List<Person> members, Map<DayOfWeek, Person> rota) {
     }
 

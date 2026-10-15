@@ -2,7 +2,6 @@ package com.bbh.itss.beadle.protech.adapter
 
 import com.bbh.itss.beadle.protech.adapter.Samples.Holder
 import com.bbh.itss.beadle.protech.adapter.Samples.Person
-import com.bbh.itss.beadle.protech.adapter.Samples.PersonRequest
 import com.bbh.itss.beadle.protech.adapter.Samples.PersonView
 import com.bbh.itss.beadle.protech.adapter.Samples.Team
 import com.bbh.itss.beadle.protech.adapter.Samples.TeamView
@@ -32,11 +31,6 @@ class RecordMapperSharedSpec extends Specification {
         RecordMapper.map(PersonView, new Person('Ada', 36), new Holder('Grace')) == new PersonView('Ada')
         RecordMapper.map(PersonView, new Object(), new Holder('Grace')) == new PersonView('Grace')
         RecordMapper.map(PersonView, null, new Holder(null)) == new PersonView(null)
-    }
-
-    def "a record that mirrors another one passes through it, so the mirrored rules apply"() {
-        expect:
-        RecordMapper.map(new PersonRequest(' Ada ', 36), PersonRequest) == new PersonRequest('Ada', 36)
     }
 
     def "a refusal of the target record is passed on unchanged"() {

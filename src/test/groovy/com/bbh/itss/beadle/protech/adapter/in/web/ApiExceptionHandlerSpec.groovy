@@ -2,8 +2,6 @@ package com.bbh.itss.beadle.protech.adapter.in.web
 
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem
-import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
 import org.springframework.web.bind.annotation.GetMapping
@@ -14,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import spock.lang.Specification
 
-import static com.bbh.itss.beadle.protech.domain.shared.Failures.STALE_VERSION
 import static com.bbh.itss.beadle.protech.domain.shared.Failures.notFound
 import static com.bbh.itss.beadle.protech.support.Json.parse
 import static com.bbh.itss.beadle.protech.support.Json.toJson
@@ -44,26 +41,14 @@ class ApiExceptionHandlerSpec extends Specification {
 
         where:
         failure                    | answer                                                 || status | title
-        'a missing record'         | { it.notFound(notFound('Product', 7)) }                || 404    | 'Not found'
-        'a clash with stored data' | { it.conflict(new IllegalStateException('code clash')) }  || 409    | 'Conflict'
-        'a concurrent change'      | { it.staleData(new ObjectOptimisticLockingFailureException(Object, 1L)) } || 409 | 'Conflict'
+        'a missing record'         | { it.notFound(notFound('Lookup', 'pets')) }                || 404    | 'Not found'
+        'a refusal of ProTech'     | { it.conflict(new IllegalStateException('ProTech has no change CHG1')) } || 409 | 'Conflict'
         'a broken business rule'   | { it.invalid(new InvalidRequestException([PROBLEM])) } || 400   | 'Validation failed'
         'an unexpected failure'    | { it.unexpected(new IllegalStateException('at com.bbh')) } || 500 | 'Request failed'
         'an unreachable ProTech'   | { it.unavailable(new UncheckedIOException('ProTech timed out', new IOException())) } || 502 | 'Bad Gateway'
 
-        detail << ['Product 7 does not exist', 'code clash', STALE_VERSION, 'is required', UNEXPECTED,
-                   'ProTech timed out']
-        errors << [null, null, null, [PROBLEM], null, null]
-    }
-
-    def "a violated database constraint is 409 without the constraint's name"() {
-        when:
-        def problem = handler.integrity(new DataIntegrityViolationException('UK_DSO_PRODUCT_CODE'))
-
-        then:
-        problem.status == 409
-        problem.detail.contains('duplicate')
-        !problem.detail.contains('UK_DSO_PRODUCT_CODE')
+        detail << ['Lookup pets does not exist', 'ProTech has no change CHG1', 'is required', UNEXPECTED, 'ProTech timed out']
+        errors << [null, null, [PROBLEM], null, null]
     }
 
     def "bean validation errors are listed per field"() {

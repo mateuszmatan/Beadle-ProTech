@@ -3,8 +3,6 @@ package com.bbh.itss.beadle.protech.adapter.in.web;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem;
 import org.springframework.beans.TypeMismatchException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -21,11 +19,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
 
-import static com.bbh.itss.beadle.protech.domain.shared.Failures.STALE_VERSION;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.ProblemDetail.forStatusAndDetail;
@@ -38,25 +34,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(NOT_FOUND, "Not found", e.getMessage());
     }
 
-    @ExceptionHandler(SecurityException.class)
-    ProblemDetail forbidden(SecurityException e) {
-        return problem(FORBIDDEN, "Forbidden", e.getMessage());
-    }
-
     @ExceptionHandler(IllegalStateException.class)
     ProblemDetail conflict(IllegalStateException e) {
         return problem(CONFLICT, "Conflict", e.getMessage());
-    }
-
-    @ExceptionHandler(OptimisticLockingFailureException.class)
-    ProblemDetail staleData(OptimisticLockingFailureException e) {
-        return problem(CONFLICT, "Conflict", STALE_VERSION);
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    ProblemDetail integrity(DataIntegrityViolationException e) {
-        return problem(CONFLICT, "Conflict",
-                "The change violates a database constraint, most likely a duplicate name or key.");
     }
 
     @ExceptionHandler(UncheckedIOException.class)

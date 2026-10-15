@@ -17,7 +17,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.invoke.MethodHandles.lookup;
@@ -82,10 +81,7 @@ public final class RecordMapper {
         if (!type.isRecord()) {
             return value;
         }
-        Shape shape = SHAPES.computeIfAbsent(type, Shape::of);
-        Object source = shape.mirrored().filter(mirrored -> !mirrored.isInstance(value))
-                .map(mirrored -> SHAPES.computeIfAbsent(mirrored, Shape::of).build(value)).orElse(value);
-        return shape.build(source);
+        return SHAPES.computeIfAbsent(type, Shape::of).build(value);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -126,7 +122,7 @@ public final class RecordMapper {
         return null;
     }
 
-    private record Shape(Constructor<?> constructor, List<RecordComponent> components, Optional<Class<?>> mirrored) {
+    private record Shape(Constructor<?> constructor, List<RecordComponent> components) {
 
         static Shape of(Class<?> type) {
             RecordComponent[] components = type.getRecordComponents();
@@ -134,18 +130,10 @@ public final class RecordMapper {
                 Constructor<?> constructor = type.getDeclaredConstructor(
                         Arrays.stream(components).map(RecordComponent::getType).toArray(Class<?>[]::new));
                 constructor.setAccessible(true);
-                return new Shape(constructor, List.of(components), mirrorOf(type));
+                return new Shape(constructor, List.of(components));
             } catch (NoSuchMethodException e) {
                 throw new IllegalArgumentException(e);
             }
-        }
-
-        private static Optional<Class<?>> mirrorOf(Class<?> type) {
-            return Arrays.stream(type.getGenericInterfaces())
-                    .filter(candidate -> candidate instanceof ParameterizedType parameterized
-                            && parameterized.getRawType() == Mirrors.class)
-                    .<Class<?>>map(candidate -> raw(argument(candidate, 0)))
-                    .findFirst();
         }
 
         Object build(Object... sources) {

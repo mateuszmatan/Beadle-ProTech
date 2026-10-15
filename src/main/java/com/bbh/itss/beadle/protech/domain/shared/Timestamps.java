@@ -11,10 +11,6 @@ import static lombok.AccessLevel.PRIVATE;
 @NoArgsConstructor(access = PRIVATE)
 public final class Timestamps {
 
-    public static Instant now() {
-        return Instant.now().truncatedTo(MICROS);
-    }
-
     public static Instant now(Clock clock) {
         return Instant.now(clock).truncatedTo(MICROS);
     }
