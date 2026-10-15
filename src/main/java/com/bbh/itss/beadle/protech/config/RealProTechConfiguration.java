@@ -41,7 +41,7 @@ public class RealProTechConfiguration {
         }
         throw new IllegalStateException("The rd, qc and prod profiles need the real ProTech, but PROTECH_URL is blank "
                 + "and the demo ProTech would answer in its place. Set PROTECH_URL, PROTECH_USERNAME and "
-                + "PROTECH_PASSWORD in the secret beadle-protech-servicenow, or PROTECH_DEMO=true to run on the demo "
+                + "PROTECH_PASSWORD in the secret beadle-protech-account, or PROTECH_DEMO=true to run on the demo "
                 + "ProTech on purpose.");
     }
 }

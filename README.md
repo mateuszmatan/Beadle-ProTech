@@ -199,18 +199,19 @@ inside the cluster (`BEADLE_PROTECH_URL=http://beadle-protech:8083`). Only once 
 [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md)) does an overlay add the component
 `components/webhook-route` (`components: [../../components/webhook-route]`), whose Route publishes
 `/api/protech/webhook` alone, still behind the service token. The Deployment reads the secrets
-`beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) and `beadle-protech-services`
-(`BEADLE_SERVICE_TOKEN`), and `beadle-protech-servicenow` (`PROTECH_URL`, `PROTECH_USERNAME`, `PROTECH_PASSWORD`; a
-secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and `/actuator/health/readiness`. The
-Deployment marks `beadle-protech-servicenow` optional only so that an environment can run on the demo ProTech on
-purpose with `PROTECH_DEMO=true` in its overlay: without that, `rd`, `qc` and `prod` do not start while
-`PROTECH_URL` is blank, since the demo ProTech would answer in its place and hand Beadle-GUI made-up changes.
+`beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), `beadle-protech-services` (`BEADLE_SERVICE_TOKEN`) and
+`beadle-protech-account`, ProTech's address and the Beadle service account in it (`PROTECH_URL`, `PROTECH_USERNAME`,
+`PROTECH_PASSWORD`; a secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and
+`/actuator/health/readiness`. The Deployment marks `beadle-protech-account` optional only so that an environment can
+run on the demo ProTech on purpose with `PROTECH_DEMO=true` in its overlay: without that, `rd`, `qc` and `prod` do
+not start while `PROTECH_URL` is blank, since the demo ProTech would answer in its place and hand Beadle-GUI made-up
+changes.
 
 ```bash
 oc create secret generic beadle-protech-db --from-literal=DB_URL='jdbc:oracle:thin:@//<host>:1521/<service>' \
   --from-literal=DB_USERNAME='<user>' --from-literal=DB_PASSWORD='<password>'
 oc create secret generic beadle-protech-services --from-literal=BEADLE_SERVICE_TOKEN='<token>'
-oc create secret generic beadle-protech-servicenow --from-literal=PROTECH_URL='https://bbh.service-now.com' \
+oc create secret generic beadle-protech-account --from-literal=PROTECH_URL='https://bbh.service-now.com' \
   --from-literal=PROTECH_USERNAME='<user>' --from-literal=PROTECH_PASSWORD='<password>'
 cd deploy/openshift/beadle-protech/overlays/rd
 kustomize edit set image beadle-protech=<registry>/<project>/beadle-protech:0.1.0-SNAPSHOT

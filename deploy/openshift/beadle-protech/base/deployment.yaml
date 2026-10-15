@@ -33,7 +33,7 @@ spec:
             - secretRef:
                 name: beadle-protech-services
             - secretRef:
-                name: beadle-protech-servicenow
+                name: beadle-protech-account
                 optional: true
           env:
             - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
