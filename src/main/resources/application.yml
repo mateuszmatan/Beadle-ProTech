@@ -91,22 +91,9 @@ spring:
   datasource:
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:5}
-management:
-  endpoint:
-    health:
-      show-details: always
 logging:
   level:
     com.bbh.itss.beadle: DEBUG
----
-spring:
-  config:
-    activate:
-      on-profile: qc
-management:
-  endpoint:
-    health:
-      show-details: always
 ---
 spring:
   config:

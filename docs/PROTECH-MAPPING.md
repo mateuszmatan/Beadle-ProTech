@@ -224,7 +224,8 @@ message.setRequestBody(JSON.stringify({number: changeNumber}));             // t
 message.executeAsync();
 ```
 
-Keep the token in an encrypted (`password2`) system property.
+Keep the token in an encrypted (`password2`) system property. ProTech reaches the webhook through the Route of the
+`webhook-route` component of the OpenShift manifests, which publishes `/api/protech/webhook` alone (see the README).
 
 ## What the service account needs in ProTech
 

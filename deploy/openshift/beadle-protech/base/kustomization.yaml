@@ -8,7 +8,6 @@ labels:
 resources:
   - deployment.yaml
   - service.yaml
-  - route.yaml
 configMapGenerator:
   - name: beadle-protech-config
     literals:

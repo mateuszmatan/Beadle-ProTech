@@ -1,0 +1,16 @@
+# Publishes only the webhook, for ProTech to call it from outside the cluster. Beadle-GUI calls the rest of the API
+# inside the cluster through the Service, so nothing else of Beadle-ProTech is published.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: beadle-protech-webhook
+spec:
+  path: /api/protech/webhook
+  to:
+    kind: Service
+    name: beadle-protech
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

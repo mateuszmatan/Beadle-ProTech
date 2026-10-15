@@ -170,7 +170,8 @@ again on the next tick. In VS Code the tasks `gradle: bootRun`, `gradle: test`, 
 | `rd`, `qc`, `prod` | Oracle from `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (`DB_POOL_SIZE` sizes the pool) | the real one: the service does not start while `PROTECH_URL` is blank, unless `PROTECH_DEMO=true` asks for the demo |
 
 `rd`, `qc` and `prod` each switch on the `oracle` profile. Liquibase updates the schema on every start and
-Hibernate validates it on Oracle. `rd` logs at `DEBUG`; `rd` and `qc` show the health details.
+Hibernate validates it on Oracle. `rd` logs at `DEBUG`. Only `local` shows the health details: on `rd`, `qc` and
+`prod` the open `/actuator/health` answers its status alone, which is all the probes need.
 
 ## Containers and OpenShift
 
@@ -184,9 +185,13 @@ docker run --rm -p 8083:8083 -e BEADLE_SERVICE_TOKEN=<token> -e BEADLE_GUI_URL=h
 The image runs as user 185, listens on 8083 and keeps the H2 database of the `local` profile in the volume
 `/application/data`.
 
-The manifests in `deploy/openshift/beadle-protech` are a Kustomize base (Deployment, Service, Route and the
-ConfigMap `beadle-protech-config` with the profile, `BEADLE_GUI_URL=http://beadle:8081`, `PROTECH_URL` and
-`PROTECH_POLL`) with one overlay per environment that sets its profile. The Deployment reads the secrets
+The manifests in `deploy/openshift/beadle-protech` are a Kustomize base (Deployment, Service and the ConfigMap
+`beadle-protech-config` with the profile, `BEADLE_GUI_URL=http://beadle:8081`, `PROTECH_URL` and `PROTECH_POLL`)
+with one overlay per environment that sets its profile. The base publishes no Route: Beadle-GUI calls the service
+inside the cluster (`BEADLE_PROTECH_URL=http://beadle-protech:8083`). Only once ProTech calls the webhook (see
+[docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md)) does an overlay add the component
+`components/webhook-route` (`components: [../../components/webhook-route]`), whose Route publishes
+`/api/protech/webhook` alone, still behind the service token. The Deployment reads the secrets
 `beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) and `beadle-protech-services`
 (`BEADLE_SERVICE_TOKEN`), and `beadle-protech-servicenow` (`PROTECH_URL`, `PROTECH_USERNAME`, `PROTECH_PASSWORD`; a
 secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and `/actuator/health/readiness`. The
