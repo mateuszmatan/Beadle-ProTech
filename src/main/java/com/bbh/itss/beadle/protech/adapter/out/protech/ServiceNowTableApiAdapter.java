@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.adapter.out.protech;
 
+import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ApprovalFields;
 import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ChangeFields;
 import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.LookupTable;
 import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.TaskFields;
@@ -7,6 +8,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRole;
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
@@ -21,7 +23,10 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +35,15 @@ import java.util.StringJoiner;
 import java.util.stream.Stream;
 
 import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.SYS_ID;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.UPDATED;
+import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowRow.dateTime;
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.commons.collections4.ListUtils.partition;
+import static org.apache.commons.lang3.ObjectUtils.max;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
@@ -47,7 +56,9 @@ import static org.apache.commons.lang3.Strings.CS;
  * {@code change_task} records that reference it, and the approvals of both are {@code sysapproval_approver} records;
  * the lookups search the tables of {@code beadle.protech.fields.lookups}. Which ServiceNow field holds which field of
  * Beadle, and which state values stand for which state, is {@link ProTechFields}, documented in
- * {@code docs/PROTECH-MAPPING.md}.
+ * {@code docs/PROTECH-MAPPING.md}. Every {@code beadle.protech.poll} the changes Beadle-GUI knows are polled for
+ * the {@code change_request}, {@code change_task} and {@code sysapproval_approver} records updated since the last
+ * look.
  */
 @Component
 @ConditionalOnExpression(ProTechProperties.CONFIGURED)
@@ -55,11 +66,14 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
 
     static final int APPROVALS_PER_RECORD = 20;
     static final String NO_NUMBER = "ProTech answered without the number of the new record";
+    /** How many changes one poll asks about, so that the query stays well within the length of a URL. */
+    static final int POLL_BATCH = 50;
 
     private final ServiceNowTableApi api;
     private final ServiceNowRecords records;
     private final ProTechFields fields;
     private final String url;
+    private final Duration poll;
     private final Clock clock;
 
     ServiceNowTableApiAdapter(ProTechProperties properties, RestClient.Builder builder, Clock clock) {
@@ -67,6 +81,7 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
         this.fields = properties.fields();
         this.records = new ServiceNowRecords(fields);
         this.url = CS.removeEnd(trimToEmpty(properties.url()), "/");
+        this.poll = properties.poll();
         this.clock = clock;
     }
 
@@ -205,6 +220,73 @@ class ServiceNowTableApiAdapter implements ProTechPort, ProTechLookupPort {
                 .map(row -> new Lookup(row.display(table.value()),
                         table.detail().isEmpty() ? null : row.display(table.detail())))
                 .limit(limit).toList();
+    }
+
+    @Override
+    public Duration pollEvery() {
+        return poll;
+    }
+
+    /**
+     * The changes, change tasks and approvals ProTech updated after {@code since}, by change number: the state of a
+     * change updated since, and the last update of its approvals and of its tasks. The tasks of the changes are all
+     * read, to tell which change the approval of a task belongs to.
+     */
+    @Override
+    public Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since) {
+        List<String> wanted = numbers.stream().map(ServiceNowTableApiAdapter::safe).filter(Objects::nonNull)
+                .distinct().toList();
+        Map<String, ChangeActivity> moved = new LinkedHashMap<>();
+        partition(wanted, POLL_BATCH).forEach(batch -> moved.putAll(activityOf(batch, since)));
+        return moved;
+    }
+
+    private Map<String, ChangeActivity> activityOf(List<String> numbers, Instant since) {
+        ChangeFields change = fields.change();
+        TaskFields task = fields.task();
+        ApprovalFields approval = fields.approval();
+        String updatedSince = since == null ? "" : "^" + UPDATED + ">" + dateTime(since);
+        Map<String, String> changeOfTask = new HashMap<>();
+        Map<String, Instant> tasksAt = new HashMap<>();
+        for (ServiceNowRow row : api.list(task.table(), task.change() + "." + change.number() + "IN"
+                        + String.join(",", numbers), List.of(SYS_ID, UPDATED, task.number(), task.change()),
+                MAX_TASKS * 2 * numbers.size(), "poll the change tasks")) {
+            String number = row.display(task.change());
+            Instant updated = row.instant(UPDATED, null);
+            if (number != null && row.value(task.number()) != null) {
+                changeOfTask.put(row.value(task.number()), number);
+            }
+            if (number != null && updated != null && (since == null || updated.isAfter(since))) {
+                tasksAt.merge(number, updated, (first, second) -> max(first, second));
+            }
+        }
+        Map<String, ServiceNowRow> changes = api.list(change.table(), change.number() + "IN"
+                        + String.join(",", numbers) + updatedSince, List.of(SYS_ID, UPDATED, change.number(),
+                        change.state()), numbers.size(), "poll the changes").stream()
+                .filter(row -> row.value(change.number()) != null)
+                .collect(toMap(row -> row.value(change.number()), row -> row, (first, second) -> first));
+        List<String> approving = Stream.concat(numbers.stream(), changeOfTask.keySet().stream().sorted()).toList();
+        Map<String, Instant> approvalsAt = new HashMap<>();
+        for (ServiceNowRow row : api.list(approval.table(), approval.approving() + "." + change.number() + "IN"
+                        + String.join(",", approving) + updatedSince, List.of(SYS_ID, UPDATED, approval.approving()),
+                APPROVALS_PER_RECORD * approving.size(), "poll the approvals")) {
+            String approved = row.display(approval.approving());
+            String number = numbers.contains(approved) ? approved : changeOfTask.get(approved);
+            Instant updated = row.instant(UPDATED, null);
+            if (number != null && updated != null) {
+                approvalsAt.merge(number, updated, (first, second) -> max(first, second));
+            }
+        }
+        Map<String, ChangeActivity> moved = new LinkedHashMap<>();
+        for (String number : numbers) {
+            ServiceNowRow row = changes.get(number);
+            if (row != null || approvalsAt.containsKey(number) || tasksAt.containsKey(number)) {
+                moved.put(number, new ChangeActivity(number, row == null ? null : records.changeStateOf(row, null),
+                        row == null ? null : row.instant(UPDATED, null), approvalsAt.get(number),
+                        tasksAt.get(number)));
+            }
+        }
+        return moved;
     }
 
     private String insertTask(String changeNumber, ChangeTask task) {

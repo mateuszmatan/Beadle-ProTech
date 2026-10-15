@@ -10,7 +10,7 @@ class ArchitectureSpec extends ArchitectureSpecification {
     }
 
     @Override
-    String httpAdapter() {
-        'com.bbh.itss.beadle.protech.adapter.out.protech..'
+    List<String> httpAdapters() {
+        ['com.bbh.itss.beadle.protech.adapter.out.protech..', 'com.bbh.itss.beadle.protech.adapter.out.gui..']
     }
 }

@@ -37,7 +37,8 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
  * Checks what Beadle-GUI sends before it reaches ProTech, so that a change ProTech would refuse is refused here
  * with the fields at fault, and passes the rest on. ProTech is the system of record of a change and Beadle-GUI keeps
  * its own copy; Beadle-ProTech only follows the changes Beadle-GUI raised or read, in the state Beadle-GUI knows of,
- * so that it can tell Beadle-GUI when ProTech moves them.
+ * so that it can tell Beadle-GUI when ProTech moves them, and notes when Beadle-GUI acted on a change itself so that it
+ * is not told of its own action.
  */
 @UseCase
 @RequiredArgsConstructor
@@ -72,7 +73,10 @@ public class ChangeService implements ChangesUseCase {
         ValidationProblems problems = new ValidationProblems();
         task.validate(UNPLANNED, problems);
         problems.throwIfAny();
-        return proTech.createTask(numbered(changeNumber), task);
+        String number = numbered(changeNumber);
+        String created = proTech.createTask(number, task);
+        touched(number);
+        return created;
     }
 
     @Override
@@ -108,6 +112,7 @@ public class ChangeService implements ChangesUseCase {
         check(change, problems);
         problems.throwIfAny();
         proTech.update(change.number() == null ? change.numbered(path, change.url()) : change);
+        touched(path);
     }
 
     @Override
@@ -116,7 +121,10 @@ public class ChangeService implements ChangesUseCase {
         if ((approval.role() == null) == (trimToNull(approval.task()) == null)) {
             throw InvalidRequestException.of("task", ONE_OF_ROLE_OR_TASK);
         }
-        return proTech.remind(numbered(changeNumber), new ApprovalRef(approval.role(), trimToNull(approval.task())));
+        String number = numbered(changeNumber);
+        List<String> reminded = proTech.remind(number, new ApprovalRef(approval.role(), trimToNull(approval.task())));
+        touched(number);
+        return reminded;
     }
 
     private static void check(ProductionChange change, ValidationProblems problems) {
@@ -126,6 +134,11 @@ public class ChangeService implements ChangesUseCase {
                 .fits("description", change.description(), DESCRIPTION_MAX);
         checkTemplateAndSchedule(change.template(), change.schedule(), null, problems);
         validateTasks(change.tasks(), getIfNull(change.schedule(), UNPLANNED), problems);
+    }
+
+    /** What Beadle-GUI did itself is no news to it: the callbacks skip it. */
+    private void touched(String number) {
+        tracked.touch(number, now(clock), correlationId());
     }
 
     private static String correlationId() {

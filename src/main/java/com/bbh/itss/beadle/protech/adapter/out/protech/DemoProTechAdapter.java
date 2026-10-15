@@ -4,6 +4,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRole;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalState;
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeApproval;
 import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule;
 import com.bbh.itss.beadle.protech.domain.change.ChangeState;
@@ -62,7 +63,8 @@ import static org.apache.commons.lang3.ObjectUtils.max;
 /**
  * A ProTech played by the clock, used until {@code beadle.protech.url} names the real one: every change it raises
  * moves through the approval stages two minutes apart, its tasks are approved by the people of their assignment
- * group, an update shows after the apply delay and the reminders it sends are recorded.
+ * group, an update shows after the apply delay and the reminders it sends are recorded. Its activity is the
+ * clock-driven workflow: what moved since a time, no earlier than when the demo got the change.
  */
 @Component
 @ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
@@ -77,6 +79,7 @@ class DemoProTechAdapter implements ProTechPort {
     private final AtomicInteger changes = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final AtomicInteger tasks = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final Map<String, Held> held = new ConcurrentHashMap<>();
+    private final Map<String, Instant> received = new ConcurrentHashMap<>();
     private final List<SentReminder> reminders = new CopyOnWriteArrayList<>();
     private final Clock clock;
     private final DemoProTechProperties properties;
@@ -96,6 +99,7 @@ class DemoProTechAdapter implements ProTechPort {
         String number = "CHG%07d".formatted(changes.incrementAndGet());
         Instant raisedAt = getIfNull(change.createdAt(), () -> now(clock));
         held.put(number, new Held(change.numbered(number, null), raisedAt, List.of(), List.of(), null, Map.of()));
+        received.put(number, now(clock));
         return new RaisedChange(number, null);
     }
 
@@ -118,8 +122,12 @@ class DemoProTechAdapter implements ProTechPort {
         Instant now = now(clock);
         Map<String, ProductionChange> copies = new LinkedHashMap<>();
         for (ProductionChange change : known) {
-            Held current = held.compute(change.number(), (number, found) ->
-                    applied(getIfNull(found, () -> adopted(change, now)), now));
+            Held current = held.compute(change.number(), (number, found) -> {
+                if (found == null) {
+                    received.put(number, now);
+                }
+                return applied(getIfNull(found, () -> adopted(change, now)), now);
+            });
             copies.put(change.number(), current.copyFor(change, now));
         }
         return copies;
@@ -145,6 +153,33 @@ class DemoProTechAdapter implements ProTechPort {
         }
         reminders.add(new SentReminder(changeNumber, approval, approvers, now));
         return approvers;
+    }
+
+    @Override
+    public Duration pollEvery() {
+        return Duration.ZERO;
+    }
+
+    /**
+     * What moved on the changes the demo holds after {@code since}: the stage the workflow reached, the approvals of
+     * the change tasks and the tasks going in progress at the installation. A move from before the demo got the
+     * change counts as made when it got it.
+     */
+    @Override
+    public Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since) {
+        Instant now = now(clock);
+        Map<String, ChangeActivity> moved = new LinkedHashMap<>();
+        for (String number : numbers) {
+            Held current = held.computeIfPresent(number, (key, found) -> applied(found, now));
+            if (current != null) {
+                ChangeActivity activity = current.activityAt(number, now, received.getOrDefault(number, now));
+                Instant latest = activity.latest();
+                if (since == null || latest != null && latest.isAfter(since)) {
+                    moved.put(number, activity);
+                }
+            }
+        }
+        return moved;
     }
 
     List<SentReminder> sent() {
@@ -340,6 +375,23 @@ class DemoProTechAdapter implements ProTechPort {
 
         ChangeState stateAt(Instant now) {
             return last(workflowAt(now)).state();
+        }
+
+        ChangeActivity activityAt(String number, Instant now, Instant receivedAt) {
+            WorkflowStep step = last(workflowAt(now));
+            Map<String, Instant> approved = approvedAt();
+            Instant approvals = change.tasks().stream().filter(ChangeTask::active)
+                    .flatMap(task -> Stream.of(requestedAt(task), approved.get(task.number())))
+                    .filter(at -> at != null && !at.isAfter(now)).max(Instant::compareTo).orElse(null);
+            Instant installation = change.schedule().installationStart();
+            Instant inProgress = step.state() == IMPLEMENTATION && !now.isBefore(installation)
+                    ? max(step.enteredAt(), installation) : null;
+            return new ChangeActivity(number, step.state(), notBefore(step.enteredAt(), receivedAt),
+                    notBefore(approvals, receivedAt), notBefore(inProgress, receivedAt));
+        }
+
+        private static Instant notBefore(Instant at, Instant floor) {
+            return at == null ? null : max(at, floor);
         }
 
         ProductionChange copyFor(ProductionChange known, Instant now) {

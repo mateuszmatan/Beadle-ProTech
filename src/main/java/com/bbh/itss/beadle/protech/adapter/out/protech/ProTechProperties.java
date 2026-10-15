@@ -18,8 +18,10 @@ public record ProTechProperties(String url, String username, String password, @D
 
     static final String CONFIGURED = "'${beadle.protech.url:}' != ''";
     static final String NOT_CONFIGURED = "'${beadle.protech.url:}' == ''";
+    static final Duration DEFAULT_POLL = Duration.ofMinutes(1);
 
     public ProTechProperties {
+        poll = getIfNull(poll, DEFAULT_POLL);
         fields = getIfNull(fields, ProTechFields.DEFAULTS);
     }
 }

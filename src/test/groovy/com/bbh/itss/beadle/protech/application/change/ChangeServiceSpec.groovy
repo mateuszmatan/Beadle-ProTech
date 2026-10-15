@@ -72,6 +72,16 @@ class ChangeServiceSpec extends Specification {
         result == new RaisedChange('CHG0031002', 'https://protech/CHG0031002')
     }
 
+    def "what ProTech refuses to do is no news to Beadle-GUI either"() {
+        when:
+        service.update('CHG0031001', raised())
+
+        then:
+        1 * proTech.update(_) >> { throw new IllegalStateException('ProTech does not change a closed change') }
+        0 * tracked._
+        thrown(IllegalStateException)
+    }
+
     def "a change ProTech does not raise is not followed"() {
         when:
         service.raise(raised(number: null))
@@ -116,6 +126,7 @@ class ChangeServiceSpec extends Specification {
 
         then:
         1 * proTech.createTask('CHG0031001', task(1)) >> 'CTASK0041003'
+        1 * tracked.touch('CHG0031001', NOW, 'corr-1')
         number == 'CTASK0041003'
     }
 
@@ -178,7 +189,7 @@ class ChangeServiceSpec extends Specification {
 
         then:
         1 * proTech.update(raised())
-        0 * tracked._
+        1 * tracked.touch('CHG0031001', NOW, 'corr-1')
 
         where:
         number << ['CHG0031001', null]
@@ -201,6 +212,7 @@ class ChangeServiceSpec extends Specification {
 
         then:
         1 * proTech.remind('CHG0031001', expected) >> ['Olivia Bennett']
+        1 * tracked.touch('CHG0031001', NOW, 'corr-1')
         sent == ['Olivia Bennett']
 
         where:

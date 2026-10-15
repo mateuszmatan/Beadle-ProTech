@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.config
 
+import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
@@ -9,6 +10,8 @@ import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
+import com.bbh.itss.beadle.protech.domain.change.ChangeCallback
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.Lookup
 import com.bbh.itss.beadle.protech.domain.change.LookupKind
@@ -22,13 +25,17 @@ import org.springframework.context.ApplicationContext
 import spock.lang.Specification
 
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.function.Supplier
 
+import static com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem.GUI
 import static com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem.PROTECH
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.FAILURE
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.SUCCESS
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
+import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.APPROVAL_CHANGED
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
@@ -43,6 +50,7 @@ class CallLogConfigurationSpec extends Specification {
     List<CallLogEntry> recorded = []
     boolean callLogDown = false
     int statusCalls = 0
+    Map<String, ChangeActivity> moved = [:]
 
     def runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(AopAutoConfiguration))
@@ -64,12 +72,26 @@ class CallLogConfigurationSpec extends Specification {
                  createTask: { String number, ChangeTask task -> 'CTASK0041009' },
                  read      : { Collection<ProductionChange> known -> [CHG0031001: raised()] },
                  update    : { ProductionChange change -> throw new IllegalStateException('ProTech does not change a closed change') },
-                 remind    : { String number, ApprovalRef approval -> ['Olivia Bennett'] }] as ProTechPort
+                 remind    : { String number, ApprovalRef approval -> ['Olivia Bennett'] },
+                 pollEvery : { statusCalls++; Duration.ZERO },
+                 activity  : { Collection<String> numbers, Instant since ->
+                     if (since == null) {
+                         throw new UncheckedIOException('ProTech could not poll the changes: 503', new IOException())
+                     }
+                     moved
+                 }] as ProTechPort
             } as Supplier<ProTechPort>)
             .withBean(ProTechLookupPort, {
                 [connected: { true }, mode: { ProTechMode.LIVE },
                  find     : { LookupKind kind, String query, int limit -> [new Lookup('Technology Architecture', null)] }] as ProTechLookupPort
             } as Supplier<ProTechLookupPort>)
+            .withBean(CallbackPort, {
+                [notify: { ChangeCallback callback ->
+                    if (callback.correlationId() == null) {
+                        throw new UncheckedIOException('Beadle-GUI could not take the callback for CHG0031001: 503', new IOException())
+                    }
+                }] as CallbackPort
+            } as Supplier<CallbackPort>)
 
     def cleanup() {
         CallerContext.clear()
@@ -170,6 +192,55 @@ class CallLogConfigurationSpec extends Specification {
         runner.run { ApplicationContext context ->
             assert context.getBean(CallLogPort).find(CallLogQuery.of(null, null, null, 0, 10)).total() == 0
             assert recorded == []
+            true
+        }
+    }
+
+    def "a look at ProTech is written when it found something or failed, and left out when it found nothing"() {
+        given:
+        CallerContext.set(new Caller('system', 'poll-1'))
+
+        expect:
+        runner.run { ApplicationContext context ->
+            def proTech = context.getBean(ProTechPort)
+            assert proTech.pollEvery() == Duration.ZERO
+            assert proTech.activity(['CHG0031001', 'CHG0031002'], NOW) == [:]
+            assert recorded == []
+            moved = [CHG0031001: new ChangeActivity('CHG0031001', DRAFT, NOW, null, null)]
+            assert proTech.activity(['CHG0031001', 'CHG0031002'], NOW) == moved
+            try {
+                proTech.activity(['CHG0031001'], null)
+                assert false
+            } catch (UncheckedIOException e) {
+                assert e.message == 'ProTech could not poll the changes: 503'
+            }
+            assert recorded*.operation() == ['activity', 'activity']
+            assert recorded*.target() == ['CHG0031001,CHG0031002 2026-10-15T09:00:00Z', 'CHG0031001']
+            assert recorded*.outcome() == [SUCCESS, FAILURE]
+            assert recorded.every { it.system() == PROTECH && it.userName() == 'system' && it.correlationId() == 'poll-1' }
+            true
+        }
+    }
+
+    def "a callback to Beadle-GUI is written to the call log as a call of the system, also when it fails"() {
+        expect:
+        runner.run { ApplicationContext context ->
+            def callbacks = context.getBean(CallbackPort)
+            CallerContext.run(new Caller('system', 'corr-1')) {
+                callbacks.notify(new ChangeCallback('CHG0031001', APPROVAL_CHANGED, DRAFT, NOW, 'corr-1'))
+            }
+            try {
+                callbacks.notify(new ChangeCallback('CHG0031001', APPROVAL_CHANGED, DRAFT, NOW, null))
+                assert false
+            } catch (UncheckedIOException e) {
+                assert e.message.startsWith('Beadle-GUI could not take the callback')
+            }
+            assert recorded*.system() == [GUI, GUI]
+            assert recorded*.operation() == ['notify', 'notify']
+            assert recorded*.target() == ['CHG0031001 APPROVAL_CHANGED', 'CHG0031001 APPROVAL_CHANGED']
+            assert recorded*.outcome() == [SUCCESS, FAILURE]
+            assert recorded*.userName() == ['system', null]
+            assert recorded*.correlationId() == ['corr-1', null]
             true
         }
     }

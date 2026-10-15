@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.adapter.out.protech
 
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
 import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
@@ -42,6 +43,7 @@ import static com.bbh.itss.beadle.protech.support.ChangeFixtures.ctask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
+import static java.time.Duration.between
 import static java.time.Duration.ofDays
 import static java.time.Duration.ofHours
 import static java.time.Duration.ofMinutes
@@ -502,6 +504,55 @@ class DemoProTechAdapterSpec extends Specification {
 
         expect:
         proTech.read([known])[known.number()].workflow() == [new WorkflowStep(DRAFT, RAISED.plus(ofHours(1)))]
+    }
+
+    def "the demo is looked at every tick and tells what moved since a time: the stage, the task approvals and the installation"() {
+        given:
+        def known = raise(change(0))
+        def number = known.number()
+        proTech.createTask(number, CHECK)
+        def installation = known.schedule().installationStart()
+
+        expect:
+        proTech.pollEvery() == Duration.ZERO
+        activity(number, ofMinutes(1), RAISED) == null
+        activity(number, ofMinutes(1), RAISED.minusSeconds(1)) == new ChangeActivity(number, DRAFT, RAISED, null, null)
+        activity(number, ofMinutes(3), RAISED) ==
+                new ChangeActivity(number, BUSINESS_APPROVAL, RAISED.plus(ofMinutes(2)), null, null)
+        activity(number, ofMinutes(11), RAISED.plus(ofMinutes(9))) ==
+                new ChangeActivity(number, CTASK_APPROVAL, RAISED.plus(ofMinutes(10)), RAISED.plus(ofMinutes(10)), null)
+        activity(number, ofMinutes(13), RAISED.plus(ofMinutes(11))) ==
+                new ChangeActivity(number, IMPLEMENTATION, APPROVED_AT, APPROVED_AT, null)
+        activity(number, between(RAISED, installation), installation.minusSeconds(1)) ==
+                new ChangeActivity(number, IMPLEMENTATION, APPROVED_AT, APPROVED_AT, installation)
+        proTech.activity([number, 'CHG0000001'], null).keySet() == [number] as Set
+    }
+
+    def "a change the demo got late moved no earlier than when it got it"() {
+        given:
+        clock.instant = RAISED.plus(ofMinutes(30))
+        def number = proTech.raise(change(0).toBuilder().createdAt(RAISED).build()).number()
+
+        expect:
+        proTech.activity([number], RAISED.plus(ofMinutes(29))) ==
+                [(number): new ChangeActivity(number, CTASK_APPROVAL, RAISED.plus(ofMinutes(30)), null, null)]
+        proTech.activity([number], RAISED.plus(ofMinutes(30))) == [:]
+    }
+
+    def "a change adopted after a restart moved no earlier than its adoption"() {
+        given:
+        clock.instant = RAISED.plus(ofMinutes(5))
+        def known = raised(tasks: [], workflow: [new WorkflowStep(DRAFT, RAISED)], createdAt: RAISED)
+        proTech.read([known])
+
+        expect:
+        proTech.activity([known.number()], RAISED.plus(ofMinutes(4))) == [(known.number()): new ChangeActivity(
+                known.number(), PRIMARY_APPROVAL, RAISED.plus(ofMinutes(5)), null, null)]
+    }
+
+    private ChangeActivity activity(String number, Duration after, Instant since) {
+        clock.instant = RAISED.plus(after)
+        proTech.activity([number], since)[number]
     }
 
     private ProductionChange raise(ProductionChange change) {

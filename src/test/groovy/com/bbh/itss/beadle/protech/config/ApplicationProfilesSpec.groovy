@@ -28,6 +28,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('spring.liquibase.change-log') == 'classpath:db/changelog/db.changelog-master.yaml'
         env.getProperty('beadle.protech.url') == ''
         env.getProperty('beadle.protech.poll') == 'PT1M'
+        env.getProperty('beadle.protech.tick') == 'PT10S'
         env.getProperty('beadle.protech.demo.apply-delay') == 'PT3S'
         env.getProperty('beadle.gui.url') == 'http://localhost:8081'
         env.getProperty('beadle.services.token') == ''
@@ -39,7 +40,7 @@ class ApplicationProfilesSpec extends Specification {
     def "the environment names the ProTech, the GUI and the service token"() {
         when:
         def env = environment([], [PROTECH_URL: 'https://bbh.service-now.com', PROTECH_USERNAME: 'beadle',
-                                   PROTECH_PASSWORD: 'secret', PROTECH_POLL: 'PT30S', BEADLE_GUI_URL: 'http://beadle:8081',
+                                   PROTECH_PASSWORD: 'secret', PROTECH_POLL: 'PT30S', PROTECH_TICK: 'PT5S', BEADLE_GUI_URL: 'http://beadle:8081',
                                    BEADLE_SERVICE_TOKEN: 'token', PORT: '9090'])
 
         then:
@@ -47,6 +48,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.protech.username') == 'beadle'
         env.getProperty('beadle.protech.password') == 'secret'
         env.getProperty('beadle.protech.poll') == 'PT30S'
+        env.getProperty('beadle.protech.tick') == 'PT5S'
         env.getProperty('beadle.gui.url') == 'http://beadle:8081'
         env.getProperty('beadle.services.token') == 'token'
         env.getProperty('server.port') == '9090'

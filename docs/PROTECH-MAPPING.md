@@ -29,6 +29,7 @@ In the environment the properties are written in upper case with underscores, fo
 | `PUT /api/protech/changes/{number}` | `GET change_request` by number, `PATCH /api/now/table/change_request/{sys_id}` with the fields of the change, `GET change_task` of the change, then per task: `PATCH change_task/{sys_id}` for a task that is neither closed nor canceled, `POST change_task` for a task without a number (or one ProTech no longer has), and `PATCH change_task/{sys_id}` with `state` = the first CANCELED value for an open task Beadle no longer lists |
 | `POST /api/protech/changes/{number}/reminders` | `GET change_request` by number with the approver fields; for a role: `GET sysapproval_approver?sysparm_query=sysapproval={change sys_id}^stateINrequested` and the approval whose approver is the person named in that role; for a task: `GET change_task?sysparm_query=change_request={sys_id}^number={task}` and its requested approvals; then `PATCH sysapproval_approver/{sys_id}` with a comment per approval (ServiceNow's approval notification e-mails the comment to the approver); answers the people reminded |
 | `GET /api/protech/lookups/{kind}` | `GET {table}?sysparm_query={filter}^{value}LIKE{q}^OR{detail}LIKE{q}^ORDERBY{value}&sysparm_fields={value},{detail}&sysparm_limit={limit}&sysparm_display_value=true` |
+| the poll, every `beadle.protech.poll` (default `PT1M`), of the open changes Beadle raised or read, 50 at a time | `GET change_task?sysparm_query=change_request.numberIN{numbers}` (number, change and `sys_updated_on` of every task of the changes), `GET change_request?sysparm_query=numberIN{numbers}^sys_updated_on>{since}` (number, state, `sys_updated_on`), `GET sysapproval_approver?sysparm_query=sysapproval.numberIN{numbers of the changes and their tasks}^sys_updated_on>{since}`; `{since}` is the last look minus one minute, as `yyyy-MM-dd HH:mm:ss` in UTC |
 
 Reads ask for every field with its value and its display value (`sysparm_display_value=all`). Beadle takes the
 display value of a reference or choice field (a person, a group, a configuration item, a category: what a user sees)
@@ -37,6 +38,13 @@ and the value of a date-time field (`yyyy-MM-dd HH:mm:ss` in UTC). Writes give d
 choice by its label; dates are written as `yyyy-MM-dd HH:mm:ss`. **The Beadle service account of ProTech must
 therefore have the time zone UTC and the date format `yyyy-MM-dd` with the time format `HH:mm:ss`**, which are the
 ServiceNow system defaults. Canceling a task is the only write with a raw value (`sysparm_input_display_value=false`).
+
+From the poll Beadle-ProTech calls Beadle-GUI back once per change that moved past what Beadle-GUI knows:
+`STATE_CHANGED` when the `state` maps to another state than the one Beadle-GUI knows, otherwise `APPROVAL_CHANGED` when
+an approval of the change or of one of its tasks was updated after the last move Beadle-GUI knows of, otherwise
+`TASK_CHANGED` when one of its tasks was. What Beadle-GUI did itself (a task created, an update, a reminder) moves
+that mark to the moment it did it, so it is not called back for its own action. The comparison relies on the clocks of
+ProTech and Beadle-ProTech agreeing to within the minute the poll reaches back.
 
 A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's message
 (`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is answered

@@ -2,6 +2,7 @@ package com.bbh.itss.beadle.protech.adapter.out.protech
 
 import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ChangeFields
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
+import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.Lookup
@@ -21,6 +22,7 @@ import org.springframework.web.client.RestClient
 import spock.lang.Specification
 
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 
 import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowTableApiAdapter.NO_NUMBER
@@ -421,6 +423,57 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         custom.raise(richChange(number: null)).url() == URL + '/x_bbh_change.do?sysparm_query=number=CHG0031001'
     }
 
+    def "a poll asks for the changes, change tasks and approvals ProTech updated since the last look"() {
+        given:
+        def since = at('2026-10-15T08:58:00Z')
+        def numbers = 'CHG0031001,CHG0031002,CHG0031003,CHG0031004'
+        expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers,
+                                    sysparm_fields: 'sys_id,sys_updated_on,number,change_request', sysparm_limit: '400',
+                                    sysparm_display_value: 'all'])
+                .andRespond(rows(pollRow('t1', '2026-10-15 08:59:00', [number: field('CTASK0041001'), change_request: field('c1', 'CHG0031001')]),
+                        pollRow('t2', '2026-10-14 08:00:00', [number: field('CTASK0041002'), change_request: field('c2', 'CHG0031002')]),
+                        pollRow('t3', '2026-10-15 08:59:30', [number: field('CTASK0041003'), change_request: field('c3', 'CHG0031003')])))
+        expect(GET, 'change_request', [sysparm_query: "numberIN$numbers^sys_updated_on>2026-10-15 08:58:00".toString(),
+                                       sysparm_fields: 'sys_id,sys_updated_on,number,state', sysparm_limit: '4',
+                                       sysparm_display_value: 'all'])
+                .andRespond(rows(pollRow('c1', '2026-10-15 08:59:10', [number: field('CHG0031001'), state: field('-1', 'Implement')])))
+        expect(GET, 'sysapproval_approver', [sysparm_query: "sysapproval.numberIN$numbers,CTASK0041001,CTASK0041002,CTASK0041003^sys_updated_on>2026-10-15 08:58:00".toString(),
+                                             sysparm_fields: 'sys_id,sys_updated_on,sysapproval', sysparm_limit: '140',
+                                             sysparm_display_value: 'all'])
+                .andRespond(rows(pollRow('a1', '2026-10-15 08:58:30', [sysapproval: field('t2', 'CTASK0041002')]),
+                        pollRow('a2', '2026-10-15 08:59:40', [sysapproval: field('c2', 'CHG0031002')]),
+                        pollRow('a3', '2026-10-15 08:59:20', [sysapproval: field('x9', 'CTASK0099999')])))
+
+        when:
+        def activity = proTech.activity(numbers.split(',') as List, since)
+
+        then:
+        activity == [CHG0031001: new ChangeActivity('CHG0031001', IMPLEMENTATION, at('2026-10-15T08:59:10Z'), null, at('2026-10-15T08:59:00Z')),
+                     CHG0031002: new ChangeActivity('CHG0031002', null, null, at('2026-10-15T08:59:40Z'), null),
+                     CHG0031003: new ChangeActivity('CHG0031003', null, null, null, at('2026-10-15T08:59:30Z'))]
+        server.verify()
+    }
+
+    def "the changes are polled in batches, every beadle.protech.poll, and a number ProTech cannot read is not asked"() {
+        given:
+        int batch = ServiceNowTableApiAdapter.POLL_BATCH
+        List<String> numbers = (1..batch + 1).collect { 'CHG00' + (31000 + it) }
+        expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers.take(batch).join(',')]).andRespond(rows())
+        expect(GET, 'change_request', [:]).andRespond(rows())
+        expect(GET, 'sysapproval_approver', [:]).andRespond(rows())
+        expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers.last()]).andRespond(rows())
+        expect(GET, 'change_request', [sysparm_query: 'numberIN' + numbers.last()]).andRespond(rows())
+        expect(GET, 'sysapproval_approver', [sysparm_query: 'sysapproval.numberIN' + numbers.last()]).andRespond(rows())
+
+        expect:
+        proTech.activity(numbers + ['^;', ' '], null) == [:]
+        proTech.activity(['^;'], NOW) == [:]
+        proTech.pollEvery() == Duration.ofMinutes(1)
+        new ServiceNowTableApiAdapter(new ProTechProperties(URL, 'beadle', 'secret', Duration.ofSeconds(30), null),
+                builder, Clock.fixed(NOW, UTC)).pollEvery() == Duration.ofSeconds(30)
+        server.verify()
+    }
+
     private ServiceNowTableApiAdapter adapter(ProTechFields fields) {
         new ServiceNowTableApiAdapter(new ProTechProperties(URL + '/', 'beadle', 'secret', null, fields), builder,
                 Clock.fixed(NOW, UTC))
@@ -528,6 +581,10 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                             assignment_group : field('g1', 'Technology Architecture'), priority: field('2', '2 - High')]]
         [sys_id: field(id), number: field(number), change_request: field('c1', 'CHG0031001'),
          state : field(state, stateLabel), approval: field(approval, approval.capitalize())] + (details[id] ?: [:])
+    }
+
+    private static Map pollRow(String id, String updated, Map fields) {
+        [sys_id: field(id), sys_updated_on: field(updated)] + fields
     }
 
     private static Map approvalRow(String approving, String approver, String state, String id = 'a0') {

@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.config;
 
+import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
@@ -9,6 +10,7 @@ import com.bbh.itss.beadle.protech.domain.calllog.Caller;
 import com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem;
 import com.bbh.itss.beadle.protech.domain.calllog.Outcome;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
+import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
@@ -36,6 +38,7 @@ import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.CORRELATIO
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.MESSAGE_MAX;
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.TARGET_MAX;
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.USER_MAX;
+import static com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem.GUI;
 import static com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem.PROTECH;
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.FAILURE;
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.SUCCESS;
@@ -50,15 +53,17 @@ import static org.springframework.util.ClassUtils.hasMethod;
  * Writes a row of the call log around every call of a port to another system: who caused it, the correlation id,
  * the system, the operation (the name of the port method), its target (what the call was about, the number of what it
  * created first), the outcome with the message of a failure, and the duration. The row is written in a transaction
- * of its own and a call log that cannot be written never fails the call.
+ * of its own and a call log that cannot be written never fails the call. A look at the activity of the changes that
+ * found nothing is left out, so that the ticks of the watch do not flood the log; a failed one is written.
  */
 @Slf4j
 @RequiredArgsConstructor
 class CallLogInterceptor implements MethodInterceptor {
 
-    static final Set<String> UNLOGGED = Set.of("connected", "mode");
+    static final Set<String> UNLOGGED = Set.of("connected", "mode", "pollEvery");
+    static final String QUIET = "activity";
     static final Map<Class<?>, ExternalSystem> SYSTEMS = Map.of(ProTechPort.class, PROTECH,
-            ProTechLookupPort.class, PROTECH);
+            ProTechLookupPort.class, PROTECH, CallbackPort.class, GUI);
 
     private final ObjectProvider<CallLogPort> callLog;
     private final ObjectProvider<Clock> clock;
@@ -94,7 +99,9 @@ class CallLogInterceptor implements MethodInterceptor {
         long started = System.nanoTime();
         try {
             Object result = invocation.proceed();
-            record(system.get(), method, targetOf(invocation.getArguments(), result), at, started, SUCCESS, null);
+            if (!(QUIET.equals(method.getName()) && result instanceof Map<?, ?> found && found.isEmpty())) {
+                record(system.get(), method, targetOf(invocation.getArguments(), result), at, started, SUCCESS, null);
+            }
             return result;
         } catch (Throwable e) {
             record(system.get(), method, targetOf(invocation.getArguments(), null), at, started, FAILURE,
@@ -135,6 +142,7 @@ class CallLogInterceptor implements MethodInterceptor {
             case ChangeTask task -> task.number() != null ? task.number()
                     : task.details() == null ? null : task.details().shortDescription();
             case ApprovalRef approval -> approval.role() != null ? approval.role().name() : approval.task();
+            case ChangeCallback callback -> callback.number() + " " + callback.event();
             case LookupKind kind -> kind.path();
             case Collection<?> values -> values.stream().filter(Objects::nonNull).map(CallLogInterceptor::describe)
                     .filter(StringUtils::isNotBlank).collect(joining(","));

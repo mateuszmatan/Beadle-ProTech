@@ -52,7 +52,8 @@ abstract class ArchitectureSpecification extends Specification {
 
     abstract Class<?> application()
 
-    abstract String httpAdapter()
+    /** The packages of the adapters that speak HTTP to another system, the only ones that may use an HTTP client. */
+    abstract List<String> httpAdapters()
 
     def "the import covers the application and the code it shares"() {
         expect:
@@ -95,7 +96,7 @@ abstract class ArchitectureSpecification extends Specification {
              [Entity, Embeddable, MappedSuperclass, Converter].any { type.isAnnotatedWith(it) } ||
                      type.isAssignableTo(Repository)
          }).should().resideInAPackage(PERSISTENCE).allowEmptyShould(true),
-         noClasses().that().resideOutsideOfPackage(httpAdapter())
+         noClasses().that().resideOutsideOfPackages(httpAdapters() as String[])
                  .should().dependOnClassesThat()
                  .resideInAnyPackage('org.springframework.web.client..', 'java.net.http..'),
          slices().matching('com.bbh.itss.beadle.protech.domain.(*)..').should().beFreeOfCycles(),
