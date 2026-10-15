@@ -22,6 +22,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIPTION_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.checkTemplateAndSchedule;
+import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
@@ -34,7 +35,7 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
 @RequiredArgsConstructor
 public class ChangeService implements ChangesUseCase {
 
-    static final String ONE_OF_ROLE_OR_TASK = "name either the role of the change approver or the change task";
+    public static final String ONE_OF_ROLE_OR_TASK = "name either the role of the change approver or the change task";
 
     private final ProTechPort proTech;
 
@@ -65,12 +66,14 @@ public class ChangeService implements ChangesUseCase {
     @Override
     @WithoutTransaction
     public Map<String, ProductionChange> read(List<ProductionChange> known) {
+        List<ProductionChange> listed = emptyIfNull(known);
         ValidationProblems problems = new ValidationProblems();
-        for (int index = 0; index < known.size(); index++) {
-            problems.require("[" + index + "].number", known.get(index).number(), REQUIRED);
+        for (int index = 0; index < listed.size(); index++) {
+            ProductionChange change = listed.get(index);
+            problems.require("[" + index + "].number", change == null ? null : trimToNull(change.number()), REQUIRED);
         }
         problems.throwIfAny();
-        return proTech.read(known);
+        return listed.isEmpty() ? Map.of() : proTech.read(listed);
     }
 
     @Override

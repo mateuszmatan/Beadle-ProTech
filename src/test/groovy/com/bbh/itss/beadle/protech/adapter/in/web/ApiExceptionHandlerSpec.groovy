@@ -39,7 +39,7 @@ class ApiExceptionHandlerSpec extends Specification {
             it.status == status
             it.title == title
             it.detail == detail
-            it.properties?.errors == errors
+            it.properties?.problems == errors
         }
 
         where:
@@ -75,7 +75,7 @@ class ApiExceptionHandlerSpec extends Specification {
         with(parse(response.contentAsString)) {
             title == 'Validation failed'
             it.detail == detail
-            errors*.field == fields
+            problems*.field == fields
         }
 
         where:
@@ -94,7 +94,7 @@ class ApiExceptionHandlerSpec extends Specification {
         with(parse(response.contentAsString)) {
             it.title == title
             it.detail == detail
-            errors == null
+            problems == null
         }
 
         where:
