@@ -41,7 +41,7 @@ each with the git history of its files. This document is the shared contract; ev
 - Every repository builds and tests with `./gradlew build` and ships a `Dockerfile` plus
   `deploy/openshift/<app>/{base,overlays/{rd,qc,prod}}` (kustomize), on the pattern of DSOMgmtPortal.
 - Commit messages end with
-  `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` and
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and
   `Claude-Session: https://claude.ai/code/session_01DK64WyTTEZusvWgXF1UdQX` on the last two lines.
 
 ## Calls between the services
