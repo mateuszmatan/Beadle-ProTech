@@ -32,6 +32,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeState.IMPLEMENTATI
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.PRIMARY_APPROVAL
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SECONDARY_APPROVAL
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SUPPORT_APPROVAL
+import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CLOSED as TASK_CLOSED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
@@ -67,6 +68,7 @@ class DemoProTechAdapterSpec extends Specification {
 
         then:
         !proTech.connected()
+        proTech.mode() == DEMO
         first.number() ==~ /CHG\d{7}/
         first.url() == null
         second.number() != first.number()

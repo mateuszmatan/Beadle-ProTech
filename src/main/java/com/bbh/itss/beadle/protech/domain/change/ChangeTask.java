@@ -34,7 +34,7 @@ public record ChangeTask(String number, TaskDetails details, Instant start, Appr
         return new ChangeTask(null, details, null, null, null, null, OPEN);
     }
 
-    static void validateTasks(List<ChangeTask> tasks, ChangeSchedule schedule, ValidationProblems problems) {
+    public static void validateTasks(List<ChangeTask> tasks, ChangeSchedule schedule, ValidationProblems problems) {
         validateEach(tasks, problems, (task, at) -> task.validate(schedule, at));
     }
 
@@ -76,7 +76,7 @@ public record ChangeTask(String number, TaskDetails details, Instant start, Appr
                 approvers, reminder, state);
     }
 
-    private void validate(ChangeSchedule schedule, ValidationProblems problems) {
+    public void validate(ChangeSchedule schedule, ValidationProblems problems) {
         details.validate(problems.at("details"));
         if (!details.releaseManagement()) {
             return;

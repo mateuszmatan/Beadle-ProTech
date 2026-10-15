@@ -8,7 +8,9 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeApproval;
 import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule;
 import com.bbh.itss.beadle.protech.domain.change.ChangeState;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
+import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
+import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +77,11 @@ class DemoProTechAdapter implements ProTechPort {
     @Override
     public boolean connected() {
         return false;
+    }
+
+    @Override
+    public ProTechMode mode() {
+        return ProTechMode.DEMO;
     }
 
     @Override
