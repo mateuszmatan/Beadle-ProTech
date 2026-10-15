@@ -58,8 +58,45 @@ class ServiceTokenFilterSpec extends Specification {
         '/actuator/health'           || 200
         '/actuator/health/liveness'  || 200
         '/actuator/health/readiness' || 200
+        '/actuator/health/db'        || 200
         '/actuator/healthy'          || 401
         '/actuator/info'             || 401
+    }
+
+    def "a URI that starts with the health path but leads elsewhere needs the token: #uri"() {
+        given:
+        def chain = new MockFilterChain()
+        def request = new MockHttpServletRequest('GET', uri)
+
+        when:
+        def response = new MockHttpServletResponse()
+        filter.doFilter(request, response, chain)
+
+        then:
+        response.status == 401
+        chain.request == null
+
+        where:
+        uri << ['/actuator/health/../../api/protech/status', '/actuator/health/..;/..;/api/protech/status',
+                '/actuator/health/../env', '/actuator/health/%2e%2e/%2e%2e/api/protech/status',
+                '/actuator/health/%2E%2E/env', '/actuator/health;x=y', '/actuator/health/liveness;jsessionid=1',
+                '/actuator/health//liveness', '/actuator/health/', '/actuator/health/..%2f..%2fapi/protech/status',
+                '/actuator/health/.', '/actuator/health\\..\\env']
+    }
+
+    def "under a context path only its health endpoints are open"() {
+        given:
+        def request = new MockHttpServletRequest('GET', uri)
+        request.contextPath = '/protech'
+
+        expect:
+        filter.shouldNotFilter(request) == open
+
+        where:
+        uri                                    || open
+        '/protech/actuator/health/readiness'   || true
+        '/protech/actuator/health/../../api'   || false
+        '/protech/api/protech/status'          || false
     }
 
     def "without a configured token every call is refused"() {

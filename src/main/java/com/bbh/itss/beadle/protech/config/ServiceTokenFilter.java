@@ -13,6 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.CORRELATION_HEADER;
 import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.USER_HEADER;
@@ -30,7 +31,7 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
 /**
  * Lets a call in only with the Beadle service token ({@code beadle.services.token}, {@code BEADLE_SERVICE_TOKEN}) as
  * {@code Authorization: Bearer <token>} and answers anything else {@code 401} with a problem; the health endpoints
- * under {@code /actuator/health} are open to the probes of OpenShift. A blank token refuses every call. A call let in
+ * under {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift. A blank token refuses every call. A call let in
  * runs as the caller its headers name ({@code X-Beadle-User}, {@code X-Correlation-Id}), with a fresh correlation id
  * when Beadle-GUI sent none, so that the call log can tell who caused each call to ProTech.
  */
@@ -40,6 +41,7 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
 public class ServiceTokenFilter extends OncePerRequestFilter {
 
     public static final String OPEN_PATH = "/actuator/health";
+    static final Pattern OPEN = Pattern.compile(Pattern.quote(OPEN_PATH) + "(/[A-Za-z0-9_-]+)*");
     public static final String BEARER = "Bearer ";
     public static final String DETAIL = "The call needs the Beadle service token as Authorization: Bearer <token>.";
     static final String PROBLEM = "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"" + DETAIL + "\"}";
@@ -53,10 +55,17 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * Only the health endpoints spelled plainly are open: the request URI as sent, without a dot segment, a path
+     * parameter, an encoded character or an empty segment. Such a URI could otherwise start with {@value #OPEN_PATH}
+     * and still lead the dispatcher somewhere else ({@code /actuator/health/../../api/protech/status}), so it needs
+     * the token like any other call.
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        return path.equals(OPEN_PATH) || path.startsWith(OPEN_PATH + "/");
+        String uri = request.getRequestURI();
+        String context = request.getContextPath();
+        return uri != null && uri.startsWith(context) && OPEN.matcher(uri.substring(context.length())).matches();
     }
 
     @Override

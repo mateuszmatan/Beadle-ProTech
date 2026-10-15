@@ -35,7 +35,7 @@ a `5xx` of ProTech answers `502`. `Change` and `ChangeTask` are the JSON of the 
 | `POST /api/protech/changes/{number}/reminders` | `{"role": "BUSINESS"}` or `{"task": "CTASK0001234"}` | `["Rebecca Lawson", ...]`, the people reminded |
 | `GET /api/protech/lookups/{kind}?q=&limit=20` | | `[{"value": "...", "detail": "..."}]`; `kind` is `users`, `departments`, `assignment-groups`, `releases`, `configuration-items`, `incidents`, `problems` or `clients`, `limit` 1 to 100 |
 | `GET /api/protech/call-log?correlationId=&from=&to=&page=0&size=50` | | the call log, newest first, for diagnosis (`from` inclusive, `to` exclusive, `size` up to 500) |
-| `GET /actuator/health` | | open, without a token |
+| `GET /actuator/health` | | open without a token, with `/liveness` and `/readiness`; a path with a dot segment, `;` or an encoded character needs the token |
 
 ### Callbacks to Beadle-GUI
 

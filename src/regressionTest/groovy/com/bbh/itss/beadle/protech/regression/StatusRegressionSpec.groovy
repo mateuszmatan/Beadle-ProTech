@@ -47,4 +47,28 @@ class StatusRegressionSpec extends BeadleProTechSpecification {
         health.status == 200
         health.json.status == 'UP'
     }
+
+    def "a path that only starts like the health endpoint needs the token: #path"() {
+        when: 'the path is sent as it is, without the client resolving its dot segments'
+        def answer = rawGet(path)
+
+        then:
+        answer.startsWith('HTTP/1.1 401')
+        answer.contains('The call needs the Beadle service token')
+
+        where:
+        path << ['/actuator/health/../../api/protech/status', '/actuator/health/..;/..;/api/protech/status',
+                 '/actuator/health/../env', '/actuator/health/%2e%2e/%2e%2e/api/protech/status']
+    }
+
+    /** The head and body of a GET of {@code path}, sent byte for byte over a socket. */
+    private String rawGet(String path) {
+        new Socket('localhost', port).withCloseable { socket ->
+            socket.soTimeout = 10_000
+            socket.outputStream.write("GET $path HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+                    .getBytes('US-ASCII'))
+            socket.outputStream.flush()
+            new String(socket.inputStream.readAllBytes(), 'UTF-8')
+        }
+    }
 }
