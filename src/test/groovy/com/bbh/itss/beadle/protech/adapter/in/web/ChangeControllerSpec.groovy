@@ -180,7 +180,7 @@ class ChangeControllerSpec extends ControllerSpecification {
         bodyOf(response).problems == [[field: 'number', message: 'must be CHG0031002, the change of the path']]
     }
 
-    def "an edit ProTech refuses is a conflict, and ProTech out of reach a bad gateway"() {
+    def "an edit ProTech refuses is a conflict, ProTech out of reach a bad gateway and any other failure a 500"() {
         given:
         proTech.update(_) >> { throw failure }
 
