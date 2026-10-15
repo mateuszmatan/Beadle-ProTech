@@ -1,0 +1,10 @@
+package com.bbh.itss.beadle.protech.domain.change;
+
+public enum ChangeState {
+    DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL,
+    ESCALATED_APPROVAL, IMPLEMENTATION, CLOSED;
+
+    public boolean isOpen() {
+        return this != CLOSED;
+    }
+}
