@@ -14,6 +14,7 @@ import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -58,7 +59,13 @@ import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
+/**
+ * A ProTech played by the clock, used until {@code beadle.protech.url} names the real one: every change it raises
+ * moves through the approval stages two minutes apart, its tasks are approved by the people of their assignment
+ * group, an update shows after the apply delay and the reminders it sends are recorded.
+ */
 @Component
+@ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
 @RequiredArgsConstructor
 class DemoProTechAdapter implements ProTechPort {
 

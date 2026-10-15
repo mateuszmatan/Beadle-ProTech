@@ -4,6 +4,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import static java.util.stream.IntStream.range;
  * releases and configuration items, infrastructure groups, incidents, problems and clients.
  */
 @Component
+@ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
 class DemoProTechLookups implements ProTechLookupPort {
 
     static final String SUPPORT = " Application Support";
