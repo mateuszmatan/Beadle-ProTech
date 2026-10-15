@@ -45,7 +45,9 @@ export BEADLE_SERVICE_TOKEN=<the token Beadle-GUI sends>
 
 The `local` profile (the default) keeps an H2 database in `~/bbh-devsecops/beadle-protech`
 (`BEADLE_PROTECH_DATA_DIR` moves it) and uses the demo ProTech; the real one is connected by setting
-`PROTECH_URL`, `PROTECH_USERNAME` and `PROTECH_PASSWORD`.
+`PROTECH_URL`, `PROTECH_USERNAME` and `PROTECH_PASSWORD`. The live adapter (`ServiceNowTableApiAdapter`) speaks
+the ServiceNow Table API; [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) lists which ServiceNow table and field
+holds each field of a change and how every name is configured under `beadle.protech.fields.*`.
 
 ## Profiles
 
@@ -85,4 +87,4 @@ oc apply -k .
 
 | Suite | What |
 |-------|------|
-| unit (`src/test`) | domain rules, the demo ProTech, the configuration and the architecture rules; JaCoCo fails `build` below 60% line coverage (`-Pcoverage.minimum=`) |
+| unit (`src/test`) | domain rules, the demo ProTech, the live adapter against `MockRestServiceServer`, the configuration and the architecture rules; JaCoCo fails `build` below 60% line coverage (`-Pcoverage.minimum=`) |

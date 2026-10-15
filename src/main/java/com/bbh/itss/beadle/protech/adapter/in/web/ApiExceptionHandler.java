@@ -22,12 +22,12 @@ import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
 
 import static com.bbh.itss.beadle.protech.domain.shared.Failures.STALE_VERSION;
+import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.http.ProblemDetail.forStatusAndDetail;
 
 @RestControllerAdvice
@@ -61,8 +61,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(UncheckedIOException.class)
     ProblemDetail unavailable(UncheckedIOException e) {
-        logger.warn("A system the portal relies on could not be reached: " + e.getMessage());
-        return problem(SERVICE_UNAVAILABLE, "Service Unavailable", e.getMessage());
+        logger.warn("ProTech could not be reached or failed the call: " + e.getMessage());
+        return problem(BAD_GATEWAY, "Bad Gateway", e.getMessage());
     }
 
     @ExceptionHandler(InvalidRequestException.class)
@@ -74,9 +74,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpected(Exception e) {
-        logger.error("The portal could not serve a request", e);
+        logger.error("Beadle-ProTech could not serve a request", e);
         return problem(INTERNAL_SERVER_ERROR, "Request failed",
-                "The portal could not handle the request. The failure is in the portal's log.");
+                "Beadle-ProTech could not handle the request. The failure is in its log.");
     }
 
     @Override

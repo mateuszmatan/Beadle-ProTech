@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standal
 class ApiExceptionHandlerSpec extends Specification {
 
     static final FieldProblem PROBLEM = new FieldProblem('services[0].build.javaPath', 'is required')
-    static final String UNEXPECTED = "The portal could not handle the request. The failure is in the portal's log."
+    static final String UNEXPECTED = 'Beadle-ProTech could not handle the request. The failure is in its log.'
 
     def handler = new ApiExceptionHandler()
 
@@ -49,7 +49,7 @@ class ApiExceptionHandlerSpec extends Specification {
         'a concurrent change'      | { it.staleData(new ObjectOptimisticLockingFailureException(Object, 1L)) } || 409 | 'Conflict'
         'a broken business rule'   | { it.invalid(new InvalidRequestException([PROBLEM])) } || 400   | 'Validation failed'
         'an unexpected failure'    | { it.unexpected(new IllegalStateException('at com.bbh')) } || 500 | 'Request failed'
-        'an unreachable system'    | { it.unavailable(new UncheckedIOException('ProTech timed out', new IOException())) } || 503 | 'Service Unavailable'
+        'an unreachable ProTech'   | { it.unavailable(new UncheckedIOException('ProTech timed out', new IOException())) } || 502 | 'Bad Gateway'
 
         detail << ['Product 7 does not exist', 'code clash', STALE_VERSION, 'is required', UNEXPECTED,
                    'ProTech timed out']
