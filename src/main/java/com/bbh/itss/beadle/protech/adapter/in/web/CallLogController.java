@@ -1,0 +1,30 @@
+package com.bbh.itss.beadle.protech.adapter.in.web;
+
+import com.bbh.itss.beadle.protech.application.calllog.port.in.CallLogUseCase;
+import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage;
+import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Instant;
+
+/** The calls Beadle-ProTech made to ProTech and Beadle-GUI, newest first, for diagnosis. */
+@RestController
+@RequestMapping("/api/protech/call-log")
+@RequiredArgsConstructor
+public class CallLogController {
+
+    private final CallLogUseCase callLog;
+
+    @GetMapping
+    public CallLogPage find(@RequestParam(required = false) String correlationId,
+                            @RequestParam(required = false) Instant from,
+                            @RequestParam(required = false) Instant to,
+                            @RequestParam(required = false) Integer page,
+                            @RequestParam(required = false) Integer size) {
+        return callLog.find(CallLogQuery.of(correlationId, from, to, page, size));
+    }
+}

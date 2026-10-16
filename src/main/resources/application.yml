@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: beadle-protech
+  profiles:
+    default: local
+    group:
+      rd: oracle
+      qc: oracle
+      prod: oracle
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+          preferred_boolean_jdbc_type: INTEGER
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    analytics-enabled: false
+  http:
+    clients:
+      connect-timeout: 5s
+      read-timeout: 30s
+
+server:
+  port: ${PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.bbh.itss.beadle: INFO
+
+beadle:
+  services:
+    token: ${BEADLE_SERVICE_TOKEN:}
+  gui:
+    url: ${BEADLE_GUI_URL:http://localhost:8081}
+  protech:
+    # Not beadle.protech.url: Spring would bind Beadle-GUI's BEADLE_PROTECH_URL (the address of this service) to it.
+    instance-url: ${PROTECH_URL:}
+    username: ${PROTECH_USERNAME:}
+    password: ${PROTECH_PASSWORD:}
+    poll: ${PROTECH_POLL:PT1M}
+    tick: ${PROTECH_TICK:PT10S}
+    demo:
+      enabled: ${PROTECH_DEMO:false}
+      apply-delay: ${PROTECH_DEMO_APPLY_DELAY:PT3S}
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/bbh-devsecops/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: none
+management:
+  endpoint:
+    health:
+      show-details: always
+---
+spring:
+  config:
+    activate:
+      on-profile: oracle
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+---
+spring:
+  config:
+    activate:
+      on-profile: rd
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+logging:
+  level:
+    com.bbh.itss.beadle: DEBUG
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}

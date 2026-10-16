@@ -1,0 +1,231 @@
+package com.bbh.itss.beadle.protech.regression
+
+import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
+import com.bbh.itss.beadle.protech.support.Json
+
+import java.time.Instant
+
+import static java.time.Duration.ofDays
+import static java.time.Duration.ofHours
+import static java.time.Duration.ofMinutes
+
+class CallbackRegressionSpec extends BeadleProTechSpecification {
+
+    def "Beadle-GUI hears of every state, approval and task move of a change it raised, with the service token and the correlation id of the raise"() {
+        given: 'a change installed in an hour, with two tasks'
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofHours(1)))
+        createTask(number, 1)
+        createTask(number, 2)
+
+        when: 'the business approver is asked'
+        moveTo(start + ofMinutes(2))
+
+        then:
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+        }
+        with(gui.callbacksFor(number).first()) {
+            method == 'POST'
+            url == 'http://beadle-gui.test:8081/api/callbacks/protech'
+            header('Authorization') == "Bearer $TOKEN".toString()
+            header('X-Beadle-User') == 'system'
+            header('X-Correlation-Id') == correlationId
+            header('Content-Type').startsWith('application/json')
+            body == [number: number, event: 'STATE_CHANGED', state: 'BUSINESS_APPROVAL',
+                     at: (start + ofMinutes(2)).toString(), correlationId: correlationId]
+            status == 202
+        }
+        conditions.eventually {
+            assert tracked(number).STATE == 'BUSINESS_APPROVAL'
+        }
+
+        when: 'the approvers of the change approved it and the tasks wait for their groups'
+        moveTo(start + ofMinutes(10))
+
+        then: 'one callback covers the stages passed in between'
+        conditions.eventually {
+            assert events(number).last() == ['STATE_CHANGED', 'CTASK_APPROVAL', start + ofMinutes(10)]
+        }
+        events(number).size() == 2
+
+        when: 'the group of the first task approves it'
+        moveTo(start + ofMinutes(12))
+
+        then:
+        conditions.eventually {
+            assert events(number).last() == ['APPROVAL_CHANGED', 'CTASK_APPROVAL', start + ofMinutes(12)]
+        }
+
+        when: 'the second task is approved and the change, on short notice, goes past the escalation to implementation'
+        moveTo(start + ofMinutes(16))
+
+        then:
+        conditions.eventually {
+            assert events(number).last() == ['STATE_CHANGED', 'IMPLEMENTATION', start + ofMinutes(16)]
+        }
+
+        when: 'the installation starts'
+        moveTo(start + ofHours(1))
+
+        then: 'the tasks go in progress'
+        conditions.eventually {
+            assert events(number).last() == ['TASK_CHANGED', 'IMPLEMENTATION', start + ofHours(1)]
+        }
+
+        when: 'the validation ends'
+        moveTo(start + ofHours(4))
+
+        then: 'the change is closed and no longer followed'
+        conditions.eventually {
+            assert events(number).last() == ['STATE_CHANGED', 'CLOSED', start + ofHours(4)]
+        }
+        conditions.eventually {
+            assert tracked(number).STATE == 'CLOSED'
+        }
+        events(number)*.take(2) == [['STATE_CHANGED', 'BUSINESS_APPROVAL'], ['STATE_CHANGED', 'CTASK_APPROVAL'],
+                                    ['APPROVAL_CHANGED', 'CTASK_APPROVAL'], ['STATE_CHANGED', 'IMPLEMENTATION'],
+                                    ['TASK_CHANGED', 'IMPLEMENTATION'], ['STATE_CHANGED', 'CLOSED']]
+        gui.callbacksFor(number).every { it.status == 202 && it.header('X-Correlation-Id') == correlationId }
+
+        and: 'the callbacks are in the call log of the raise, as calls of the system to Beadle-GUI'
+        callLog('GUI')*.subMap('userName', 'correlationId', 'operation', 'target', 'outcome') ==
+                events(number).collect { event, state, at ->
+                    [userName: 'system', correlationId: correlationId, operation: 'notify',
+                     target  : "$number $event" as String, outcome: 'SUCCESS']
+                }
+    }
+
+    def "a change Beadle-GUI only read is followed as well, under the correlation id of the read"() {
+        given: 'a change ProTech has from before, which Beadle-GUI reads'
+        Instant start = clock.instant()
+        String number = 'CHG00' + (10000 + new Random().nextInt(90000))
+        def known = draft(start, start + ofDays(3)).toBuilder().number(number).build()
+        read(known)
+
+        expect:
+        tracked(number).subMap('STATE', 'CORRELATION_ID') == [STATE: 'DRAFT', CORRELATION_ID: correlationId]
+
+        when:
+        moveTo(start + ofMinutes(2))
+
+        then:
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+        }
+        gui.callbacksFor(number).first().header('X-Correlation-Id') == correlationId
+    }
+
+    def "a callback Beadle-GUI did not take is sent again on the next look until it takes it"() {
+        given:
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+        gui.refuse(number, 2)
+
+        when:
+        moveTo(start + ofMinutes(2))
+
+        then:
+        conditions.eventually {
+            assert gui.callbacksFor(number)*.status == [503, 503, 202]
+        }
+        events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]] * 3
+        conditions.eventually {
+            assert tracked(number).STATE == 'BUSINESS_APPROVAL'
+        }
+        callLog('GUI')*.outcome == ['FAILURE', 'FAILURE', 'SUCCESS']
+        callLog('GUI').findAll { it.outcome == 'FAILURE' }
+                .every { it.message.startsWith("Beadle-GUI could not take the callback for $number: 503") }
+    }
+
+    def "the read with which Beadle-GUI answers a callback is kept, and the next callback goes back to it"() {
+        given: 'a change Beadle-GUI raised, which it reads again under a correlation id of its own on every callback'
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+        String resync = UUID.randomUUID().toString()
+        def known = draft(start, start + ofDays(3)).toBuilder().number(number).build()
+        gui.onCallback(number) {
+            def response = api.withHeaders(['X-Correlation-Id': resync])
+                    .postRaw('/api/protech/changes/read', 'application/json', Json.jackson([known]))
+            assert response.status == 200: response
+        }
+
+        when:
+        moveTo(start + ofMinutes(2))
+
+        then: 'the change is known in the state Beadle-GUI read, under the correlation id of that read'
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+            assert tracked(number).subMap('STATE', 'CORRELATION_ID') ==
+                    [STATE: 'BUSINESS_APPROVAL', CORRELATION_ID: resync]
+        }
+        gui.callbacksFor(number).first().header('X-Correlation-Id') == correlationId
+
+        when:
+        moveTo(start + ofMinutes(10))
+
+        then:
+        conditions.eventually {
+            assert gui.callbacksFor(number).size() == 2
+        }
+        gui.callbacksFor(number).last().header('X-Correlation-Id') == resync
+    }
+
+    def "ProTech's webhook has a change looked at at once, and the callback is still sent only once"() {
+        given:
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+
+        expect: 'the webhook needs the token and the number of a change, and leaves a change not followed alone'
+        anonymous.post('/api/protech/webhook', [number: number]).status == 401
+        api.post('/api/protech/webhook', [number: ' ']).status == 400
+        api.post('/api/protech/webhook', [number: 'CHG0099999']).status == 202
+
+        when:
+        moveTo(start + ofMinutes(2))
+        def answer = api.post('/api/protech/webhook', [number: number])
+
+        then:
+        answer.status == 202
+        conditions.eventually {
+            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
+        }
+
+        when: 'ProTech calls the webhook again for the same move'
+        api.post('/api/protech/webhook', [number: number])
+
+        then:
+        events(number).size() == 1
+    }
+
+    def "a look that finds only the move Beadle-GUI was called back about is left out of the call log"() {
+        given: 'a change Beadle-GUI was told reached business approval'
+        Instant start = clock.instant()
+        String number = raise(draft(start, start + ofDays(3)))
+        moveTo(start + ofMinutes(2))
+        conditions.eventually {
+            assert events(number).size() == 1
+            assert tracked(number).STATE == 'BUSINESS_APPROVAL'
+        }
+        def logged = looksAt(number, start + ofMinutes(2))
+
+        when: 'the change is looked at again within the minute the poll reaches back, which finds the same move'
+        2.times { assert api.post('/api/protech/webhook', [number: number]).status == 202 }
+
+        then: 'Beadle-GUI is not told again and the looks leave no row'
+        events(number).size() == 1
+        looksAt(number, start + ofMinutes(2)) == logged
+    }
+
+    /** The rows of the call log of the looks at {@code number} alone since {@code from}, as a webhook has them made. */
+    private List<Map> looksAt(String number, Instant from) {
+        def response = api.get("/api/protech/call-log?from=$from&size=500")
+        assert response.status == 200: response
+        (response.json.entries as List<Map>).findAll { it.operation == 'activity' && it.target ==~ /$number \S+/ }
+    }
+
+    /** The event, the state and the time of every callback Beadle-GUI got for {@code number}, oldest first. */
+    private List<List> events(String number) {
+        gui.callbacksFor(number).collect { [it.body.event, it.body.state, Instant.parse(it.body.at as String)] }
+    }
+}
