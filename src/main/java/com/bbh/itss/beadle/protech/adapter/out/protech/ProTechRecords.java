@@ -47,19 +47,19 @@ import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.Strings.CI;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
 /**
  * How a change and its tasks look in ProTech: the fields Beadle writes to {@code change_request} and
  * {@code change_task}, and the change, its tasks and their approvals Beadle reads back from them. A field ProTech
  * does not answer, because it is not mapped or ProTech has no such field, keeps the value Beadle knows; the risk
  * assessment and the privileged access are written as text and never read back.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class ProTechRecords {
 
     private final ProTechFields fields;
-
-    ProTechRecords(ProTechFields fields) {
-        this.fields = fields;
-    }
 
     /** The fields of {@code change_request} Beadle reads. */
     List<String> changeColumns() {

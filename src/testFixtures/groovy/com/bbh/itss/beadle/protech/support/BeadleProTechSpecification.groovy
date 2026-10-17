@@ -36,7 +36,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
         'spring.datasource.url=jdbc:h2:mem:beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000',
         'beadle.services.token=regression-service-token',
         'beadle.gui.url=http://beadle-gui.test:8081',
-        'beadle.protech.tick=PT1S'])
+        'beadle.protech.tick=PT0.3S'])
 @ActiveProfiles('local')
 @ContextConfiguration(initializers = EnvironmentVariables)
 @Import(Regression)
