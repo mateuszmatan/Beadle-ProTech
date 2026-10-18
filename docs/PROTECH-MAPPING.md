@@ -33,7 +33,8 @@ In the environment the properties are written in upper case with underscores, fo
 
 Reads ask for every field with its value and its display value (`sysparm_display_value=all`). Beadle takes the
 display value of a reference or choice field (a person, a group, a configuration item, a category: what a user sees)
-and the value of a date-time field (`yyyy-MM-dd HH:mm:ss` in UTC). Writes give display values
+and the value of a date-time field (`yyyy-MM-dd HH:mm:ss` in UTC); a value that is no date-time is read as empty and
+logged once as a warning. Writes give display values
 (`sysparm_input_display_value=true`), so ProTech resolves a person, group or configuration item by its name and a
 choice by its label; dates are written as `yyyy-MM-dd HH:mm:ss`. **The Beadle service account of ProTech must
 therefore have the time zone UTC and the date format `yyyy-MM-dd` with the time format `HH:mm:ss`**, which are the

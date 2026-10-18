@@ -37,7 +37,6 @@ import static com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.Appr
 import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.SYS_ID;
 import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.UPDATED;
 import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.dateTime;
-import static com.bbh.itss.beadle.protech.adapter.out.protech.TableRow.instantOf;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.REQUESTED;
@@ -223,7 +222,7 @@ class ProTechRecords {
     /** The JSON of the value ProTech answers for a field; an answer no type matches keeps {@code known}. */
     private static JsonNode readValue(Field field, TableRow row, String column, JsonNode known) {
         return switch (field.conversion()) {
-            case DATE_TIME -> nodeOf(instantOf(row.value(column)));
+            case DATE_TIME -> nodeOf(row.instant(column, null));
             case FLAG -> BooleanNode.valueOf(CI.equalsAny(row.value(column), "true", "1", "yes"));
             case TYPE -> Stream.of(Type.values())
                     .filter(type -> CI.equalsAny(row.display(column), type.label(), type.name()))
