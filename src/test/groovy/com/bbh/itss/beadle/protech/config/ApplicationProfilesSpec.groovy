@@ -25,7 +25,7 @@ class ApplicationProfilesSpec extends Specification {
         env.defaultProfiles as List == ['local']
         env.getProperty('spring.application.name') == 'beadle-protech'
         env.getProperty('server.port') == '8083'
-        env.getProperty('spring.datasource.url') == "jdbc:h2:file:${System.getProperty('user.home')}/bbh-devsecops/beadle-protech/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE"
+        env.getProperty('spring.datasource.url') == "jdbc:h2:file:${System.getProperty('user.home')}/beadle-protech/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE"
         environment([], [BEADLE_PROTECH_DATA_DIR: '/var/beadle']).getProperty('spring.datasource.url')
                 .startsWith('jdbc:h2:file:/var/beadle/beadle-protech;')
         env.getProperty('spring.jpa.hibernate.ddl-auto') == 'validate'

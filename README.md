@@ -53,7 +53,7 @@ export BEADLE_SERVICE_TOKEN=local-$(whoami)     # the same value as for Beadle-G
 curl -H "Authorization: Bearer $BEADLE_SERVICE_TOKEN" http://localhost:8083/api/protech/status
 ```
 
-The `local` profile (the default) uses an H2 file database in Oracle mode in `~/bbh-devsecops/beadle-protech`. It uses
+The `local` profile (the default) uses an H2 file database in Oracle mode in `~/beadle-protech`. It uses
 the demo ProTech while `PROTECH_URL` is blank: a change moves through the approval stages two minutes apart, and the
 lookups answer from a fixed catalogue of BBH people, groups and products. Set `PROTECH_URL`, `PROTECH_USERNAME` and
 `PROTECH_PASSWORD` to use the real ProTech.

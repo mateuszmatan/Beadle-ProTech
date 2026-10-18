@@ -65,7 +65,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/bbh-devsecops/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
+    url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:}
 management:
