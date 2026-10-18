@@ -1,6 +1,6 @@
 package com.bbh.itss.beadle.protech.domain.change;
 
-import java.util.NoSuchElementException;
+import com.bbh.itss.beadle.protech.domain.shared.NotFoundException;
 
 import static java.util.Arrays.stream;
 import static java.util.Locale.ROOT;
@@ -10,7 +10,7 @@ public enum LookupKind {
 
     public static LookupKind of(String path) {
         return stream(values()).filter(kind -> kind.path().equals(path)).findFirst()
-                .orElseThrow(() -> new NoSuchElementException("Lookup " + path + " does not exist"));
+                .orElseThrow(() -> new NotFoundException("Lookup " + path + " does not exist"));
     }
 
     public String path() {

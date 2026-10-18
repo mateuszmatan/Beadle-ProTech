@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.adapter.in.web;
 
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
+import com.bbh.itss.beadle.protech.domain.shared.NotFoundException;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
@@ -17,7 +18,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.io.UncheckedIOException;
-import java.util.NoSuchElementException;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -35,8 +35,8 @@ import static org.springframework.http.ProblemDetail.forStatusAndDetail;
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
-    @ExceptionHandler(NoSuchElementException.class)
-    ProblemDetail notFound(NoSuchElementException e) {
+    @ExceptionHandler(NotFoundException.class)
+    ProblemDetail notFound(NotFoundException e) {
         return problem(NOT_FOUND, "Not found", e.getMessage());
     }
 
@@ -82,17 +82,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail detail = problem(BAD_REQUEST, "Malformed request",
                 "The value given for " + nameOf(e) + " is not one this endpoint can read.");
         return handleExceptionInternal(e, detail, headers, BAD_REQUEST, request);
-    }
-
-    @Override
-    protected ResponseEntity<Object> handleExceptionInternal(Exception e, Object body, HttpHeaders headers,
-                                                             HttpStatusCode status, WebRequest request) {
-        ResponseEntity<Object> response = super.handleExceptionInternal(e, body, headers, status, request);
-        if (response != null && response.getBody() instanceof ProblemDetail detail && detail.getTitle() == null) {
-            HttpStatus resolved = HttpStatus.resolve(status.value());
-            detail.setTitle(resolved == null ? "Request failed" : resolved.getReasonPhrase());
-        }
-        return response;
     }
 
     private static String nameOf(TypeMismatchException e) {
