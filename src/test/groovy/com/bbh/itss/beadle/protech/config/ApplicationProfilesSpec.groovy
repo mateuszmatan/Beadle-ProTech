@@ -36,7 +36,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.gui.url') == 'http://localhost:8081'
         env.getProperty('beadle.services.token') == ''
         env.getProperty('spring.http.clients.connect-timeout') == '5s'
-        env.getProperty('spring.http.clients.read-timeout') == '30s'
+        env.getProperty('spring.http.clients.read-timeout') == '10s'
         env.getProperty('management.endpoint.health.show-details') == 'always'
     }
 

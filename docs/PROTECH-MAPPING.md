@@ -3,7 +3,7 @@
 ProTech is BBH's ServiceNow. When `beadle.protech.instance-url` (`PROTECH_URL`) names it, Beadle-ProTech talks to it
 through `LiveProTechAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
 service account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read
-timeout 30 s). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
+timeout 10 s, so that a slow ProTech is answered `502` well within the 30 s Beadle-GUI waits for Beadle-ProTech). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
 ServiceNow values stand for each state.
 
 The mapping is a best effort made without access to the real instance. Every table name, field name and state value
