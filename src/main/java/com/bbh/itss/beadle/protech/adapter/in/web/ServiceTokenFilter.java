@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.config;
+package com.bbh.itss.beadle.protech.adapter.in.web;
 
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.domain.calllog.Caller;
@@ -7,6 +7,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -35,7 +37,7 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
  * under {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift. A blank token refuses every
  * call. A call let in runs as the caller its headers name ({@code X-Beadle-User}, percent-decoded, and
  * {@code X-Correlation-Id}), with a fresh correlation id when Beadle-GUI sent none, so that the call log can tell who
- * caused each call to ProTech.
+ * caused each call to ProTech; the correlation id is in the MDC as {@value #MDC_KEY} for every line logged meanwhile.
  */
 @Slf4j
 @Component
@@ -47,12 +49,13 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
     public static final String BEARER = "Bearer ";
     public static final String DETAIL = "The call needs the Beadle service token as Authorization: Bearer <token>.";
     static final String PROBLEM = "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"" + DETAIL + "\"}";
+    public static final String MDC_KEY = "correlationId";
 
     private final byte[] token;
 
-    public ServiceTokenFilter(ServiceTokenProperties properties) {
-        this.token = trimToEmpty(properties.token()).getBytes(UTF_8);
-        if (token.length == 0) {
+    public ServiceTokenFilter(@Value("${beadle.services.token:}") String token) {
+        this.token = trimToEmpty(token).getBytes(UTF_8);
+        if (this.token.length == 0) {
             log.warn("beadle.services.token (BEADLE_SERVICE_TOKEN) is blank: every call of the API is refused");
         }
     }
@@ -74,11 +77,14 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (accepts(request.getHeader(AUTHORIZATION))) {
-            CallerContext.set(callerOf(request));
+            Caller caller = callerOf(request);
+            CallerContext.set(caller);
+            MDC.put(MDC_KEY, caller.correlationId());
             try {
                 chain.doFilter(request, response);
             } finally {
                 CallerContext.clear();
+                MDC.remove(MDC_KEY);
             }
             return;
         }

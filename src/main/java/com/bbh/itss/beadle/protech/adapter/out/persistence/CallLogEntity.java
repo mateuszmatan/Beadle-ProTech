@@ -9,14 +9,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 
 import java.time.Instant;
 
-import static com.bbh.itss.beadle.protech.adapter.RecordMapper.map;
 import static jakarta.persistence.EnumType.STRING;
 import static jakarta.persistence.GenerationType.IDENTITY;
 import static lombok.AccessLevel.PROTECTED;
+import static org.hibernate.type.SqlTypes.NUMERIC;
 
+/** A row of the call log; its ids and durations are NUMBER(19) columns, NUMERIC to JDBC on Oracle and H2 alike. */
 @Entity
 @Table(name = "BEADLE_PROTECH_CALL_LOG")
 @NoArgsConstructor(access = PROTECTED)
@@ -24,6 +26,7 @@ class CallLogEntity {
 
     @Id
     @GeneratedValue(strategy = IDENTITY)
+    @JdbcTypeCode(NUMERIC)
     private Long id;
 
     private Instant at;
@@ -44,6 +47,7 @@ class CallLogEntity {
 
     private String message;
 
+    @JdbcTypeCode(NUMERIC)
     private long durationMs;
 
     static CallLogEntity of(CallLogEntry entry) {
@@ -61,6 +65,7 @@ class CallLogEntity {
     }
 
     CallLogEntry toDomain() {
-        return map(CallLogEntry.class, this);
+        return new CallLogEntry(id, at, userName, correlationId, system, operation, target, outcome, message,
+                durationMs);
     }
 }

@@ -1,8 +1,9 @@
-package com.bbh.itss.beadle.protech.config
+package com.bbh.itss.beadle.protech.adapter.in.web
 
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import groovy.json.JsonSlurper
+import org.slf4j.MDC
 import org.springframework.mock.web.MockFilterChain
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
@@ -12,11 +13,11 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequest
 import jakarta.servlet.ServletResponse
 
-import static com.bbh.itss.beadle.protech.config.ServiceTokenFilter.DETAIL
+import static com.bbh.itss.beadle.protech.adapter.in.web.ServiceTokenFilter.DETAIL
 
 class ServiceTokenFilterSpec extends Specification {
 
-    def filter = new ServiceTokenFilter(new ServiceTokenProperties(' service-token '))
+    def filter = new ServiceTokenFilter(' service-token ')
 
     def "a call with the service token as a bearer token passes"() {
         given:
@@ -101,7 +102,7 @@ class ServiceTokenFilterSpec extends Specification {
 
     def "without a configured token every call is refused"() {
         given:
-        def closed = new ServiceTokenFilter(new ServiceTokenProperties(token))
+        def closed = new ServiceTokenFilter(token)
 
         expect:
         run(closed, '/api/protech/status', 'Bearer ', new MockFilterChain()).status == 401
@@ -112,10 +113,14 @@ class ServiceTokenFilterSpec extends Specification {
         token << [null, '', '  ']
     }
 
-    def "a call let in runs as the user and correlation id of its headers, and nobody once it is answered"() {
+    def "a call let in runs as the user and correlation id of its headers, logged in the MDC, and nobody once answered"() {
         given:
         Caller seen = null
-        def chain = { ServletRequest request, ServletResponse response -> seen = CallerContext.current() } as FilterChain
+        String logged = null
+        def chain = { ServletRequest request, ServletResponse response ->
+            seen = CallerContext.current()
+            logged = MDC.get('correlationId')
+        } as FilterChain
 
         when:
         run(filter, '/api/protech/changes', 'Bearer service-token', chain,
@@ -123,7 +128,9 @@ class ServiceTokenFilterSpec extends Specification {
 
         then:
         seen == new Caller('Mateusz Matan', 'corr-1')
+        logged == 'corr-1'
         CallerContext.current() == Caller.NONE
+        MDC.get('correlationId') == null
     }
 
     def "the user travels percent-encoded in UTF-8 and is logged decoded: #header"() {

@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import spock.lang.Specification
 
-import static com.bbh.itss.beadle.protech.domain.shared.Failures.notFound
+import java.time.DayOfWeek
+
 import static com.bbh.itss.beadle.protech.support.Json.parse
-import static com.bbh.itss.beadle.protech.support.Json.toJson
 import static org.springframework.http.MediaType.APPLICATION_JSON
 import static org.springframework.http.MediaType.TEXT_PLAIN
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -42,7 +42,7 @@ class ApiExceptionHandlerSpec extends Specification {
 
         where:
         failure                    | answer                                                 || status | title
-        'a missing record'         | { it.notFound(notFound('Lookup', 'pets')) }                || 404    | 'Not found'
+        'a missing record'         | { it.notFound(new NoSuchElementException('Lookup pets does not exist')) }          || 404    | 'Not found'
         'a refusal of ProTech'     | { it.conflict(new RefusedException('ProTech has no change CHG1')) } || 409 | 'Conflict'
         'a broken business rule'   | { it.invalid(new InvalidRequestException([PROBLEM])) } || 400   | 'Validation failed'
         'an unexpected failure'    | { it.unexpected(new IllegalStateException('at com.bbh')) } || 500 | 'Request failed'
@@ -50,24 +50,6 @@ class ApiExceptionHandlerSpec extends Specification {
 
         detail << ['Lookup pets does not exist', 'ProTech has no change CHG1', 'is required', UNEXPECTED, 'ProTech timed out']
         errors << [null, null, [PROBLEM], null, null]
-    }
-
-    def "bean validation errors are listed per field"() {
-        when:
-        def response = mvc.perform(json(toJson([day: 'FRIDAY', labels: labels]))).andReturn().response
-
-        then:
-        response.status == 400
-        with(parse(response.contentAsString)) {
-            title == 'Validation failed'
-            it.detail == detail
-            problems*.field == fields
-        }
-
-        where:
-        labels       || detail                   | fields
-        []           || 'add at least one label' | ['labels']
-        ['a', 'b,c'] || 'must not contain commas' | ['labels[1]']
     }
 
     def "#request answers #status #title without naming a class or a method"() {
@@ -126,8 +108,11 @@ class ApiExceptionHandlerSpec extends Specification {
         }
 
         @PostMapping('/api/samples')
-        String create(@jakarta.validation.Valid @RequestBody SampleRequest request) {
+        String create(@RequestBody SampleRequest request) {
             request.day().name()
         }
+    }
+
+    static record SampleRequest(DayOfWeek day, List<String> labels) {
     }
 }

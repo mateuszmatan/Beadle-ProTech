@@ -1,9 +1,7 @@
 package com.bbh.itss.beadle.protech.support
 
 import com.bbh.itss.beadle.protech.adapter.in.web.ApiExceptionHandler
-import com.bbh.itss.beadle.protech.adapter.in.web.NormalizedRequestBodies
-import com.bbh.itss.beadle.protech.config.ServiceTokenFilter
-import com.bbh.itss.beadle.protech.config.ServiceTokenProperties
+import com.bbh.itss.beadle.protech.adapter.in.web.ServiceTokenFilter
 import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
@@ -27,8 +25,8 @@ abstract class ControllerSpecification extends Specification {
 
     def setup() {
         mvc = standaloneSetup(controller())
-                .setControllerAdvice(new ApiExceptionHandler(), new NormalizedRequestBodies())
-                .addFilters(new ServiceTokenFilter(new ServiceTokenProperties(TOKEN)))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .addFilters(new ServiceTokenFilter(TOKEN))
                 .build()
     }
 
