@@ -20,7 +20,7 @@ spec:
       containers:
         - name: beadle-protech
           image: beadle-protech
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8083
@@ -36,9 +36,6 @@ spec:
             # PROTECH_URL, PROTECH_USERNAME, PROTECH_PASSWORD and PROTECH_WEBHOOK_TOKEN.
             - secretRef:
                 name: beadle-protech-account
-          env:
-            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
-              value: "true"
           resources:
             requests:
               cpu: 250m

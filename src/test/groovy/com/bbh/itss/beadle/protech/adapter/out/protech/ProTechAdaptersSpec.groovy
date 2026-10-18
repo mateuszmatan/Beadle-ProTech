@@ -33,8 +33,9 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 class ProTechAdaptersSpec extends Specification {
 
     def runner = new ApplicationContextRunner().withUserConfiguration(Adapters)
+            .withPropertyValues('spring.profiles.default=local')
 
-    def "the demo ProTech plays until beadle.protech.instance-url names the real one"() {
+    def "the demo ProTech plays in the local profile until beadle.protech.instance-url names the real one"() {
         expect:
         runner.withPropertyValues(properties as String[]).run { context ->
             assert context.getBeansOfType(ProTechPort).values()*.class == changes
@@ -46,7 +47,8 @@ class ProTechAdaptersSpec extends Specification {
         properties                                                  || changes                     | lookups
         []                                                          || [DemoProTechAdapter]        | [DemoProTechLookups]
         ['beadle.protech.instance-url=']                            || [DemoProTechAdapter]        | [DemoProTechLookups]
-        ['beadle.protech.instance-url=https://protech.bbh.test'] || [LiveProTechAdapter]    | [LiveProTechAdapter]
+        ['beadle.protech.instance-url=https://protech.bbh.test']    || [LiveProTechAdapter]        | [LiveProTechAdapter]
+        ['spring.profiles.active=qc']                               || []                          | []
     }
 
     def "Beadle-GUI's BEADLE_PROTECH_URL among the environment variables leaves the demo ProTech playing"() {

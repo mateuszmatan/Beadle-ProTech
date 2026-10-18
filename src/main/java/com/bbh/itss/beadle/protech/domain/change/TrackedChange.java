@@ -11,8 +11,8 @@ import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
 /**
- * A change Beadle raised or read, followed so that Beadle-GUI hears when ProTech moves it. {@code state} is the state
- * Beadle-GUI knows of (the one it raised or last read, or the one of the last callback, {@code null} while ProTech
+ * A change Beadle created or read, followed so that Beadle-GUI hears when ProTech moves it. {@code state} is the state
+ * Beadle-GUI knows of (the one it created or last read, or the one of the last callback, {@code null} while ProTech
  * answers a state Beadle does not know), {@code lastEventAt} the time of the last movement Beadle-GUI knows of,
  * {@code lastSeenAt} the last time Beadle-ProTech looked at the change and {@code correlationId} the user action of
  * Beadle-GUI the callbacks of the change go back to.

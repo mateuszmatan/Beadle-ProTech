@@ -25,7 +25,7 @@ class ApplicationProfilesSpec extends Specification {
         env.defaultProfiles as List == ['local']
         env.getProperty('spring.application.name') == 'beadle-protech'
         env.getProperty('server.port') == '8083'
-        env.getProperty('spring.datasource.url') == "jdbc:h2:file:${System.getProperty('user.home')}/bbh-devsecops/beadle-protech/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE"
+        env.getProperty('spring.datasource.url') == "jdbc:h2:file:${System.getProperty('user.home')}/beadle-protech/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE"
         environment([], [BEADLE_PROTECH_DATA_DIR: '/var/beadle']).getProperty('spring.datasource.url')
                 .startsWith('jdbc:h2:file:/var/beadle/beadle-protech;')
         env.getProperty('spring.jpa.hibernate.ddl-auto') == 'validate'
@@ -36,7 +36,7 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.gui.url') == 'http://localhost:8081'
         env.getProperty('beadle.services.token') == ''
         env.getProperty('spring.http.clients.connect-timeout') == '5s'
-        env.getProperty('spring.http.clients.read-timeout') == '30s'
+        env.getProperty('spring.http.clients.read-timeout') == '10s'
         env.getProperty('management.endpoint.health.show-details') == 'always'
     }
 
@@ -103,13 +103,14 @@ class ApplicationProfilesSpec extends Specification {
         profile << ['rd', 'qc', 'prod']
     }
 
-    def "the #profile profile does not start while PROTECH_URL is #blank, since the demo ProTech would answer in its place"() {
+    def "the #profile profile does not start while PROTECH_URL is #blank, since the demo ProTech would answer in its place, and names the secret to set it in"() {
         when:
         environment([profile], ORACLE + variables, RealProTechConfiguration)
 
         then:
         def e = thrown(IllegalStateException)
         e.message.startsWith('The rd, qc and prod profiles need the real ProTech, but PROTECH_URL is blank')
+        e.message.endsWith('PROTECH_PASSWORD in the secret beadle-protech-account.')
 
         where:
         profile | variables                                 || blank

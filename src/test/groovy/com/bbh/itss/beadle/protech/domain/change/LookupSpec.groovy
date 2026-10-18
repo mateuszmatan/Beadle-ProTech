@@ -1,5 +1,6 @@
 package com.bbh.itss.beadle.protech.domain.change
 
+import com.bbh.itss.beadle.protech.domain.shared.NotFoundException
 import spock.lang.Specification
 
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
@@ -21,7 +22,7 @@ class LookupSpec extends Specification {
         LookupKind.of(path)
 
         then:
-        def missing = thrown(NoSuchElementException)
+        def missing = thrown(NotFoundException)
         missing.message == "Lookup $path does not exist"
 
         where:

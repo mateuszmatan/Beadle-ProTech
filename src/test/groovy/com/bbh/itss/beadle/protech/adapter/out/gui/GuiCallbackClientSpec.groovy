@@ -1,7 +1,7 @@
 package com.bbh.itss.beadle.protech.adapter.out.gui
 
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback
 import groovy.json.JsonSlurper
 import org.springframework.http.client.ClientHttpRequest

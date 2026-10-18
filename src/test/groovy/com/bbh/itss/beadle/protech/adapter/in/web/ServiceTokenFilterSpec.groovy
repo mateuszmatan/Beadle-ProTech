@@ -3,8 +3,8 @@ package com.bbh.itss.beadle.protech.adapter.in.web
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import groovy.json.JsonSlurper
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -153,10 +153,13 @@ class ServiceTokenFilterSpec extends Specification {
         ' '                                                   || 'unknown'
     }
 
-    def "a call without a correlation id gets a fresh one, and one of #length characters is #outcome"() {
+    def "a call without a correlation id gets a fresh one, and one of #length bytes is #outcome"() {
         given:
+        def logged = new ListAppender<ILoggingEvent>()
+        logged.start()
+        (LoggerFactory.getLogger(ServiceTokenFilter) as Logger).addAppender(logged)
         List<Caller> seen = []
-        def chain = { ServletRequest request, ServletResponse response -> seen << CallerContext.current() } as FilterChain
+        def chain = { ServletRequest request, ServletResponse answer -> seen << CallerContext.current() } as FilterChain
 
         when:
         def response = run(filter, 'GET', '/api/protech/status', 'Bearer service-token', chain,
@@ -169,12 +172,17 @@ class ServiceTokenFilterSpec extends Specification {
         status == 200 || new JsonSlurper().parseText(response.contentAsString) == [title: 'Validation failed',
                 status: 400, detail: 'X-Correlation-Id ' + CORRELATION_TOO_LONG,
                 problems: [[field: 'X-Correlation-Id', message: CORRELATION_TOO_LONG]]]
+        logged.list*.formattedMessage == (status == 200 ? [] :
+                ["Refused GET /api/protech/status: X-Correlation-Id of $length bytes".toString()])
+
+        cleanup:
+        (LoggerFactory.getLogger(ServiceTokenFilter) as Logger).detachAppender(logged)
 
         where:
         length || status | outcome
         null   || 200    | 'taken'
         64     || 200    | 'taken'
-        65     || 400    | 'refused'
+        65     || 400    | 'refused and logged'
     }
 
     def "the caller is cleared also when the call fails"() {

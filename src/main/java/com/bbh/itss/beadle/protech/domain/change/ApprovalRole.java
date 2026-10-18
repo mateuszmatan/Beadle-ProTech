@@ -20,7 +20,6 @@ public enum ApprovalRole {
 
     @Getter
     private final String label;
-    @Getter
     private final ChangeState stage;
     private final Function<Approvers, String> named;
 

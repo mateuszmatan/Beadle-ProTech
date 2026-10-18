@@ -39,7 +39,7 @@ class CallLogControllerSpec extends ControllerSpecification {
         response.status == 200
         bodyOf(response) == [page: 1, size: 2, total: 5, entries: [
                 [id       : 1, at: '2026-10-15T09:00:00Z', userName: 'Mateusz Matan', correlationId: 'corr-1',
-                 system   : 'PROTECH', operation: 'raise', target: 'CHG0031001 CertScanner CERT 4.2: Expiry alerts',
+                 system   : 'PROTECH', operation: 'create', target: 'CHG0031001 CertScanner CERT 4.2: Expiry alerts',
                  outcome  : 'SUCCESS', message: null, durationMs: 12],
                 [id       : 2, at: '2026-10-15T09:00:00Z', userName: 'system', correlationId: 'corr-1',
                  system   : 'GUI', operation: 'notify', target: 'CHG0031001 STATE_CHANGED', outcome: 'FAILURE',

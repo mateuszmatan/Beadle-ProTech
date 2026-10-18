@@ -10,11 +10,11 @@ import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRole;
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ChangeField.BUSINESS_APPROVER;
@@ -93,10 +94,10 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
     }
 
     @Override
-    public RaisedChange raise(ProductionChange change) {
+    public CreatedChange create(ProductionChange change) {
         String number = numberOf(api.create(column(ChangeField.TABLE), records.changeBody(change),
-                List.of(SYS_ID, column(ChangeField.NUMBER)), "raise the change"), column(ChangeField.NUMBER));
-        return new RaisedChange(number, linkTo(number));
+                List.of(SYS_ID, column(ChangeField.NUMBER)), "create the change"), column(ChangeField.NUMBER));
+        return new CreatedChange(number, linkTo(number));
     }
 
     @Override
@@ -274,20 +275,23 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
     }
 
     private TableRow changeRow(String changeNumber, List<String> columns) {
-        String number = safe(changeNumber);
-        List<String> wanted = Stream.concat(columns.stream(), Stream.of(column(ChangeField.NUMBER))).distinct()
-                .toList();
-        return (number == null ? Stream.<TableRow>empty() : api.list(column(ChangeField.TABLE),
-                column(ChangeField.NUMBER) + "=" + number, wanted, 1, "find " + number).stream()).findFirst()
-                .orElseThrow(() -> RefusedException.noChange(changeNumber));
+        return numbered(column(ChangeField.TABLE), "", column(ChangeField.NUMBER), changeNumber, columns,
+                () -> RefusedException.noChange(changeNumber));
     }
 
     private TableRow taskRow(String changeId, String changeNumber, String taskNumber) {
-        String number = safe(taskNumber);
-        return (number == null ? Stream.<TableRow>empty() : api.list(column(TaskField.TABLE),
-                column(TaskField.CHANGE) + "=" + changeId + "^" + column(TaskField.NUMBER) + "=" + number,
-                List.of(SYS_ID, column(TaskField.NUMBER)), 1, "find " + number).stream()).findFirst()
-                .orElseThrow(() -> RefusedException.noTask(taskNumber, changeNumber));
+        return numbered(column(TaskField.TABLE), column(TaskField.CHANGE) + "=" + changeId + "^",
+                column(TaskField.NUMBER), taskNumber, List.of(SYS_ID),
+                () -> RefusedException.noTask(taskNumber, changeNumber));
+    }
+
+    /** The record of {@code table} that matches {@code query} and holds {@code number}, with its number. */
+    private TableRow numbered(String table, String query, String numberColumn, String number, List<String> columns,
+                              Supplier<RefusedException> missing) {
+        String safe = safe(number);
+        List<String> wanted = Stream.concat(columns.stream(), Stream.of(numberColumn)).distinct().toList();
+        return (safe == null ? Stream.<TableRow>empty() : api.list(table, query + numberColumn + "=" + safe, wanted,
+                1, "find " + safe).stream()).findFirst().orElseThrow(missing);
     }
 
     /** The tasks of the changes by the sys_id of their change. */

@@ -1,6 +1,6 @@
 # Beadle-ProTech
 
-Beadle-ProTech connects Beadle to ProTech, BBH's ServiceNow instance. For Beadle-GUI it raises production changes as
+Beadle-ProTech connects Beadle to ProTech, BBH's ServiceNow instance. For Beadle-GUI it creates production changes as
 ProTech change requests with their tasks, reads them back as they move through the approval workflow, updates them,
 reminds their approvers, and looks up people, business services, assignment groups, releases, configuration items,
 incidents, problems and clients. It signs in with Beadle's generic service account, logs every call it makes, and
@@ -17,7 +17,7 @@ Beadle-GUI (8081) ──REST──> Beadle-ProTech (8083) ──Table API──>
 
 Only Beadle-GUI calls the API, and ProTech may call the webhook. Every call carries
 `Authorization: Bearer <BEADLE_SERVICE_TOKEN>`, the signed-in user in `X-Beadle-User` and the user action in
-`X-Correlation-Id` (at most 64 characters). The webhook also accepts its own `PROTECH_WEBHOOK_TOKEN`, which opens
+`X-Correlation-Id` (at most 64 bytes). The webhook also accepts its own `PROTECH_WEBHOOK_TOKEN`, which opens
 nothing else. The endpoints, bodies, headers and the callback are specified in [docs/CONTRACTS.md](docs/CONTRACTS.md),
 which is the same file in all three repositories. [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) lists the
 ProTech tables, fields and Table API calls behind every endpoint.
@@ -34,11 +34,12 @@ com.bbh.itss.beadle.protech
 ├── adapter/in/schedule        the ticker that looks for moved changes
 ├── adapter/out/protech        LiveProTechAdapter (Table API) and the demo ProTech for the laptop
 ├── adapter/out/gui            the callbacks to Beadle-GUI
+├── adapter/out/calllog        writes every call of the ports to ProTech and Beadle-GUI to the call log
 ├── adapter/out/persistence    JPA: call log, followed changes
 └── config                     Spring wiring and properties
 ```
 
-Every change raised or read through the API is recorded in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI knows.
+Every change created or read through the API is recorded in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI knows.
 The ticker asks ProTech every `PROTECH_POLL` what moved, and the webhook triggers the same check at once. For each
 change that moved, one callback goes to `{BEADLE_GUI_URL}/api/callbacks/protech` with the event `STATE_CHANGED`,
 `APPROVAL_CHANGED` or `TASK_CHANGED`. A callback that Beadle-GUI does not accept is sent again at the next check. The
@@ -52,7 +53,7 @@ export BEADLE_SERVICE_TOKEN=local-$(whoami)     # the same value as for Beadle-G
 curl -H "Authorization: Bearer $BEADLE_SERVICE_TOKEN" http://localhost:8083/api/protech/status
 ```
 
-The `local` profile (the default) uses an H2 file database in Oracle mode in `~/bbh-devsecops/beadle-protech`. It uses
+The `local` profile (the default) uses an H2 file database in Oracle mode in `~/beadle-protech`. It uses
 the demo ProTech while `PROTECH_URL` is blank: a change moves through the approval stages two minutes apart, and the
 lookups answer from a fixed catalogue of BBH people, groups and products. Set `PROTECH_URL`, `PROTECH_USERNAME` and
 `PROTECH_PASSWORD` to use the real ProTech.
@@ -66,9 +67,9 @@ The build uses the BBH Nexus only, so it runs inside the BBH network or on the V
 | `./gradlew build` | jar, all test suites, coverage gates | about 1 min |
 | `./gradlew bootJar` | `build/libs/beadle-protech-<version>.jar` | 10 s |
 | `./gradlew test` | unit specs (Spock), JaCoCo gate of 60% of lines | 20 s |
-| `./gradlew smokeTest` | probes; a change raised, read back and checked through the webhook | 15 s |
+| `./gradlew smokeTest` | probes; a change created, read back and checked through the webhook | 15 s |
 | `./gradlew regressionTest` | the change journey and the callbacks, on H2 with the demo ProTech | 20 s |
-| `./gradlew performanceTest` | p95 of raising, reading and looking up, each under 500 ms | 15 s |
+| `./gradlew performanceTest` | p95 of creating, reading and looking up, each under 500 ms | 15 s |
 | `./gradlew jacocoSuitesReport` | combined coverage of the three suites, gate of 30% | part of `build` |
 
 ## Configuration

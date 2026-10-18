@@ -22,7 +22,7 @@ import java.time.Duration
 import java.time.Instant
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static java.time.ZoneOffset.UTC
 import static java.time.temporal.ChronoUnit.SECONDS
@@ -96,11 +96,11 @@ abstract class BeadleProTechSpecification extends Specification {
     }
 
     /**
-     * A draft of CertScanner CERT 4.2 as Beadle-GUI raises it: created at {@code createdAt}, installed from
-     * {@code installationStart} for two hours and validated for one, its tasks created one by one after the raise.
+     * A draft of CertScanner CERT 4.2 as Beadle-GUI sends it: created at {@code createdAt}, installed from
+     * {@code installationStart} for two hours and validated for one, its tasks created one by one after the change.
      */
     static ProductionChange draft(Instant createdAt, Instant installationStart) {
-        raised(number: null, schedule: scheduleFrom(installationStart), tasks: [],
+        issued(number: null, schedule: scheduleFrom(installationStart), tasks: [],
                 workflow: [new WorkflowStep(DRAFT, createdAt)], syncedAt: null, createdAt: createdAt)
     }
 
@@ -110,11 +110,11 @@ abstract class BeadleProTechSpecification extends Specification {
                 installationStart + Duration.ofHours(15), null, null)
     }
 
-    /** Raises {@code draft} in the demo ProTech and answers the number it got. */
-    String raise(ProductionChange draft) {
-        def raised = api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft))
-        assert raised.status == 201: raised
-        raised.json.number
+    /** Creates {@code draft} in the demo ProTech and answers the number it got. */
+    String create(ProductionChange draft) {
+        def created = api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft))
+        assert created.status == 201: created
+        created.json.number
     }
 
     /** Creates the task {@code index} of the fixtures on change {@code number} and answers its number. */

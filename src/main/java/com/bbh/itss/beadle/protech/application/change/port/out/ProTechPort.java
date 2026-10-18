@@ -3,21 +3,21 @@ package com.bbh.itss.beadle.protech.application.change.port.out;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/** The production changes of ProTech: raised, read back, updated and their approvers reminded. */
+/** The production changes of ProTech: created, read back, updated and their approvers reminded. */
 public interface ProTechPort {
 
     ProTechMode mode();
 
-    RaisedChange raise(ProductionChange change);
+    CreatedChange create(ProductionChange change);
 
     String createTask(String changeNumber, ChangeTask task);
 

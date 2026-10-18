@@ -2,6 +2,7 @@ package com.bbh.itss.beadle.protech.adapter.in.web
 
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem
+import com.bbh.itss.beadle.protech.domain.shared.NotFoundException
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
@@ -42,7 +43,7 @@ class ApiExceptionHandlerSpec extends Specification {
 
         where:
         failure                    | answer                                                 || status | title
-        'a missing record'         | { it.notFound(new NoSuchElementException('Lookup pets does not exist')) }          || 404    | 'Not found'
+        'a missing record'         | { it.notFound(new NotFoundException('Lookup pets does not exist')) }               || 404    | 'Not found'
         'a refusal of ProTech'     | { it.conflict(new RefusedException('ProTech has no change CHG1')) } || 409 | 'Conflict'
         'a broken business rule'   | { it.invalid(new InvalidRequestException([PROBLEM])) } || 400   | 'Validation failed'
         'an unexpected failure'    | { it.unexpected(new IllegalStateException('at com.bbh')) } || 500 | 'Request failed'
@@ -69,6 +70,7 @@ class ApiExceptionHandlerSpec extends Specification {
         request                  | builder                                           || status | title                    | detail
         'a failing controller'   | get('/api/samples/7')                             || 500    | 'Request failed'         | UNEXPECTED
         'a failing framework'    | get('/api/samples/broken')                        || 500    | 'Request failed'         | UNEXPECTED
+        'an empty Optional'      | get('/api/samples/empty')                         || 500    | 'Request failed'         | UNEXPECTED
         'a refusal'              | get('/api/samples/refused')                       || 409    | 'Conflict'               | 'ProTech has no change CHG1'
         'no body'                | json('')                                          || 400    | 'Malformed request'      | 'The request body is missing.'
         'a body that is no JSON' | json('{"type":')                                  || 400    | 'Malformed request'      | 'The request body is not valid JSON.'
@@ -95,6 +97,11 @@ class ApiExceptionHandlerSpec extends Specification {
         @GetMapping('/api/samples/broken')
         String broken() {
             throw new IllegalStateException("'contributor' must not be null")
+        }
+
+        @GetMapping('/api/samples/empty')
+        String empty() {
+            Optional.empty().orElseThrow()
         }
 
         @GetMapping('/api/samples/refused')

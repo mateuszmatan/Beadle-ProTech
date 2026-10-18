@@ -3,8 +3,9 @@
 ProTech is BBH's ServiceNow. When `beadle.protech.instance-url` (`PROTECH_URL`) names it, Beadle-ProTech talks to it
 through `LiveProTechAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
 service account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read
-timeout 30 s). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
-ServiceNow values stand for each state.
+timeout 10 s, so that a slow ProTech is answered `502` well within the 30 s Beadle-GUI waits for Beadle-ProTech). This
+page lists which ProTech table and field holds each field of a Beadle change, and which ProTech values stand for each
+state.
 
 The mapping is a best effort made without access to the real instance. Every table name, field name and state value
 below is a property under `beadle.protech.fields.*` (class `ProTechFields`) with the default shown, so the real
@@ -23,17 +24,18 @@ In the environment the properties are written in upper case with underscores, fo
 
 | Operation of the API | Calls to ProTech |
 |---|---|
-| `POST /api/protech/changes` (raise) | `POST /api/now/table/change_request?sysparm_input_display_value=true&sysparm_fields=sys_id,number` with the fields of the change below; answers the new `number` and the link `{url}/change_request.do?sysparm_query=number={number}` |
+| `POST /api/protech/changes` (create) | `POST /api/now/table/change_request?sysparm_input_display_value=true&sysparm_fields=sys_id,number` with the fields of the change below; answers the new `number` and the link `{url}/change_request.do?sysparm_query=number={number}` |
 | `POST /api/protech/changes/{number}/tasks` | `GET change_request?sysparm_query=number={number}`, then `POST /api/now/table/change_task` with the fields of the task and `change_request={number}`; answers the new `number` |
 | `POST /api/protech/changes/read` | `GET change_request?sysparm_query=numberIN{numbers}&sysparm_display_value=all`, `GET change_task?sysparm_query=change_requestIN{sys_ids}^ORDERBYnumber`, `GET sysapproval_approver?sysparm_query=sysapprovalIN{sys_ids of the changes and tasks}`, each list asked 50 values at a time so that no URL grows past a request line; a change ProTech does not have is left out of the answer |
 | `PUT /api/protech/changes/{number}` | `GET change_request` by number, `PATCH /api/now/table/change_request/{sys_id}` with the fields of the change, `GET change_task` of the change, then per task: `PATCH change_task/{sys_id}` for a task that is neither closed nor canceled, `POST change_task` for a task without a number (or one ProTech no longer has), and `PATCH change_task/{sys_id}` with `state` = the first CANCELED value for an open task Beadle no longer lists |
 | `POST /api/protech/changes/{number}/reminders` | `GET change_request` by number with the approver fields; for a role: `GET sysapproval_approver?sysparm_query=sysapproval={change sys_id}^stateINrequested` and the approval whose approver is the person named in that role; for a task: `GET change_task?sysparm_query=change_request={sys_id}^number={task}` and its requested approvals; then `PATCH sysapproval_approver/{sys_id}` with a comment per approval (ServiceNow's approval notification e-mails the comment to the approver); answers the people reminded |
 | `GET /api/protech/lookups/{kind}` | `GET {table}?sysparm_query={filter}^{value}LIKE{q}^OR{detail}LIKE{q}^ORDERBY{value}&sysparm_fields={value},{detail}&sysparm_limit={limit}&sysparm_display_value=true` |
-| the poll, every `beadle.protech.poll` (default `PT1M`), of the open changes Beadle raised or read, 50 at a time | `GET change_task?sysparm_query=change_request.numberIN{numbers}` (number, change and `sys_updated_on` of every task of the changes), `GET change_request?sysparm_query=numberIN{numbers}^sys_updated_on>{since}` (number, state, `sys_updated_on`), `GET sysapproval_approver?sysparm_query=sysapproval.numberIN{numbers of the changes and their tasks}^sys_updated_on>{since}`, 50 numbers at a time; `{since}` is the last look minus one minute, as `yyyy-MM-dd HH:mm:ss` in UTC |
+| the poll, every `beadle.protech.poll` (default `PT1M`), of the open changes Beadle created or read, 50 at a time | `GET change_task?sysparm_query=change_request.numberIN{numbers}` (number, change and `sys_updated_on` of every task of the changes), `GET change_request?sysparm_query=numberIN{numbers}^sys_updated_on>{since}` (number, state, `sys_updated_on`), `GET sysapproval_approver?sysparm_query=sysapproval.numberIN{numbers of the changes and their tasks}^sys_updated_on>{since}`, 50 numbers at a time; `{since}` is the last look minus one minute, as `yyyy-MM-dd HH:mm:ss` in UTC |
 
 Reads ask for every field with its value and its display value (`sysparm_display_value=all`). Beadle takes the
 display value of a reference or choice field (a person, a group, a configuration item, a category: what a user sees)
-and the value of a date-time field (`yyyy-MM-dd HH:mm:ss` in UTC). Writes give display values
+and the value of a date-time field (`yyyy-MM-dd HH:mm:ss` in UTC); a value that is no date-time is read as empty and
+logged once as a warning. Writes give display values
 (`sysparm_input_display_value=true`), so ProTech resolves a person, group or configuration item by its name and a
 choice by its label; dates are written as `yyyy-MM-dd HH:mm:ss`. **The Beadle service account of ProTech must
 therefore have the time zone UTC and the date format `yyyy-MM-dd` with the time format `HH:mm:ss`**, which are the
@@ -50,9 +52,9 @@ behind by `s` seconds leaves an approval or task move within `s` seconds after a
 until the change moves again. The minute the poll reaches back (`{since}`) only keeps updates between two looks from
 being missed; it does not make up for a skew.
 
-A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's message
-(`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is answered
-`502` with the reason.
+A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's status and
+message (`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is
+answered `502` with the reason.
 
 ## The change: `change_request` (`beadle.protech.fields.change.*`)
 
@@ -147,7 +149,7 @@ asked, otherwise not approved; without records the task's own `approval` field d
 
 ## States
 
-A ServiceNow value matches a state of Beadle when it equals, ignoring case, one of the values listed for that state,
+A ProTech value matches a state of Beadle when it equals, ignoring case, one of the values listed for that state,
 compared with both the value and the display value of the field; the first state that lists it wins. A value no state
 lists keeps the state Beadle knew. Beadle never writes the state of a change; it writes the state of a task only to
 cancel it, with the first value listed for `CANCELED`.

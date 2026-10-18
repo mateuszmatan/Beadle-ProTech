@@ -11,6 +11,7 @@ import spock.lang.Specification
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.privileged
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.problemsThrownBy
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
@@ -90,18 +91,18 @@ class ChangeTemplateSpec extends Specification {
         'its texts fill their columns'           | [requestedFor: 'ł' * 100, businessService: 'é' * 50, assignmentGroup: 'ł' * 100, incident: 'é' * 20, usersAffected: 'ą' * 1000, secureCodingTicket: 'é' * 20, approvers: new Approvers('ż' * 100, 'ż' * 100, 'ż' * 100, 'ż' * 100)] || []
     }
 
-    def "an edit of a raised template keeps its Jira project, its type and its timing"() {
+    def "an edit of the template of a created change keeps its Jira project, its type and its timing"() {
         given:
-        def raised = template(release: 'CERT 4.2')
+        def created = template(release: 'CERT 4.2')
         def edits = template(jiraProjectKey: 'OTHER', type: EMERGENCY, timing: new Timing('20:00', 5, 5),
                 category: 'Hardware', release: 'CERT 4.3', downtime: true, requestedFor: 'Ann Lee',
                 usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7', riskAssessment: risk(businessImpact: 'High'))
 
         expect:
-        raised.edited(edits) == template(category: 'Hardware', release: 'CERT 4.3', downtime: true,
+        created.edited(edits) == template(category: 'Hardware', release: 'CERT 4.3', downtime: true,
                 requestedFor: 'Ann Lee', usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7',
                 riskAssessment: risk(businessImpact: 'High'))
-        raised.edited(edits).risk() == 'High'
+        created.edited(edits).risk() == 'High'
     }
 
     def "a schedule is checked for presence and order: #expected"() {
@@ -112,7 +113,7 @@ class ChangeTemplateSpec extends Specification {
         schedule(edits).check(false, problems.at('schedule'))
 
         then:
-        problems.list().collect { "$it.field $it.message".toString() } == expected
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() } == expected
 
         where:
         edits                                                                        || expected
@@ -134,7 +135,7 @@ class ChangeTemplateSpec extends Specification {
         schedule(edits).check(downtime, problems.at('schedule'))
 
         then:
-        problems.list().collect { "$it.field $it.message".toString() } == expected
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() } == expected
 
         where:
         downtime | edits                                                                      || expected
@@ -153,6 +154,6 @@ class ChangeTemplateSpec extends Specification {
     private static List<String> problems(ChangeTemplate template) {
         def problems = new ValidationProblems()
         template.validate(problems.at('template'))
-        problems.list().collect { "$it.field $it.message".toString() }
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() }
     }
 }

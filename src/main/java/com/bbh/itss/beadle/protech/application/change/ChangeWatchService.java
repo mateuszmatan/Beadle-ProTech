@@ -2,11 +2,11 @@ package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.change.port.in.ChangeWatchUseCase;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
 import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort;
 import com.bbh.itss.beadle.protech.domain.calllog.Caller;
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;

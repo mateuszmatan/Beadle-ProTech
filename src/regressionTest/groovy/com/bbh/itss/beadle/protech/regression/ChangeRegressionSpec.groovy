@@ -14,36 +14,36 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
 
     static final String SUMMARY = 'CertScanner CERT 4.2: Expiry alerts'
 
-    def "a change raised with its tasks is read back moving through the approvals as the clock advances"() {
+    def "a change created with its tasks is read back moving through the approvals as the clock advances"() {
         given:
         Instant start = clock.instant()
         def draft = draft(start, start + ofDays(3))
 
-        when: 'Beadle-GUI raises the change and creates its two tasks'
-        String number = raise(draft)
+        when: 'Beadle-GUI creates the change and its two tasks'
+        String number = create(draft)
         List<String> tasks = [createTask(number, 1), createTask(number, 2)]
         def known = draft.toBuilder().number(number).build()
-        def raised = read(known)
+        def created = read(known)
 
         then: 'ProTech holds a draft with both tasks open and nothing requested yet'
         number ==~ /CHG\d{7}/
         tasks.every { it ==~ /CTASK\d{7}/ } && tasks.unique(false).size() == 2
-        raised.number == number
-        raised.state == 'DRAFT'
-        raised.workflow == [[state: 'DRAFT', enteredAt: start.toString()]]
-        raised.tasks*.number == tasks
-        raised.tasks*.details*.shortDescription == ['Task 1 of the CertScanner release',
+        created.number == number
+        created.state == 'DRAFT'
+        created.workflow == [[state: 'DRAFT', enteredAt: start.toString()]]
+        created.tasks*.number == tasks
+        created.tasks*.details*.shortDescription == ['Task 1 of the CertScanner release',
                                                     'Task 2 of the CertScanner release']
-        raised.tasks*.state == ['OPEN', 'OPEN']
-        raised.tasks*.approval == ['NOT_APPROVED', 'NOT_APPROVED']
-        raised.tasks.every { !it.approvers.empty }
-        raised.approvals*.subMap('role', 'approver', 'state') == [
+        created.tasks*.state == ['OPEN', 'OPEN']
+        created.tasks*.approval == ['NOT_APPROVED', 'NOT_APPROVED']
+        created.tasks.every { !it.approvers.empty }
+        created.approvals*.subMap('role', 'approver', 'state') == [
                 [role: 'BUSINESS', approver: 'Rebecca Lawson', state: 'NOT_APPROVED'],
                 [role: 'L1', approver: 'Olivia Bennett', state: 'NOT_APPROVED'],
                 [role: 'L2', approver: 'James Carter', state: 'NOT_APPROVED'],
                 [role: 'SUPPORT', approver: 'Jane Smith', state: 'NOT_APPROVED']]
-        raised.shortDescription == SUMMARY
-        raised.schedule == Json.parse(Json.jackson(draft.schedule()))
+        created.shortDescription == SUMMARY
+        created.schedule == Json.parse(Json.jackson(draft.schedule()))
 
         when: 'two minutes later'
         moveTo(start + ofMinutes(2))
@@ -55,7 +55,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
         business.workflow*.enteredAt == [start, start + ofMinutes(2)]*.toString()
         business.approvals*.state == ['REQUESTED', 'NOT_APPROVED', 'NOT_APPROVED', 'NOT_APPROVED']
 
-        when: 'ten minutes after the raise'
+        when: 'ten minutes after its creation'
         moveTo(start + ofMinutes(10))
         def approving = read(known)
 
@@ -83,7 +83,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
 
         and: 'every call to ProTech is in the call log of the user action, under the user decoded, and the change is followed'
         callLog()*.subMap('userName', 'correlationId', 'operation', 'target', 'outcome') == [
-                [userName: USER, correlationId: correlationId, operation: 'raise', target: "$number $SUMMARY" as String, outcome: 'SUCCESS'],
+                [userName: USER, correlationId: correlationId, operation: 'create', target: "$number $SUMMARY" as String, outcome: 'SUCCESS'],
                 [userName: USER, correlationId: correlationId, operation: 'createTask',
                  target  : "${tasks[0]} $number Task 1 of the CertScanner release" as String, outcome: 'SUCCESS'],
                 [userName: USER, correlationId: correlationId, operation: 'createTask',
@@ -100,7 +100,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
         given:
         Instant start = clock.instant()
         def draft = draft(start, start + ofDays(3))
-        String number = raise(draft)
+        String number = create(draft)
         String first = createTask(number, 1)
         String second = createTask(number, 2)
         def known = draft.toBuilder().number(number).build()
@@ -134,7 +134,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
         given:
         Instant start = clock.instant()
         def draft = draft(start, start + ofDays(3))
-        String number = raise(draft)
+        String number = create(draft)
         String taskNumber = createTask(number, 1)
         moveTo(start + ofMinutes(2))
         def current = read(draft.toBuilder().number(number).build())

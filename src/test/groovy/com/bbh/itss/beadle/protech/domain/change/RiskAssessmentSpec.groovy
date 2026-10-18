@@ -4,8 +4,9 @@ import com.bbh.itss.beadle.protech.domain.change.RiskAssessment.Question
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems
 import spock.lang.Specification
 
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.copy
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.problemsThrownBy
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
 
 class RiskAssessmentSpec extends Specification {
 
@@ -65,7 +66,7 @@ class RiskAssessmentSpec extends Specification {
         risk(bbhUsers: ' 26-250 ', backoutTesting: 'unable to test', platformStatus: null).validate(problems)
 
         then:
-        problems.list().collect { "$it.field $it.message".toString() } == ['backoutTesting must be one of' +
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() } == ['backoutTesting must be one of' +
                 ' Less than 30 minutes, 30 mins - 2 hours, Greater than 2 hours, Unable to test']
         risk(bbhUsers: ' 26-250 ').bbhUsers() == '26-250'
         RiskAssessment.builder().bbhUsers('All users').businessImpact('Low').build().text() ==

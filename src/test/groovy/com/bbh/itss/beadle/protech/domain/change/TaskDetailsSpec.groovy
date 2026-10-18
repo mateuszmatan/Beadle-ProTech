@@ -12,6 +12,7 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRE
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.ctask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.problemsThrownBy
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 
@@ -63,7 +64,7 @@ class TaskDetailsSpec extends Specification {
         ChangeTask.validateTasks(tasks, schedule(), problems)
 
         then:
-        problems.list().collect { it.field() + ': ' + it.message() } == expected
+        problemsThrownBy(problems).collect { it.field() + ': ' + it.message() } == expected
 
         where:
         problem                           | tasks                                                      || expected

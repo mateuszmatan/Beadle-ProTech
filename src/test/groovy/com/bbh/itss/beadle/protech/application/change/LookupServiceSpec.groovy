@@ -3,6 +3,7 @@ package com.bbh.itss.beadle.protech.application.change
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.domain.change.Lookup
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
+import com.bbh.itss.beadle.protech.domain.shared.NotFoundException
 import spock.lang.Specification
 
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
@@ -35,7 +36,7 @@ class LookupServiceSpec extends Specification {
 
         then:
         0 * lookups._
-        def missing = thrown(NoSuchElementException)
+        def missing = thrown(NotFoundException)
         missing.message == 'Lookup people does not exist'
     }
 

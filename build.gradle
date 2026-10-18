@@ -1,5 +1,3 @@
-import org.springframework.boot.gradle.plugin.SpringBootPlugin
-
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
@@ -12,7 +10,7 @@ plugins {
 
 group = 'com.bbh.itss.beadle'
 version = findProperty('artifactVersion') ?: '0.1.0-SNAPSHOT'
-description = 'Beadle-ProTech: raises, reads and follows the production changes of Beadle in ProTech'
+description = 'Beadle-ProTech: creates, reads and follows the production changes of Beadle in ProTech'
 
 java {
     toolchain {
@@ -20,18 +18,8 @@ java {
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << '-parameters'
-}
-
 base {
     archivesName = 'beadle-protech'
-}
-
-dependencyManagement {
-    imports {
-        mavenBom SpringBootPlugin.BOM_COORDINATES
-    }
 }
 
 configurations {

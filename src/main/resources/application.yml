@@ -22,8 +22,10 @@ spring:
     analytics-enabled: false
   http:
     clients:
+      # The calls to ProTech and the callbacks to Beadle-GUI. Beadle-GUI waits 30 s for this service, so a slow
+      # ProTech is answered 502 well within that instead of Beadle-GUI giving up while the change is created.
       connect-timeout: 5s
-      read-timeout: 30s
+      read-timeout: 10s
 
 server:
   port: ${PORT:8083}
@@ -63,7 +65,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/bbh-devsecops/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
+    url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:}
 management:

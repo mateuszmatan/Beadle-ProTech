@@ -15,19 +15,19 @@ class ProTechSmokeSpec extends BeadleProTechSpecification {
         }
     }
 
-    def "a change is raised, read back and looked at through the webhook"() {
+    def "a change is created, read back and looked at through the webhook"() {
         given:
         def start = clock.instant()
         def draft = draft(start, start + ofDays(3))
 
         when:
-        def raised = api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft))
-        def known = draft.toBuilder().number(raised.json.number as String).build()
+        def created = api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft))
+        def known = draft.toBuilder().number(created.json.number as String).build()
         def read = api.postRaw('/api/protech/changes/read', 'application/json', Json.jackson([known]))
         def looked = webhook.post('/api/protech/webhook', [number: known.number()])
 
         then:
-        raised.status == 201
+        created.status == 201
         known.number() ==~ /CHG\d{7}/
         read.status == 200
         read.json[known.number()].state == 'DRAFT'
