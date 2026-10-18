@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: oracle/002-tracked-changes.sql
       relativeToChangelogFile: true
+  - include:
+      file: oracle/003-create-operation.sql
+      relativeToChangelogFile: true

@@ -4,7 +4,7 @@ import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechStatus;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 
 import java.util.List;
 import java.util.Map;
@@ -14,8 +14,8 @@ public interface ChangesUseCase {
 
     ProTechStatus status();
 
-    /** Raises the draft and answers its number in ProTech. */
-    RaisedChange raise(ProductionChange draft);
+    /** Creates the draft in ProTech and answers its number there. */
+    CreatedChange create(ProductionChange draft);
 
     /** Creates the task on the change and answers its number in ProTech. */
     String createTask(String changeNumber, ChangeTask task);

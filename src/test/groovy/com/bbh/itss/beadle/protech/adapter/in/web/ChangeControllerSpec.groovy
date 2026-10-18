@@ -6,7 +6,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import com.bbh.itss.beadle.protech.support.ControllerSpecification
@@ -16,9 +16,9 @@ import java.time.Clock
 
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.BUSINESS
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.IMPLEMENTATION
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.RAISED
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.CREATED_AT
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static com.bbh.itss.beadle.protech.support.Json.jackson
 import static org.springframework.http.MediaType.APPLICATION_JSON
@@ -35,26 +35,26 @@ class ChangeControllerSpec extends ControllerSpecification {
         new ChangeController(new ChangeService(proTech, tracked, Clock.systemUTC()))
     }
 
-    def "a draft is raised in ProTech and answered 201 with its number and link"() {
+    def "a draft is created in ProTech and answered 201 with its number and link"() {
         given:
-        def draft = raised(number: null, tasks: [])
+        def draft = issued(number: null, tasks: [])
 
         when:
         def response = call(records(post('/api/protech/changes'), draft))
 
         then:
-        1 * proTech.raise(draft) >> new RaisedChange('CHG0031001', 'https://protech.bbh.test/CHG0031001')
+        1 * proTech.create(draft) >> new CreatedChange('CHG0031001', 'https://protech.bbh.test/CHG0031001')
         response.status == 201
         bodyOf(response) == [number: 'CHG0031001', url: 'https://protech.bbh.test/CHG0031001']
     }
 
-    def "a raised change is followed under the correlation id of the call of Beadle-GUI"() {
+    def "a created change is followed under the correlation id of the call of Beadle-GUI"() {
         when:
-        def response = call(records(post('/api/protech/changes'), raised(number: null))
+        def response = call(records(post('/api/protech/changes'), issued(number: null))
                 .header('X-Beadle-User', 'Mateusz Matan').header('X-Correlation-Id', 'corr-7'))
 
         then:
-        1 * proTech.raise(_) >> new RaisedChange('CHG0031001', null)
+        1 * proTech.create(_) >> new CreatedChange('CHG0031001', null)
         1 * tracked.track({ List<TrackedChange> changes ->
             changes*.number() == ['CHG0031001'] && changes*.correlationId() == ['corr-7']
         })
@@ -66,7 +66,7 @@ class ChangeControllerSpec extends ControllerSpecification {
         def response = call(post('/api/protech/changes').contentType(APPLICATION_JSON).content(body))
 
         then:
-        0 * proTech.raise(_)
+        0 * proTech.create(_)
         response.status == 400
         bodyOf(response).detail == detail
         bodyOf(response).problems == problems
@@ -93,8 +93,8 @@ class ChangeControllerSpec extends ControllerSpecification {
 
     def "the changes Beadle knows are read back as ProTech holds them, by number"() {
         given:
-        def known = [raised(), raised(number: 'CHG0031002')]
-        def moved = raised(state: IMPLEMENTATION, workflow: [new WorkflowStep(IMPLEMENTATION, RAISED)])
+        def known = [issued(), issued(number: 'CHG0031002')]
+        def moved = issued(state: IMPLEMENTATION, workflow: [new WorkflowStep(IMPLEMENTATION, CREATED_AT)])
 
         when:
         def response = call(records(post('/api/protech/changes/read'), known))
@@ -111,10 +111,10 @@ class ChangeControllerSpec extends ControllerSpecification {
 
     def "an edited change is sent to ProTech and answered 204"() {
         when:
-        def response = call(records(put('/api/protech/changes/CHG0031001'), raised()))
+        def response = call(records(put('/api/protech/changes/CHG0031001'), issued()))
 
         then:
-        1 * proTech.update(raised())
+        1 * proTech.update(issued())
         response.status == 204
         response.contentAsString == ''
     }

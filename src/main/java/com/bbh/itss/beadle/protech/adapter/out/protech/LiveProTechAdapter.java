@@ -14,7 +14,7 @@ import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -93,10 +93,10 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
     }
 
     @Override
-    public RaisedChange raise(ProductionChange change) {
+    public CreatedChange create(ProductionChange change) {
         String number = numberOf(api.create(column(ChangeField.TABLE), records.changeBody(change),
-                List.of(SYS_ID, column(ChangeField.NUMBER)), "raise the change"), column(ChangeField.NUMBER));
-        return new RaisedChange(number, linkTo(number));
+                List.of(SYS_ID, column(ChangeField.NUMBER)), "create the change"), column(ChangeField.NUMBER));
+        return new CreatedChange(number, linkTo(number));
     }
 
     @Override

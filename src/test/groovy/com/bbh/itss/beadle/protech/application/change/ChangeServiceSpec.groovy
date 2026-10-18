@@ -7,7 +7,7 @@ import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ProTechStatus
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
 import spock.lang.Specification
@@ -21,7 +21,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeState.PRIMARY_APPR
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static java.time.Clock.fixed
@@ -57,22 +57,22 @@ class ChangeServiceSpec extends Specification {
         true      | LIVE
     }
 
-    def "a draft is raised in ProTech as it is, answers its number and its link and is followed from its draft"() {
+    def "a draft is created in ProTech as it is, answers its number and its link and is followed from its draft"() {
         given:
-        def draft = raised(number: null, tasks: [], workflow: [], approvals: [])
+        def draft = issued(number: null, tasks: [], workflow: [], approvals: [])
 
         when:
-        def result = service.raise(draft)
+        def result = service.create(draft)
 
         then:
-        1 * proTech.raise(draft) >> new RaisedChange('CHG0031002', 'https://protech/CHG0031002')
+        1 * proTech.create(draft) >> new CreatedChange('CHG0031002', 'https://protech/CHG0031002')
         1 * tracked.track([TrackedChange.seen('CHG0031002', DRAFT, NOW, 'corr-1')])
-        result == new RaisedChange('CHG0031002', 'https://protech/CHG0031002')
+        result == new CreatedChange('CHG0031002', 'https://protech/CHG0031002')
     }
 
     def "what ProTech refuses to do is no news to Beadle-GUI either"() {
         when:
-        service.update('CHG0031001', raised())
+        service.update('CHG0031001', issued())
 
         then:
         1 * proTech.update(_) >> { throw new IllegalStateException('ProTech does not change a closed change') }
@@ -80,19 +80,19 @@ class ChangeServiceSpec extends Specification {
         thrown(IllegalStateException)
     }
 
-    def "a change ProTech does not raise is not followed"() {
+    def "a change ProTech does not create is not followed"() {
         when:
-        service.raise(raised(number: null))
+        service.create(issued(number: null))
 
         then:
-        1 * proTech.raise(_) >> { throw new UncheckedIOException('ProTech could not raise the change: 503', new IOException()) }
+        1 * proTech.create(_) >> { throw new UncheckedIOException('ProTech could not create the change: 503', new IOException()) }
         0 * tracked._
         thrown(UncheckedIOException)
     }
 
     def "a change with #problem is refused with its fields and never reaches ProTech"() {
         when:
-        service.raise(raised(changes))
+        service.create(issued(changes))
 
         then:
         0 * proTech._
@@ -100,7 +100,7 @@ class ChangeServiceSpec extends Specification {
         refused.problems*.field == fields
 
         when:
-        service.update('CHG0031001', raised(changes))
+        service.update('CHG0031001', issued(changes))
 
         then:
         0 * proTech._
@@ -140,7 +140,7 @@ class ChangeServiceSpec extends Specification {
 
     def "the known changes are read from ProTech by their numbers"() {
         given:
-        def known = [raised(), raised(number: 'CHG0031002')]
+        def known = [issued(), issued(number: 'CHG0031002')]
 
         when:
         def found = service.read(known)
@@ -166,7 +166,7 @@ class ChangeServiceSpec extends Specification {
 
     def "a change without a number cannot be read"() {
         when:
-        service.read([raised(), raised(number: null)])
+        service.read([issued(), issued(number: null)])
 
         then:
         0 * proTech._
@@ -177,10 +177,10 @@ class ChangeServiceSpec extends Specification {
 
     def "an update goes to ProTech under the number of the path, also when the body has none"() {
         when:
-        service.update('CHG0031001', raised(number: number))
+        service.update('CHG0031001', issued(number: number))
 
         then:
-        1 * proTech.update(raised())
+        1 * proTech.update(issued())
         1 * tracked.touch('CHG0031001', NOW, 'corr-1')
 
         where:
@@ -189,7 +189,7 @@ class ChangeServiceSpec extends Specification {
 
     def "an update of another change than the path's is refused"() {
         when:
-        service.update('CHG0031002', raised())
+        service.update('CHG0031002', issued())
 
         then:
         0 * proTech._

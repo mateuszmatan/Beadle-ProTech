@@ -12,7 +12,7 @@ plugins {
 
 group = 'com.bbh.itss.beadle'
 version = findProperty('artifactVersion') ?: '0.1.0-SNAPSHOT'
-description = 'Beadle-ProTech: raises, reads and follows the production changes of Beadle in ProTech'
+description = 'Beadle-ProTech: creates, reads and follows the production changes of Beadle in ProTech'
 
 java {
     toolchain {

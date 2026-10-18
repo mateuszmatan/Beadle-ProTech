@@ -15,7 +15,7 @@ class CallLogFixtures {
     static final Instant CALLED = Instant.parse('2026-10-15T09:00:00Z')
 
     static CallLogEntry callLogEntry(Map changes = [:]) {
-        copy(changes, new CallLogEntry(1L, CALLED, 'Mateusz Matan', 'corr-1', PROTECH, 'raise',
+        copy(changes, new CallLogEntry(1L, CALLED, 'Mateusz Matan', 'corr-1', PROTECH, 'create',
                 'CHG0031001 CertScanner CERT 4.2: Expiry alerts', SUCCESS, null, 12L))
     }
 

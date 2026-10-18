@@ -4,7 +4,7 @@ import com.bbh.itss.beadle.protech.application.change.port.in.ChangesUseCase;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +21,7 @@ import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.NO_CONTENT;
 
 /**
- * The production changes of ProTech as Beadle-GUI raises, reads, updates and reminds them; the bodies are the JSON of
+ * The production changes of ProTech as Beadle-GUI creates, reads, updates and reminds them; the bodies are the JSON of
  * {@link ProductionChange} and {@link ChangeTask} that docs/CONTRACTS.md calls {@code Change} and {@code ChangeTask}.
  */
 @RestController
@@ -33,8 +33,8 @@ public class ChangeController {
 
     @PostMapping
     @ResponseStatus(CREATED)
-    public RaisedChange raise(@RequestBody ProductionChange draft) {
-        return changes.raise(draft);
+    public CreatedChange create(@RequestBody ProductionChange draft) {
+        return changes.create(draft);
     }
 
     @PostMapping("/{number}/tasks")

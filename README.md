@@ -1,6 +1,6 @@
 # Beadle-ProTech
 
-Beadle-ProTech connects Beadle to ProTech, BBH's ServiceNow instance. For Beadle-GUI it raises production changes as
+Beadle-ProTech connects Beadle to ProTech, BBH's ServiceNow instance. For Beadle-GUI it creates production changes as
 ProTech change requests with their tasks, reads them back as they move through the approval workflow, updates them,
 reminds their approvers, and looks up people, business services, assignment groups, releases, configuration items,
 incidents, problems and clients. It signs in with Beadle's generic service account, logs every call it makes, and
@@ -38,7 +38,7 @@ com.bbh.itss.beadle.protech
 └── config                     Spring wiring and properties
 ```
 
-Every change raised or read through the API is recorded in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI knows.
+Every change created or read through the API is recorded in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI knows.
 The ticker asks ProTech every `PROTECH_POLL` what moved, and the webhook triggers the same check at once. For each
 change that moved, one callback goes to `{BEADLE_GUI_URL}/api/callbacks/protech` with the event `STATE_CHANGED`,
 `APPROVAL_CHANGED` or `TASK_CHANGED`. A callback that Beadle-GUI does not accept is sent again at the next check. The
@@ -66,9 +66,9 @@ The build uses the BBH Nexus only, so it runs inside the BBH network or on the V
 | `./gradlew build` | jar, all test suites, coverage gates | about 1 min |
 | `./gradlew bootJar` | `build/libs/beadle-protech-<version>.jar` | 10 s |
 | `./gradlew test` | unit specs (Spock), JaCoCo gate of 60% of lines | 20 s |
-| `./gradlew smokeTest` | probes; a change raised, read back and checked through the webhook | 15 s |
+| `./gradlew smokeTest` | probes; a change created, read back and checked through the webhook | 15 s |
 | `./gradlew regressionTest` | the change journey and the callbacks, on H2 with the demo ProTech | 20 s |
-| `./gradlew performanceTest` | p95 of raising, reading and looking up, each under 500 ms | 15 s |
+| `./gradlew performanceTest` | p95 of creating, reading and looking up, each under 500 ms | 15 s |
 | `./gradlew jacocoSuitesReport` | combined coverage of the three suites, gate of 30% | part of `build` |
 
 ## Configuration

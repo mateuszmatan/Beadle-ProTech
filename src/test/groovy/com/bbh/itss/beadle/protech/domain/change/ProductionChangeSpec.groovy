@@ -8,7 +8,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIP
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
@@ -27,9 +27,9 @@ class ProductionChangeSpec extends Specification {
         change.toBuilder().editedVersion(3L).build().editedVersion() == 3L
     }
 
-    def "a raised change takes its number and link, and created tasks are added after the ones it has"() {
+    def "a created change takes its number and link, and created tasks are added after the ones it has"() {
         given:
-        def change = raised(number: null, url: null, tasks: [task(1)])
+        def change = issued(number: null, url: null, tasks: [task(1)])
 
         expect:
         change.numbered('CHG0031009', 'https://protech/CHG0031009').with { [number(), url()] } ==
@@ -42,7 +42,7 @@ class ProductionChangeSpec extends Specification {
         def problems = new ValidationProblems()
 
         when:
-        raised(edits).validate(problems)
+        issued(edits).validate(problems)
 
         then:
         problems.list().collect { it.field() + ' ' + it.message() } == expected

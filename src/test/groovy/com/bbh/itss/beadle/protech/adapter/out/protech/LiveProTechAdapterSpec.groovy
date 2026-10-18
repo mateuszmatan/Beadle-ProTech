@@ -56,7 +56,7 @@ class LiveProTechAdapterSpec extends Specification {
     def server = MockRestServiceServer.bindTo(builder).build()
     def proTech = adapter(ProTechFields.DEFAULTS)
 
-    def "a change is raised as a change_request with the fields of its template, its schedule and its description"() {
+    def "a change is created as a change_request with the fields of its template, its schedule and its description"() {
         given:
         expect(POST, 'change_request', [sysparm_input_display_value: 'true', sysparm_fields: 'sys_id,number',
                                         sysparm_exclude_reference_link: 'true'])
@@ -66,10 +66,10 @@ class LiveProTechAdapterSpec extends Specification {
                         .body(json(result: [sys_id: 'c1', number: 'CHG0031001'])))
 
         when:
-        def raised = proTech.raise(richChange(number: null, tasks: []))
+        def created = proTech.create(richChange(number: null, tasks: []))
 
         then:
-        raised == new RaisedChange('CHG0031001', LINK)
+        created == new CreatedChange('CHG0031001', LINK)
         proTech.mode() == LIVE
         server.verify()
     }
@@ -118,10 +118,10 @@ class LiveProTechAdapterSpec extends Specification {
                         approvalRow('c1', 'Change Advisory Board', 'requested'),
                         approvalRow('t1', 'Rebecca Lawson', 'approved'),
                         approvalRow('t1', 'Thomas Ashby', 'requested')))
-        def known = raised(tasks: [task(1).withReminder(new Reminder(RAISED, ['Rebecca Lawson'])), task(2)])
+        def known = issued(tasks: [task(1).withReminder(new Reminder(CREATED_AT, ['Rebecca Lawson'])), task(2)])
 
         when:
-        def read = proTech.read([known, raised(number: 'CHG0031002')])
+        def read = proTech.read([known, issued(number: 'CHG0031002')])
 
         then:
         read.keySet() == ['CHG0031001'] as Set
@@ -129,7 +129,7 @@ class LiveProTechAdapterSpec extends Specification {
         change.id() == 7L
         change.url() == LINK
         change.state() == IMPLEMENTATION
-        change.workflow() == [new WorkflowStep(DRAFT, RAISED), new WorkflowStep(IMPLEMENTATION, at('2026-10-09T15:30:00Z'))]
+        change.workflow() == [new WorkflowStep(DRAFT, CREATED_AT), new WorkflowStep(IMPLEMENTATION, at('2026-10-09T15:30:00Z'))]
         change.shortDescription() == 'CertScanner CERT 4.2: Expiry alerts and audit'
         change.description() == 'Production release CERT 4.2 of CertScanner, as ProTech holds it.'
         change.schedule() == schedule(installationStart: '2026-10-10T07:00:00Z', installationEnd: '2026-10-10T10:00:00Z')
@@ -166,12 +166,12 @@ class LiveProTechAdapterSpec extends Specification {
         expect(GET, 'sysapproval_approver', [sysparm_query: 'sysapprovalINc1']).andRespond(rows())
 
         when:
-        def change = proTech.read([raised(state: CTASK_APPROVAL, workflow: [new WorkflowStep(CTASK_APPROVAL, RAISED)],
+        def change = proTech.read([issued(state: CTASK_APPROVAL, workflow: [new WorkflowStep(CTASK_APPROVAL, CREATED_AT)],
                 tasks: [])]).CHG0031001
 
         then:
         change.state() == CTASK_APPROVAL
-        change.workflow() == [new WorkflowStep(CTASK_APPROVAL, RAISED)]
+        change.workflow() == [new WorkflowStep(CTASK_APPROVAL, CREATED_AT)]
         change.tasks() == []
     }
 
@@ -196,7 +196,7 @@ class LiveProTechAdapterSpec extends Specification {
                 [approvalRow(taskIds.first(), 'Thomas Ashby', 'requested')])
 
         when:
-        def read = proTech.read(numbers.collect { raised(number: it, tasks: []) })
+        def read = proTech.read(numbers.collect { issued(number: it, tasks: []) })
 
         then:
         read.keySet() as List == numbers
@@ -218,7 +218,7 @@ class LiveProTechAdapterSpec extends Specification {
         expect(GET, 'change_request', [sysparm_query: 'number=CHG0099999']).andRespond(rows())
 
         when:
-        def read = proTech.read([raised(), raised(number: '^;')])
+        def read = proTech.read([issued(), issued(number: '^;')])
         proTech.createTask('CHG0099999', task(1))
 
         then:
@@ -346,7 +346,7 @@ class LiveProTechAdapterSpec extends Specification {
         expect(POST, 'change_request', [:]).andRespond(response)
 
         when:
-        proTech.raise(richChange(number: null))
+        proTech.create(richChange(number: null))
 
         then:
         def failed = thrown(type)
@@ -363,11 +363,11 @@ class LiveProTechAdapterSpec extends Specification {
                      withStatus(CREATED).contentType(APPLICATION_JSON).body('{"result":{}}')]
         type << [RefusedException, RefusedException, UncheckedIOException, UncheckedIOException,
                  UncheckedIOException, UncheckedIOException]
-        message << ['ProTech refused to raise the change: Operation Failed (Data Policy Exception: Category is mandatory)',
-                    'ProTech refused to raise the change: Bad Request',
-                    'ProTech could not raise the change: 401 User Not Authenticated (Required to provide Auth information)',
-                    'ProTech could not raise the change: 500 Internal Server Error',
-                    'ProTech could not raise the change: I/O error on POST request for ' +
+        message << ['ProTech refused to create the change: Operation Failed (Data Policy Exception: Category is mandatory)',
+                    'ProTech refused to create the change: Bad Request',
+                    'ProTech could not create the change: 401 User Not Authenticated (Required to provide Auth information)',
+                    'ProTech could not create the change: 500 Internal Server Error',
+                    'ProTech could not create the change: I/O error on POST request for ' +
                             '"https://protech.bbh.test/api/now/table/change_request": Read timed out',
                     NO_NUMBER]
     }
@@ -388,7 +388,7 @@ class LiveProTechAdapterSpec extends Specification {
                 .andRespond(created(sys_id: 'c1', number: 'CHG0031001'))
 
         expect:
-        custom.raise(richChange(number: null)).url() == URL + '/x_bbh_change.do?sysparm_query=number=CHG0031001'
+        custom.create(richChange(number: null)).url() == URL + '/x_bbh_change.do?sysparm_query=number=CHG0031001'
     }
 
     def "a poll asks for the changes, change tasks and approvals ProTech updated since the last look"() {
@@ -481,7 +481,7 @@ class LiveProTechAdapterSpec extends Specification {
     }
 
     private static ProductionChange richChange(Map changes = [:]) {
-        raised([template: template(release: 'CERT 4.2', requestedFor: 'Mateusz Matan', requestedBy: 'Mateusz Matan',
+        issued([template: template(release: 'CERT 4.2', requestedFor: 'Mateusz Matan', requestedBy: 'Mateusz Matan',
                 businessService: 'Corporate Technology', assignedTo: 'Ann Lee', incident: 'INC0104211',
                 problem: 'PRB0040112', directBusinessService: 'Certificate Services', affectedClients: 'No clients',
                 usersAffected: 'Corporate Technology staff', secureCodingTicket: 'SCP-1001',

@@ -14,7 +14,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
@@ -141,7 +141,7 @@ class CallLogInterceptor implements MethodInterceptor {
     /** What the call was about: the number of what it created, then its arguments. */
     static String targetOf(Object[] arguments, Object result) {
         String created = switch (result) {
-            case RaisedChange raised -> raised.number();
+            case CreatedChange change -> change.number();
             case String number -> number;
             case null, default -> null;
         };

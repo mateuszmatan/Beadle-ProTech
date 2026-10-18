@@ -9,7 +9,7 @@ import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechStatus;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
@@ -30,7 +30,7 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
 /**
  * Checks what Beadle-GUI sends before it reaches ProTech, so that a change ProTech would refuse is refused here
  * with the fields at fault, and passes the rest on. ProTech is the system of record of a change and Beadle-GUI keeps
- * its own copy; Beadle-ProTech only follows the changes Beadle-GUI raised or read, in the state Beadle-GUI knows of,
+ * its own copy; Beadle-ProTech only follows the changes Beadle-GUI created or read, in the state Beadle-GUI knows of,
  * so that it can tell Beadle-GUI when ProTech moves them, and notes when Beadle-GUI acted on a change itself so that it
  * is not told of its own action.
  */
@@ -50,13 +50,13 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    public RaisedChange raise(ProductionChange draft) {
+    public CreatedChange create(ProductionChange draft) {
         ValidationProblems problems = new ValidationProblems();
         draft.validate(problems);
         problems.throwIfAny();
-        RaisedChange raised = proTech.raise(draft);
-        tracked.track(List.of(TrackedChange.seen(raised.number(), DRAFT, now(clock), correlationId())));
-        return raised;
+        CreatedChange created = proTech.create(draft);
+        tracked.track(List.of(TrackedChange.seen(created.number(), DRAFT, now(clock), correlationId())));
+        return created;
     }
 
     @Override

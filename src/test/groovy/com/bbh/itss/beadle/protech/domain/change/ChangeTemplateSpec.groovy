@@ -90,18 +90,18 @@ class ChangeTemplateSpec extends Specification {
         'its texts fill their columns'           | [requestedFor: 'ł' * 100, businessService: 'é' * 50, assignmentGroup: 'ł' * 100, incident: 'é' * 20, usersAffected: 'ą' * 1000, secureCodingTicket: 'é' * 20, approvers: new Approvers('ż' * 100, 'ż' * 100, 'ż' * 100, 'ż' * 100)] || []
     }
 
-    def "an edit of a raised template keeps its Jira project, its type and its timing"() {
+    def "an edit of the template of a created change keeps its Jira project, its type and its timing"() {
         given:
-        def raised = template(release: 'CERT 4.2')
+        def created = template(release: 'CERT 4.2')
         def edits = template(jiraProjectKey: 'OTHER', type: EMERGENCY, timing: new Timing('20:00', 5, 5),
                 category: 'Hardware', release: 'CERT 4.3', downtime: true, requestedFor: 'Ann Lee',
                 usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7', riskAssessment: risk(businessImpact: 'High'))
 
         expect:
-        raised.edited(edits) == template(category: 'Hardware', release: 'CERT 4.3', downtime: true,
+        created.edited(edits) == template(category: 'Hardware', release: 'CERT 4.3', downtime: true,
                 requestedFor: 'Ann Lee', usersAffected: 'Operators', secureCodingTicket: 'APPSEC-7',
                 riskAssessment: risk(businessImpact: 'High'))
-        raised.edited(edits).risk() == 'High'
+        created.edited(edits).risk() == 'High'
     }
 
     def "a schedule is checked for presence and order: #expected"() {

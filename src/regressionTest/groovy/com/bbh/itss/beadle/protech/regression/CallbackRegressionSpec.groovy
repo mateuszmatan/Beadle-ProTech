@@ -10,10 +10,10 @@ import static java.time.Duration.ofMinutes
 
 class CallbackRegressionSpec extends BeadleProTechSpecification {
 
-    def "Beadle-GUI hears of every state, approval and task move of a change it raised, with the service token and the correlation id of the raise in a header"() {
+    def "Beadle-GUI hears of every state, approval and task move of a change it created, with the service token and the correlation id of its creation in a header"() {
         given: 'a change installed in an hour, with two tasks'
         Instant start = clock.instant()
-        String number = raise(draft(start, start + ofHours(1)))
+        String number = create(draft(start, start + ofHours(1)))
         createTask(number, 1)
         createTask(number, 2)
 
@@ -87,7 +87,7 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
                                     ['TASK_CHANGED', 'IMPLEMENTATION'], ['STATE_CHANGED', 'CLOSED']]
         gui.callbacksFor(number).every { it.status == 202 && it.header('X-Correlation-Id') == correlationId }
 
-        and: 'the callbacks are in the call log of the raise, as calls of the system to Beadle-GUI'
+        and: 'the callbacks are in the call log of its creation, as calls of the system to Beadle-GUI'
         callLog('GUI')*.subMap('userName', 'correlationId', 'operation', 'target', 'outcome') ==
                 events(number).collect { event, state, at ->
                     [userName: 'system', correlationId: correlationId, operation: 'notify',
@@ -98,7 +98,7 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
     def "a callback Beadle-GUI did not take is sent again on the next look until it takes it"() {
         given:
         Instant start = clock.instant()
-        String number = raise(draft(start, start + ofDays(3)))
+        String number = create(draft(start, start + ofDays(3)))
         gui.refuse(number, 2)
 
         when:
@@ -120,7 +120,7 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
     def "ProTech's webhook, with its own token, has a change looked at at once, and the callback is sent only once"() {
         given:
         Instant start = clock.instant()
-        String number = raise(draft(start, start + ofDays(3)))
+        String number = create(draft(start, start + ofDays(3)))
 
         expect: 'the webhook needs a token and the number of a change, leaves a change not followed alone, and its token opens nothing else'
         anonymous.post('/api/protech/webhook', [number: number]).status == 401

@@ -11,7 +11,7 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeState;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
@@ -60,9 +60,9 @@ import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
 /**
- * A ProTech played by the clock, used until {@code beadle.protech.instance-url} names the real one: every change it raises
- * moves through the approval stages two minutes apart, its tasks are approved by the people of their assignment
- * group and an update shows after the apply delay. Its activity is the clock-driven workflow: what moved since a
+ * A ProTech played by the clock, used until {@code beadle.protech.instance-url} names the real one: every change it
+ * creates moves through the approval stages two minutes apart, its tasks are approved by the people of their
+ * assignment group and an update shows after the apply delay. Its activity is the clock-driven workflow: what moved since a
  * time, no earlier than when the demo got the change. It holds the changes in memory, so each pod plays its own
  * ProTech: the demo is for a laptop and for trying Beadle out, not for rd, qc or prod.
  */
@@ -89,12 +89,12 @@ class DemoProTechAdapter implements ProTechPort {
     }
 
     @Override
-    public RaisedChange raise(ProductionChange change) {
+    public CreatedChange create(ProductionChange change) {
         String number = "CHG%07d".formatted(changes.incrementAndGet());
-        Instant raisedAt = getIfNull(change.createdAt(), () -> now(clock));
-        held.put(number, new Held(change.numbered(number, null), raisedAt, List.of(), List.of(), null, Map.of()));
+        Instant createdAt = getIfNull(change.createdAt(), () -> now(clock));
+        held.put(number, new Held(change.numbered(number, null), createdAt, List.of(), List.of(), null, Map.of()));
         received.put(number, now(clock));
-        return new RaisedChange(number, null);
+        return new CreatedChange(number, null);
     }
 
     @Override
@@ -170,17 +170,17 @@ class DemoProTechAdapter implements ProTechPort {
         return moved;
     }
 
-    static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant tasksApproved,
+    static List<WorkflowStep> workflowOf(Instant createdAt, ChangeSchedule schedule, Instant tasksApproved,
                                          Instant now) {
         Map<ChangeState, Instant> stages = new EnumMap<>(ChangeState.class);
-        stages.put(DRAFT, raisedAt);
-        stages.put(BUSINESS_APPROVAL, raisedAt.plus(STAGE));
-        stages.put(PRIMARY_APPROVAL, raisedAt.plus(STAGE.multipliedBy(2)));
-        stages.put(SECONDARY_APPROVAL, raisedAt.plus(STAGE.multipliedBy(3)));
-        stages.put(SUPPORT_APPROVAL, raisedAt.plus(STAGE.multipliedBy(4)));
-        stages.put(CTASK_APPROVAL, tasksRequested(raisedAt));
+        stages.put(DRAFT, createdAt);
+        stages.put(BUSINESS_APPROVAL, createdAt.plus(STAGE));
+        stages.put(PRIMARY_APPROVAL, createdAt.plus(STAGE.multipliedBy(2)));
+        stages.put(SECONDARY_APPROVAL, createdAt.plus(STAGE.multipliedBy(3)));
+        stages.put(SUPPORT_APPROVAL, createdAt.plus(STAGE.multipliedBy(4)));
+        stages.put(CTASK_APPROVAL, tasksRequested(createdAt));
         if (tasksApproved.isBefore(MAX)) {
-            Instant approved = max(raisedAt.plus(STAGE.multipliedBy(6)), tasksApproved);
+            Instant approved = max(createdAt.plus(STAGE.multipliedBy(6)), tasksApproved);
             boolean shortNotice = between(approved, schedule.installationStart()).compareTo(SHORT_NOTICE) < 0;
             Instant implementation = shortNotice
                     ? max(approved.plus(STAGE), schedule.installationStart().minus(ESCALATED_LEAD)) : approved;
@@ -194,8 +194,8 @@ class DemoProTechAdapter implements ProTechPort {
                 .map(stage -> new WorkflowStep(stage.getKey(), stage.getValue())).toList();
     }
 
-    static Instant tasksRequested(Instant raisedAt) {
-        return raisedAt.plus(STAGE.multipliedBy(5));
+    static Instant tasksRequested(Instant createdAt) {
+        return createdAt.plus(STAGE.multipliedBy(5));
     }
 
     static TaskState taskStateOf(TaskState held, ChangeState state, boolean installing) {
@@ -231,11 +231,11 @@ class DemoProTechAdapter implements ProTechPort {
 
     private Held adopted(ProductionChange known, Instant now) {
         List<WorkflowStep> reached = known.workflow();
-        Instant raisedAt = getIfNull(known.createdAt(), now);
+        Instant createdAt = getIfNull(known.createdAt(), now);
         List<ChangeTask> numbered = numbered(known.tasks());
-        return new Held(known.toBuilder().tasks(numbered).build(), raisedAt, List.of(), reached,
+        return new Held(known.toBuilder().tasks(numbered).build(), createdAt, List.of(), reached,
                 reached.isEmpty() ? null : reached.getLast().enteredAt(),
-                numbered.stream().collect(toMap(ChangeTask::number, task -> raisedAt, (first, second) -> first)));
+                numbered.stream().collect(toMap(ChangeTask::number, task -> createdAt, (first, second) -> first)));
     }
 
     private List<ChangeTask> numbered(List<ChangeTask> changed) {
@@ -280,7 +280,7 @@ class DemoProTechAdapter implements ProTechPort {
     private record Queued(Instant dueAt, ProductionChange requested) {
     }
 
-    private record Held(ProductionChange change, Instant raisedAt, List<Queued> queued, List<WorkflowStep> kept,
+    private record Held(ProductionChange change, Instant createdAt, List<Queued> queued, List<WorkflowStep> kept,
                         Instant rescheduledAt, Map<String, Instant> tasked) {
 
         Held queued(Queued update) {
@@ -288,7 +288,7 @@ class DemoProTechAdapter implements ProTechPort {
         }
 
         Held waiting(List<Queued> waiting) {
-            return new Held(change, raisedAt, waiting, kept, rescheduledAt, tasked);
+            return new Held(change, createdAt, waiting, kept, rescheduledAt, tasked);
         }
 
         Held with(ProductionChange applied, Instant at) {
@@ -300,10 +300,10 @@ class DemoProTechAdapter implements ProTechPort {
             boolean reopened = added.stream().anyMatch(ChangeTask::active) && state.compareTo(CTASK_APPROVAL) > 0
                     && state != CLOSED;
             if (!reopened && applied.schedule().equals(change.schedule())) {
-                return new Held(applied, raisedAt, queued, kept, rescheduledAt, known);
+                return new Held(applied, createdAt, queued, kept, rescheduledAt, known);
             }
             List<WorkflowStep> reached = workflowAt(at);
-            return new Held(applied, raisedAt, queued, reopened
+            return new Held(applied, createdAt, queued, reopened
                     ? Stream.concat(reached.stream(), Stream.of(new WorkflowStep(CTASK_APPROVAL, at))).toList()
                     : reached, at, known);
         }
@@ -324,7 +324,7 @@ class DemoProTechAdapter implements ProTechPort {
         }
 
         Instant requestedAt(ChangeTask task) {
-            return max(tasksRequested(raisedAt), tasked.getOrDefault(task.number(), raisedAt));
+            return max(tasksRequested(createdAt), tasked.getOrDefault(task.number(), createdAt));
         }
 
         Instant tasksApproved() {
@@ -334,10 +334,10 @@ class DemoProTechAdapter implements ProTechPort {
         List<WorkflowStep> workflowAt(Instant now) {
             Instant approved = tasksApproved();
             if (kept.isEmpty()) {
-                return workflowOf(raisedAt, change.schedule(), approved, now);
+                return workflowOf(createdAt, change.schedule(), approved, now);
             }
             ChangeState reached = kept.getLast().state();
-            return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), approved, MAX).stream()
+            return Stream.concat(kept.stream(), workflowOf(createdAt, change.schedule(), approved, MAX).stream()
                     .filter(step -> step.state().compareTo(reached) > 0)
                     .map(step -> new WorkflowStep(step.state(), max(step.enteredAt(), rescheduledAt)))
                     .filter(step -> !step.enteredAt().isAfter(now))).toList();

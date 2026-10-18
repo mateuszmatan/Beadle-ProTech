@@ -26,7 +26,7 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 class ChangeFixtures {
 
     static final String FIX_VERSION = 'CERT 4.2'
-    static final Instant RAISED = Instant.parse('2026-10-05T09:00:00Z')
+    static final Instant CREATED_AT = Instant.parse('2026-10-05T09:00:00Z')
 
     static <T extends Record> T copy(Map changes, T record) {
         def components = record.class.recordComponents
@@ -91,17 +91,17 @@ class ChangeFixtures {
                 start == null ? null : at(start), null, null, null, OPEN)
     }
 
-    static ProductionChange raised(Map changes = [:]) {
+    static ProductionChange issued(Map changes = [:]) {
         copy(changes, ProductionChange.builder().id(7L).number('CHG0031001').productId(1L).productCode('CERTSCANNER')
                 .productName('CertScanner').businessServiceId(3L).businessServiceName('Corporate Technology')
                 .fixVersion(FIX_VERSION).schedule(schedule()).shortDescription('CertScanner CERT 4.2: Expiry alerts')
                 .description('Production release CERT 4.2 of CertScanner.').template(template(release: FIX_VERSION))
                 .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
                 .tasks([task(1), task(2)])
-                .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)])
+                .state(DRAFT).workflow([new WorkflowStep(DRAFT, CREATED_AT)])
                 .approvals(ApprovalRole.values().collect { new ChangeApproval(it, it.approverIn(template().approvers()),
-                        null, null) }).syncedAt(RAISED).version(0L)
-                .createdAt(RAISED).build())
+                        null, null) }).syncedAt(CREATED_AT).version(0L)
+                .createdAt(CREATED_AT).build())
     }
 
     static Instant at(String text) {

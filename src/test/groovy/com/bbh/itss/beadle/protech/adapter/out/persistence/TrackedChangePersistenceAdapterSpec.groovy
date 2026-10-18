@@ -24,7 +24,7 @@ class TrackedChangePersistenceAdapterSpec extends PersistenceSpecification {
         jdbc.update('DELETE FROM BEADLE_PROTECH_CHANGE')
     }
 
-    def "a change raised or read is written down, and seen again it is merged over what was known"() {
+    def "a change created or read is written down, and seen again it is merged over what was known"() {
         when:
         adapter.track([trackedChange(), trackedChange(number: 'CHG0031002', state: null)])
 

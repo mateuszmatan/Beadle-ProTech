@@ -10,7 +10,7 @@ FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title="BBH Beadle-ProTech" \
       org.opencontainers.image.source="https://github.com/mateuszmatan/Beadle-ProTech" \
       io.k8s.display-name="BBH Beadle-ProTech" \
-      io.k8s.description="Raises, reads and updates the production changes of Beadle in ProTech and looks up its people, groups, releases and records" \
+      io.k8s.description="Creates, reads and updates the production changes of Beadle in ProTech and looks up its people, groups, releases and records" \
       io.openshift.expose-services="8083:http"
 USER 0
 WORKDIR /application

@@ -17,7 +17,7 @@ import com.bbh.itss.beadle.protech.domain.change.Lookup
 import com.bbh.itss.beadle.protech.domain.change.LookupKind
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -37,7 +37,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
 import static com.bbh.itss.beadle.protech.domain.change.ChangeEvent.APPROVAL_CHANGED
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static java.time.Clock.fixed
@@ -68,9 +68,9 @@ class CallLogConfigurationSpec extends Specification {
             } as Supplier<CallLogPort>)
             .withBean(ProTechPort, {
                 [mode      : { modeCalls++; ProTechMode.DEMO },
-                 raise     : { ProductionChange change -> Thread.sleep(2); new RaisedChange('CHG0031002', null) },
+                 create    : { ProductionChange change -> Thread.sleep(2); new CreatedChange('CHG0031002', null) },
                  createTask: { String number, ChangeTask task -> 'CTASK0041009' },
-                 read      : { Collection<ProductionChange> known -> [CHG0031001: raised()] },
+                 read      : { Collection<ProductionChange> known -> [CHG0031001: issued()] },
                  update    : { ProductionChange change -> throw new IllegalStateException('ProTech does not change a closed change') },
                  remind    : { String number, ApprovalRef approval -> ['Olivia Bennett'] },
                  activity  : { Collection<String> numbers, Instant since ->
@@ -104,15 +104,15 @@ class CallLogConfigurationSpec extends Specification {
         runner.run { ApplicationContext context ->
             def proTech = context.getBean(ProTechPort)
             def lookups = context.getBean(ProTechLookupPort)
-            assert proTech.raise(raised(number: null)) == new RaisedChange('CHG0031002', null)
+            assert proTech.create(issued(number: null)) == new CreatedChange('CHG0031002', null)
             assert proTech.createTask('CHG0031001', releaseTask()) == 'CTASK0041009'
-            assert proTech.read([raised(), raised(number: 'CHG0031002')]) == [CHG0031001: raised()]
+            assert proTech.read([issued(), issued(number: 'CHG0031002')]) == [CHG0031001: issued()]
             assert proTech.remind('CHG0031001', new ApprovalRef(L1, null)) == ['Olivia Bennett']
             assert proTech.remind('CHG0031001', new ApprovalRef(null, 'CTASK0041001')) == ['Olivia Bennett']
             assert lookups.find(ASSIGNMENT_GROUPS, 'Tech', 20) == [new Lookup('Technology Architecture', null)]
             assert proTech.mode() == ProTechMode.DEMO
             assert modeCalls == 1
-            assert recorded*.operation() == ['raise', 'createTask', 'read', 'remind', 'remind', 'find']
+            assert recorded*.operation() == ['create', 'createTask', 'read', 'remind', 'remind', 'find']
             assert recorded*.target() == ['CHG0031002 CertScanner CERT 4.2: Expiry alerts',
                                           'CTASK0041009 CHG0031001 Task 3 of the CertScanner release',
                                           'CHG0031001,CHG0031002', 'CHG0031001 L1', 'CHG0031001 CTASK0041001',
@@ -136,7 +136,7 @@ class CallLogConfigurationSpec extends Specification {
         expect:
         runner.run { ApplicationContext context ->
             try {
-                context.getBean(ProTechPort).update(raised())
+                context.getBean(ProTechPort).update(issued())
                 assert false
             } catch (IllegalStateException e) {
                 assert e.message == 'ProTech does not change a closed change'
@@ -173,7 +173,7 @@ class CallLogConfigurationSpec extends Specification {
 
         expect:
         runner.run { ApplicationContext context ->
-            context.getBean(ProTechPort).read((1..60).collect { raised(number: "CHG00310${it.toString().padLeft(2, '0')}") })
+            context.getBean(ProTechPort).read((1..60).collect { issued(number: "CHG00310${it.toString().padLeft(2, '0')}") })
             with(recorded[0]) {
                 assert userName().length() == CallLogEntry.USER_MAX
                 assert correlationId() == 'corr-1'

@@ -56,7 +56,7 @@ class ValidationProblemsSpec extends Specification {
         thrown(UnsupportedOperationException)
     }
 
-    def "a request without problems passes and a single field problem can be raised directly"() {
+    def "a request without problems passes and a single field problem can be made directly"() {
         when:
         problems.throwIfAny()
         def e = InvalidRequestException.of('range', 'use 30d')
