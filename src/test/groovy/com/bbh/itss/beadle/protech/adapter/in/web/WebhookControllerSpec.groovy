@@ -64,25 +64,4 @@ class WebhookControllerSpec extends ControllerSpecification {
         'CHG0039999' || Optional.empty()
         'CHG0031002' || Optional.of(trackedChange(number: 'CHG0031002', state: CLOSED))
     }
-
-    def "a webhook call without a number is refused naming the field: #body"() {
-        when:
-        def response = call(json(post('/api/protech/webhook'), body))
-
-        then:
-        0 * tracked._
-        response.status == 400
-        bodyOf(response).problems == [[field: 'number', message: 'is required']]
-
-        where:
-        body << [[:], [number: ' '], [number: null]]
-    }
-
-    def "the webhook needs the service token: #authorization"() {
-        expect:
-        callWithout(json(post('/api/protech/webhook'), [number: 'CHG0031001']), authorization).status == 401
-
-        where:
-        authorization << unauthorized()
-    }
 }

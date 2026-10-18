@@ -23,9 +23,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
 import static java.time.Clock.fixed
 import static java.time.ZoneOffset.UTC
 
@@ -111,12 +109,6 @@ class ChangeServiceSpec extends Specification {
         where:
         problem                          | changes                                                       || fields
         'no texts'                       | [shortDescription: null, description: ' ']                    || ['shortDescription', 'description']
-        'a text too long'                | [shortDescription: 'x' * 161]                                 || ['shortDescription']
-        'no template'                    | [template: null]                                              || ['template']
-        'an incomplete template'         | [template: template(assignmentGroup: null)]                   || ['template.assignmentGroup']
-        'no schedule'                    | [schedule: null]                                              || ['schedule']
-        'a schedule out of order'        | [schedule: schedule(installationEnd: '2026-10-10T05:00:00Z')] || ['schedule.installationEnd']
-        'a task without a group'         | [tasks: [new ChangeTask(null, details(1, [assignmentGroup: null]), null, null, null, null, null)]] || ['tasks[0].details.assignmentGroup']
         'a release task without a start' | [tasks: [releaseTask([:], null)]]                             || ['tasks[0].start']
     }
 

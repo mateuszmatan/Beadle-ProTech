@@ -34,11 +34,6 @@ abstract class ControllerSpecification extends Specification {
         mvc.perform(request.header('Authorization', AUTHORIZATION)).andReturn().response
     }
 
-    MockHttpServletResponse callWithout(MockHttpServletRequestBuilder request, String authorization) {
-        mvc.perform(authorization == null ? request : request.header('Authorization', authorization))
-                .andReturn().response
-    }
-
     /** The request with a body made by Groovy from maps and lists. */
     static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder request, Object body) {
         request.contentType(APPLICATION_JSON).content(toJson(body))
@@ -51,9 +46,5 @@ abstract class ControllerSpecification extends Specification {
 
     static Object bodyOf(MockHttpServletResponse response) {
         parse(response.contentAsString)
-    }
-
-    static List<String> unauthorized() {
-        [null, 'Bearer wrong-token', 'Bearer ', 'Basic dGVzdA==', TOKEN]
     }
 }

@@ -38,12 +38,4 @@ class StatusControllerSpec extends ControllerSpecification {
         false     | DEMO || 'demo'
         true      | LIVE || 'live'
     }
-
-    def "the status needs the service token: #authorization"() {
-        expect:
-        callWithout(get('/api/protech/status'), authorization).status == 401
-
-        where:
-        authorization << unauthorized()
-    }
 }

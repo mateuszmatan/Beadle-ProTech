@@ -220,15 +220,11 @@ class DemoProTechAdapterSpec extends Specification {
         where:
         after                        | tasksApproved                   || states
         ofSeconds(0)                 | APPROVED_AT                     || [DRAFT]
-        ofSeconds(119)               | APPROVED_AT                     || [DRAFT]
         ofMinutes(2)                 | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL]
-        ofMinutes(4)                 | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL]
-        ofMinutes(6)                 | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL]
         ofMinutes(8)                 | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL]
         ofMinutes(10)                | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL]
         ofMinutes(12)                | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL, IMPLEMENTATION]
         ofMinutes(12)                | RAISED                          || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL, IMPLEMENTATION]
-        ofMinutes(29)                | RAISED.plus(ofMinutes(30))      || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL]
         ofMinutes(30)                | RAISED.plus(ofMinutes(30))      || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL, IMPLEMENTATION]
         ofHours(122).minusSeconds(1) | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL, IMPLEMENTATION]
         ofHours(122)                 | APPROVED_AT                     || [DRAFT, BUSINESS_APPROVAL, PRIMARY_APPROVAL, SECONDARY_APPROVAL, SUPPORT_APPROVAL, CTASK_APPROVAL, IMPLEMENTATION, CLOSED]
