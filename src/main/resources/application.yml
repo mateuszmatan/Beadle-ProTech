@@ -52,10 +52,9 @@ beadle:
     instance-url: ${PROTECH_URL:}
     username: ${PROTECH_USERNAME:}
     password: ${PROTECH_PASSWORD:}
+    # How often the ticker asks ProTech what moved.
     poll: ${PROTECH_POLL:PT1M}
-    tick: ${PROTECH_TICK:PT10S}
     demo:
-      enabled: ${PROTECH_DEMO:false}
       apply-delay: ${PROTECH_DEMO_APPLY_DELAY:PT3S}
 ---
 spring:
@@ -66,13 +65,13 @@ spring:
     url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/bbh-devsecops/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:}
-  jpa:
-    hibernate:
-      ddl-auto: none
 management:
   endpoint:
     health:
       show-details: always
+beadle:
+  protech:
+    poll: ${PROTECH_POLL:PT10S}
 ---
 spring:
   config:

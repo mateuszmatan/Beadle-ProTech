@@ -11,7 +11,4 @@ resources:
 configMapGenerator:
   - name: beadle-protech-config
     literals:
-      - SPRING_PROFILES_ACTIVE=rd
       - BEADLE_GUI_URL=http://beadle:8081
-      - PROTECH_URL=
-      - PROTECH_POLL=PT1M
