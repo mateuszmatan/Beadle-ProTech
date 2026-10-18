@@ -25,7 +25,6 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMER
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
-import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.*
 import static java.nio.charset.StandardCharsets.UTF_8
 import static java.time.ZoneOffset.UTC
@@ -71,7 +70,6 @@ class LiveProTechAdapterSpec extends Specification {
 
         then:
         raised == new RaisedChange('CHG0031001', LINK)
-        proTech.connected()
         proTech.mode() == LIVE
         server.verify()
     }
@@ -415,13 +413,13 @@ class LiveProTechAdapterSpec extends Specification {
                         pollRow('a3', '2026-10-15 08:59:20', [sysapproval: field('x9', 'CTASK0099999')])))
 
         when:
-        def activity = proTech.activity(watching((numbers.split(',') as List) + ['^;', ' ']), since)
+        def activity = proTech.activity((numbers.split(',') as List) + ['^;', ' '], since)
 
         then:
         activity == [CHG0031001: new ChangeActivity('CHG0031001', IMPLEMENTATION, at('2026-10-15T08:59:10Z'), null, at('2026-10-15T08:59:00Z')),
                      CHG0031002: new ChangeActivity('CHG0031002', null, null, at('2026-10-15T08:59:40Z'), null),
                      CHG0031003: new ChangeActivity('CHG0031003', null, null, null, at('2026-10-15T08:59:30Z'))]
-        proTech.activity(watching(['^;']), NOW) == [:]
+        proTech.activity(['^;'], NOW) == [:]
         server.verify()
     }
 

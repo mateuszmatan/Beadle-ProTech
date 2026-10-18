@@ -3,7 +3,6 @@ package com.bbh.itss.beadle.protech.adapter.out.protech;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
-import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
@@ -98,16 +97,6 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Tidewater Charitable Trust", "Private banking"),
             new Lookup("Westbrook Emerging Markets Fund", "Fund administration"),
             new Lookup("Willow Creek Municipal Plan", "Custody"));
-
-    @Override
-    public boolean connected() {
-        return false;
-    }
-
-    @Override
-    public ProTechMode mode() {
-        return ProTechMode.DEMO;
-    }
 
     @Override
     public List<Lookup> find(LookupKind kind, String query, int limit) {

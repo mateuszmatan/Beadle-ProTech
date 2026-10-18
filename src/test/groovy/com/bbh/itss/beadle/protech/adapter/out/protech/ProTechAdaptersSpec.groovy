@@ -56,7 +56,6 @@ class ProTechAdaptersSpec extends Specification {
             assert context.getBean(ProTechProperties).instanceUrl() == null
             def proTech = context.getBean(ProTechPort)
             assert proTech instanceof DemoProTechAdapter
-            assert !proTech.connected()
             assert proTech.mode() == DEMO
             assert context.getBean(ProTechLookupPort) instanceof DemoProTechLookups
             true

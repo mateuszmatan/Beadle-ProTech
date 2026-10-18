@@ -1,5 +1,9 @@
 package com.bbh.itss.beadle.protech.domain.change;
 
-/** Whether ProTech is reached and which ProTech it is. */
-public record ProTechStatus(boolean connected, ProTechMode mode) {
+/** Which ProTech the service talks to; only the live one is connected. */
+public record ProTechStatus(ProTechMode mode) {
+
+    public boolean connected() {
+        return mode == ProTechMode.LIVE;
+    }
 }

@@ -45,13 +45,13 @@ class ChangeServiceSpec extends Specification {
         CallerContext.clear()
     }
 
-    def "the status says whether ProTech is reached and which ProTech it is"() {
+    def "the status says which ProTech it is, and only the live one is connected"() {
         given:
-        proTech.connected() >> connected
         proTech.mode() >> mode
 
         expect:
-        service.status() == new ProTechStatus(connected, mode)
+        service.status() == new ProTechStatus(mode)
+        service.status().connected() == connected
 
         where:
         connected | mode

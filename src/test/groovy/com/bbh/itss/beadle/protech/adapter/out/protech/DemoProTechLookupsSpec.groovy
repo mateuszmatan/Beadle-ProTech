@@ -12,18 +12,11 @@ import static com.bbh.itss.beadle.protech.domain.change.LookupKind.INCIDENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.PROBLEMS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.RELEASES
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.USERS
-import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.RELEASE_MANAGEMENT
 
 class DemoProTechLookupsSpec extends Specification {
 
     def lookups = new DemoProTechLookups()
-
-    def "the demo lookups say they are the demo and not connected to ProTech"() {
-        expect:
-        !lookups.connected()
-        lookups.mode() == DEMO
-    }
 
     def "the users are BBH people with their e-mail, among them the demo approvers, each once"() {
         when:

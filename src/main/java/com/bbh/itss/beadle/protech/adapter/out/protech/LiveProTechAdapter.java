@@ -16,7 +16,6 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
-import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -87,11 +86,6 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
         this.records = new ProTechRecords(fields);
         this.url = CS.removeEnd(trimToEmpty(properties.instanceUrl()), "/");
         this.clock = clock;
-    }
-
-    @Override
-    public boolean connected() {
-        return true;
     }
 
     @Override
@@ -216,8 +210,8 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
      * read, to tell which change the approval of a task belongs to.
      */
     @Override
-    public Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since) {
-        List<String> numbers = numbers(watched.stream().map(TrackedChange::number));
+    public Map<String, ChangeActivity> activity(Collection<String> watched, Instant since) {
+        List<String> numbers = numbers(watched.stream());
         String changeNumber = column(ChangeField.NUMBER);
         String taskNumber = column(TaskField.NUMBER);
         String taskChange = column(TaskField.CHANGE);

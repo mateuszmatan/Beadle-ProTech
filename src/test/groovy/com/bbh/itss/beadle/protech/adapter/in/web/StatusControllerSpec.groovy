@@ -23,7 +23,6 @@ class StatusControllerSpec extends ControllerSpecification {
 
     def "the status says whether ProTech is reached and whether it is the demo or the live one"() {
         given:
-        proTech.connected() >> connected
         proTech.mode() >> mode
 
         when:

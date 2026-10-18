@@ -46,7 +46,7 @@ public class ChangeService implements ChangesUseCase {
 
     @Override
     public ProTechStatus status() {
-        return new ProTechStatus(proTech.connected(), proTech.mode());
+        return new ProTechStatus(proTech.mode());
     }
 
     @Override

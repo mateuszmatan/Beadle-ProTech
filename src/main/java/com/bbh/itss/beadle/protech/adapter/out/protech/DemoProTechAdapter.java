@@ -13,7 +13,6 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
-import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.RequiredArgsConstructor;
@@ -86,11 +85,6 @@ class DemoProTechAdapter implements ProTechPort {
     private final DemoProTechProperties properties;
 
     @Override
-    public boolean connected() {
-        return false;
-    }
-
-    @Override
     public ProTechMode mode() {
         return ProTechMode.DEMO;
     }
@@ -161,11 +155,10 @@ class DemoProTechAdapter implements ProTechPort {
      * change counts as made when it got it.
      */
     @Override
-    public Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since) {
+    public Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since) {
         Instant now = now(clock);
         Map<String, ChangeActivity> moved = new LinkedHashMap<>();
-        for (TrackedChange change : watched) {
-            String number = change.number();
+        for (String number : numbers) {
             Held current = held.computeIfPresent(number, (key, found) -> applied(found, now));
             if (current != null) {
                 ChangeActivity activity = current.activityAt(number, now, received.getOrDefault(number, now));

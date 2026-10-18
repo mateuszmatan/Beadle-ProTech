@@ -6,7 +6,6 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
-import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -15,8 +14,6 @@ import java.util.Map;
 
 /** The production changes of ProTech: raised, read back, updated and their approvers reminded. */
 public interface ProTechPort {
-
-    boolean connected();
 
     ProTechMode mode();
 
@@ -33,9 +30,8 @@ public interface ProTechPort {
     List<String> remind(String changeNumber, ApprovalRef approval);
 
     /**
-     * What ProTech did to the {@code watched} changes since {@code since}, by number; a change ProTech did nothing to,
-     * or does not know, may be left out. The changes come as Beadle-GUI knows them, so that the call log can tell a
-     * look that calls for a callback from one that found only what Beadle-GUI knows already.
+     * What ProTech did to the changes numbered {@code numbers} since {@code since}, by number; a change ProTech did
+     * nothing to, or does not know, may be left out.
      */
-    Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since);
+    Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since);
 }
