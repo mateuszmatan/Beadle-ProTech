@@ -6,16 +6,19 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 import static jakarta.persistence.EnumType.STRING;
+import static lombok.AccessLevel.PRIVATE;
 import static lombok.AccessLevel.PROTECTED;
 
 @Entity
 @Table(name = "BEADLE_PROTECH_CHANGE")
 @NoArgsConstructor(access = PROTECTED)
+@AllArgsConstructor(access = PRIVATE)
 class TrackedChangeEntity {
 
     @Id
@@ -31,13 +34,8 @@ class TrackedChangeEntity {
     private String correlationId;
 
     static TrackedChangeEntity of(TrackedChange change) {
-        TrackedChangeEntity entity = new TrackedChangeEntity();
-        entity.changeNumber = change.number();
-        entity.state = change.state();
-        entity.lastSeenAt = change.lastSeenAt();
-        entity.lastEventAt = change.lastEventAt();
-        entity.correlationId = change.correlationId();
-        return entity;
+        return new TrackedChangeEntity(change.number(), change.state(), change.lastSeenAt(), change.lastEventAt(),
+                change.correlationId());
     }
 
     TrackedChange toDomain() {

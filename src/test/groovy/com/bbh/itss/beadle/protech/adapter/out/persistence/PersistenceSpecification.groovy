@@ -5,7 +5,6 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
 import spock.lang.Specification
 
@@ -23,7 +22,4 @@ abstract class PersistenceSpecification extends Specification {
 
     @Autowired
     JdbcTemplate jdbc
-
-    @Autowired
-    PlatformTransactionManager transactionManager
 }

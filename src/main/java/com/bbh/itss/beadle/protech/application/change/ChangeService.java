@@ -1,7 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
-import com.bbh.itss.beadle.protech.application.WithoutTransaction;
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.change.port.in.ChangesUseCase;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
@@ -46,13 +45,11 @@ public class ChangeService implements ChangesUseCase {
     private final Clock clock;
 
     @Override
-    @WithoutTransaction
     public ProTechStatus status() {
         return new ProTechStatus(proTech.connected(), proTech.mode());
     }
 
     @Override
-    @WithoutTransaction
     public RaisedChange raise(ProductionChange draft) {
         ValidationProblems problems = new ValidationProblems();
         draft.validate(problems);
@@ -63,7 +60,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public String createTask(String changeNumber, ChangeTask task) {
         ValidationProblems problems = new ValidationProblems();
         task.validate(UNPLANNED, problems);
@@ -75,7 +71,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public Map<String, ProductionChange> read(List<ProductionChange> known) {
         List<ProductionChange> listed = emptyIfNull(known);
         ValidationProblems problems = new ValidationProblems();
@@ -97,7 +92,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public void update(String number, ProductionChange change) {
         ValidationProblems problems = new ValidationProblems();
         String path = numbered(number);
@@ -111,7 +105,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public List<String> remind(String changeNumber, ApprovalRef approval) {
         if ((approval.role() == null) == (trimToNull(approval.task()) == null)) {
             throw InvalidRequestException.of("task", ONE_OF_ROLE_OR_TASK);

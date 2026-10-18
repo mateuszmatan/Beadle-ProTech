@@ -2,7 +2,6 @@ package com.bbh.itss.beadle.protech.adapter.out.persistence
 
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.transaction.support.TransactionTemplate
 import spock.lang.Subject
 
 import java.time.Instant
@@ -54,17 +53,6 @@ class TrackedChangePersistenceAdapterSpec extends PersistenceSpecification {
         noExceptionThrown()
         adapter.find('CHG0031001') == Optional.of(trackedChange())
         jdbc.queryForObject('SELECT COUNT(*) FROM BEADLE_PROTECH_CHANGE', Integer) == 1
-    }
-
-    def "a change is followed even when the transaction around it rolls back"() {
-        when:
-        new TransactionTemplate(transactionManager).execute { status ->
-            adapter.track([trackedChange()])
-            status.setRollbackOnly()
-        }
-
-        then:
-        adapter.find('CHG0031001') == Optional.of(trackedChange())
     }
 
     def "a change Beadle-GUI acted on is known to it up to then, and a change not followed stays so"() {

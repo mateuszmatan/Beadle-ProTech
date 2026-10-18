@@ -1,7 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
-import com.bbh.itss.beadle.protech.application.WithoutTransaction;
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.change.port.in.ChangeWatchUseCase;
@@ -60,13 +59,11 @@ public class ChangeWatchService implements ChangeWatchUseCase {
     private final Clock clock;
 
     @Override
-    @WithoutTransaction
     public WatchReport tick() {
         return lookAt(tracked.watched(), now(clock));
     }
 
     @Override
-    @WithoutTransaction
     public WatchReport look(String number) {
         String wanted = trimToNull(number);
         if (wanted == null) {

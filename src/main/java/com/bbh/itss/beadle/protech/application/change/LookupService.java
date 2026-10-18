@@ -1,7 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
-import com.bbh.itss.beadle.protech.application.WithoutTransaction;
 import com.bbh.itss.beadle.protech.application.change.port.in.LookupsUseCase;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
@@ -24,7 +23,6 @@ public class LookupService implements LookupsUseCase {
     private final ProTechLookupPort lookups;
 
     @Override
-    @WithoutTransaction
     public List<Lookup> find(String kind, String query, Integer limit) {
         int size = getIfNull(limit, MAX_LOOKUPS);
         if (size < 1 || size > LIMIT_MAX) {

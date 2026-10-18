@@ -3,7 +3,6 @@ package com.bbh.itss.beadle.protech.adapter.out.persistence
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.transaction.support.TransactionTemplate
 import spock.lang.Subject
 
 import java.time.Instant
@@ -63,16 +62,5 @@ class CallLogPersistenceAdapterSpec extends PersistenceSpecification {
         null          | NOON.plusSeconds(60) | NOON.plusSeconds(180) | 0    | 10   || 2     | [2, 1]
         'even'        | NOON.plusSeconds(60) | null                  | 0    | 10   || 2     | [4, 2]
         null          | null                 | NOON                  | 0    | 10   || 0     | []
-    }
-
-    def "an entry is kept even when the transaction around it rolls back"() {
-        when:
-        new TransactionTemplate(transactionManager).execute { status ->
-            adapter.record(callLogEntry(id: null))
-            status.setRollbackOnly()
-        }
-
-        then:
-        jdbc.queryForObject('SELECT COUNT(*) FROM BEADLE_PROTECH_CALL_LOG', Integer) == 1
     }
 }

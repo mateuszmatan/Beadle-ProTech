@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 
@@ -15,6 +16,7 @@ import java.time.Instant;
 
 import static jakarta.persistence.EnumType.STRING;
 import static jakarta.persistence.GenerationType.IDENTITY;
+import static lombok.AccessLevel.PRIVATE;
 import static lombok.AccessLevel.PROTECTED;
 import static org.hibernate.type.SqlTypes.NUMERIC;
 
@@ -22,6 +24,7 @@ import static org.hibernate.type.SqlTypes.NUMERIC;
 @Entity
 @Table(name = "BEADLE_PROTECH_CALL_LOG")
 @NoArgsConstructor(access = PROTECTED)
+@AllArgsConstructor(access = PRIVATE)
 class CallLogEntity {
 
     @Id
@@ -51,17 +54,8 @@ class CallLogEntity {
     private long durationMs;
 
     static CallLogEntity of(CallLogEntry entry) {
-        CallLogEntity entity = new CallLogEntity();
-        entity.at = entry.at();
-        entity.userName = entry.userName();
-        entity.correlationId = entry.correlationId();
-        entity.system = entry.system();
-        entity.operation = entry.operation();
-        entity.target = entry.target();
-        entity.outcome = entry.outcome();
-        entity.message = entry.message();
-        entity.durationMs = entry.durationMs();
-        return entity;
+        return new CallLogEntity(null, entry.at(), entry.userName(), entry.correlationId(), entry.system(),
+                entry.operation(), entry.target(), entry.outcome(), entry.message(), entry.durationMs());
     }
 
     CallLogEntry toDomain() {

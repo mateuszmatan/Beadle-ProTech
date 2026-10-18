@@ -3,9 +3,9 @@ package com.bbh.itss.beadle.protech.adapter.out.persistence;
 import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort;
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -15,30 +15,24 @@ import java.util.Optional;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CLOSED;
 import static org.apache.commons.collections4.ListUtils.partition;
-import static org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW;
 
+/** The changes followed in BEADLE_PROTECH_CHANGE; each write is a transaction of its own. */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 class TrackedChangePersistenceAdapter implements TrackedChangePort {
 
     /** Oracle takes at most 1000 values in an IN list. */
     static final int IN_LIST_MAX = 500;
 
     private final TrackedChangeJpaRepository changes;
-    private final TransactionTemplate ownTransaction;
-
-    TrackedChangePersistenceAdapter(TrackedChangeJpaRepository changes,
-                                    PlatformTransactionManager transactionManager) {
-        this.changes = changes;
-        this.ownTransaction = new TransactionTemplate(transactionManager);
-        this.ownTransaction.setPropagationBehavior(PROPAGATION_REQUIRES_NEW);
-    }
+    private final TransactionTemplate transaction;
 
     @Override
     public void track(Collection<TrackedChange> seen) {
         for (TrackedChange change : seen) {
             try {
-                ownTransaction.executeWithoutResult(status -> merge(change, true));
+                transaction.executeWithoutResult(status -> merge(change, true));
             } catch (RuntimeException e) {
                 log.error("Change {} cannot be followed: Beadle-GUI will not hear when ProTech moves it",
                         change.number(), e);
@@ -49,7 +43,7 @@ class TrackedChangePersistenceAdapter implements TrackedChangePort {
     @Override
     public void touch(String number, Instant at, String correlationId) {
         try {
-            ownTransaction.executeWithoutResult(status ->
+            transaction.executeWithoutResult(status ->
                     merge(TrackedChange.touched(number, at, correlationId), false));
         } catch (RuntimeException e) {
             log.warn("Change {} was changed by Beadle-GUI but this cannot be noted: Beadle-GUI may hear of its own "
@@ -70,7 +64,7 @@ class TrackedChangePersistenceAdapter implements TrackedChangePort {
 
     @Override
     public void reported(TrackedChange looked, ChangeActivity activity, Instant at) {
-        ownTransaction.executeWithoutResult(status -> {
+        transaction.executeWithoutResult(status -> {
             TrackedChange current = changes.lockById(looked.number()).map(TrackedChangeEntity::toDomain)
                     .orElse(looked);
             changes.save(TrackedChangeEntity.of(current.reported(looked, activity, at)));
@@ -79,7 +73,7 @@ class TrackedChangePersistenceAdapter implements TrackedChangePort {
 
     @Override
     public void seen(Collection<String> numbers, Instant at) {
-        ownTransaction.executeWithoutResult(status ->
+        transaction.executeWithoutResult(status ->
                 partition(List.copyOf(numbers), IN_LIST_MAX).forEach(batch -> changes.seen(batch, at)));
     }
 

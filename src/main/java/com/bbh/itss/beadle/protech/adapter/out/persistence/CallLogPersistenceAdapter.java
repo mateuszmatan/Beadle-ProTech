@@ -5,35 +5,28 @@ import com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry;
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage;
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery;
 import jakarta.persistence.criteria.Predicate;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
-import static org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW;
 
+/** The call log in BEADLE_PROTECH_CALL_LOG; each entry is committed on its own, as the repository saves it. */
 @Component
+@RequiredArgsConstructor
 class CallLogPersistenceAdapter implements CallLogPort {
 
     private final CallLogJpaRepository entries;
-    private final TransactionTemplate ownTransaction;
-
-    CallLogPersistenceAdapter(CallLogJpaRepository entries, PlatformTransactionManager transactionManager) {
-        this.entries = entries;
-        this.ownTransaction = new TransactionTemplate(transactionManager);
-        this.ownTransaction.setPropagationBehavior(PROPAGATION_REQUIRES_NEW);
-    }
 
     @Override
     public CallLogEntry record(CallLogEntry entry) {
-        return ownTransaction.execute(status -> entries.save(CallLogEntity.of(entry)).toDomain());
+        return entries.save(CallLogEntity.of(entry)).toDomain();
     }
 
     @Override
