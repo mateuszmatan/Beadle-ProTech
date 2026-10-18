@@ -52,6 +52,8 @@ beadle:
     instance-url: ${PROTECH_URL:}
     username: ${PROTECH_USERNAME:}
     password: ${PROTECH_PASSWORD:}
+    # The token ProTech sends to the webhook, accepted on POST /api/protech/webhook only.
+    webhook-token: ${PROTECH_WEBHOOK_TOKEN:}
     # How often the ticker asks ProTech what moved.
     poll: ${PROTECH_POLL:PT1M}
     demo:

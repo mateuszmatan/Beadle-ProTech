@@ -204,7 +204,7 @@ the value and the detail; a `^` in it is doubled, as the encoded query syntax wa
 
 The poll finds every move within `beadle.protech.poll`. To have Beadle-GUI hear of a move at once, ProTech can call
 `POST {Beadle-ProTech}/api/protech/webhook` with `{"number": "CHG0001234"}` and `Authorization: Bearer
-<BEADLE_SERVICE_TOKEN>` whenever it updates a change, a change task or an approval: the number is always the one of
+<PROTECH_WEBHOOK_TOKEN>` whenever it updates a change, a change task or an approval: the number is always the one of
 the change (for a task, of its change; for an approval, of the change it or its task belongs to). Beadle-ProTech
 then looks at that change as the poll does (the same three queries, for that change only) and calls Beadle-GUI back
 if it moved past what Beadle-GUI knows; it answers `202`, also for a change it does not follow, and leaves the poll
@@ -219,13 +219,16 @@ var message = new sn_ws.RESTMessageV2();
 message.setEndpoint(gs.getProperty('x_bbh.beadle_protech.webhook_url'));   // https://.../api/protech/webhook
 message.setHttpMethod('POST');
 message.setRequestHeader('Content-Type', 'application/json');
-message.setRequestHeader('Authorization', 'Bearer ' + gs.getProperty('x_bbh.beadle_protech.token')); // password2
+message.setRequestHeader('Authorization', 'Bearer ' + gs.getProperty('x_bbh.beadle_protech.webhook_token')); // password2
 message.setRequestBody(JSON.stringify({number: changeNumber}));             // the number of the change
 message.executeAsync();
 ```
 
-Keep the token in an encrypted (`password2`) system property. ProTech reaches the webhook through the Route of the
-`webhook-route` component of the OpenShift manifests, which publishes `/api/protech/webhook` alone (see the README).
+The webhook token is `beadle.protech.webhook-token` (`PROTECH_WEBHOOK_TOKEN`, in the secret `beadle-protech-account`):
+it opens `POST /api/protech/webhook` and nothing else, so the token the Beadle services share never leaves the
+cluster; blank, the webhook takes the service token only. Keep it in an encrypted (`password2`) system property.
+ProTech reaches the webhook through the Route of the `webhook-route` component of the OpenShift manifests, which
+publishes `/api/protech/webhook` alone (see the README).
 
 ## What the service account needs in ProTech
 

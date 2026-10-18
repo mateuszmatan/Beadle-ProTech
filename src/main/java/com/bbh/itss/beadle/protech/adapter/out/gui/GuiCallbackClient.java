@@ -1,7 +1,9 @@
 package com.bbh.itss.beadle.protech.adapter.out.gui;
 
+import com.bbh.itss.beadle.protech.adapter.BeadleHeaders;
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
+import com.bbh.itss.beadle.protech.domain.calllog.Caller;
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -13,9 +15,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Optional;
 
-import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.CORRELATION_HEADER;
-import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.SYSTEM_USER;
-import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.USER_HEADER;
 import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.commons.lang3.StringUtils.truncate;
@@ -41,7 +40,7 @@ class GuiCallbackClient implements CallbackPort {
     GuiCallbackClient(GuiProperties properties, @Value("${beadle.services.token:}") String token,
                       RestClient.Builder builder) {
         this.client = builder.baseUrl(CS.removeEnd(trimToEmpty(properties.url()), "/"))
-                .defaultHeader(AUTHORIZATION, "Bearer " + trimToEmpty(token)).defaultHeader(USER_HEADER, SYSTEM_USER)
+                .defaultHeader(AUTHORIZATION, "Bearer " + trimToEmpty(token)).defaultHeader(BeadleHeaders.USER, Caller.SYSTEM)
                 .build();
     }
 
@@ -50,7 +49,7 @@ class GuiCallbackClient implements CallbackPort {
         try {
             ResponseEntity<Void> answer = client.post().uri(PATH).contentType(APPLICATION_JSON).accept(APPLICATION_JSON)
                     .headers(headers -> Optional.ofNullable(CallerContext.current().correlationId())
-                            .ifPresent(id -> headers.set(CORRELATION_HEADER, id)))
+                            .ifPresent(id -> headers.set(BeadleHeaders.CORRELATION_ID, id)))
                     .body(callback).retrieve().toBodilessEntity();
             if (!answer.getStatusCode().is2xxSuccessful()) {
                 throw new RestClientException(GUI + " answered " + answer.getStatusCode());

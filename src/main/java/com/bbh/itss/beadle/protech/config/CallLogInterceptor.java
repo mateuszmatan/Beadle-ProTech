@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.CORRELATION_MAX;
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.MESSAGE_MAX;
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.TARGET_MAX;
 import static com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry.USER_MAX;
@@ -141,7 +140,7 @@ class CallLogInterceptor implements MethodInterceptor {
                         Outcome outcome, String message) {
         Caller caller = CallerContext.current();
         CallLogEntry entry = new CallLogEntry(null, at, abbreviateBytes(caller.user(), USER_MAX),
-                abbreviateBytes(caller.correlationId(), CORRELATION_MAX), system, method.getName(), target, outcome,
+                caller.correlationId(), system, method.getName(), target, outcome,
                 abbreviateBytes(message, MESSAGE_MAX), elapsed);
         try {
             callLog.getObject().record(entry);

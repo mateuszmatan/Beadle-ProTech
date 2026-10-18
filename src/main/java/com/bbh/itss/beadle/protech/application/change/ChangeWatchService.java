@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static com.bbh.itss.beadle.protech.application.calllog.CallerContext.SYSTEM_USER;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static java.util.UUID.randomUUID;
@@ -82,7 +81,7 @@ public class ChangeWatchService implements ChangeWatchUseCase {
         }
         Instant since = watched.stream().map(change -> getIfNull(change.lastSeenAt(), change.lastEventAt()))
                 .filter(Objects::nonNull).min(Instant::compareTo).orElse(now).minus(MARGIN);
-        Map<String, ChangeActivity> activity = CallerContext.as(new Caller(SYSTEM_USER, randomUUID().toString()),
+        Map<String, ChangeActivity> activity = CallerContext.as(Caller.system(randomUUID().toString()),
                 () -> proTech.activity(watched, since));
         List<ChangeCallback> sent = new ArrayList<>();
         Map<String, String> failures = new LinkedHashMap<>();
@@ -95,7 +94,7 @@ public class ChangeWatchService implements ChangeWatchUseCase {
                 continue;
             }
             try {
-                CallerContext.run(new Caller(SYSTEM_USER, change.correlationId()),
+                CallerContext.run(Caller.system(change.correlationId()),
                         () -> callbacks.notify(callback.get()));
                 tracked.reported(change, found, now);
                 sent.add(callback.get());

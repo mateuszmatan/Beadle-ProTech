@@ -174,16 +174,16 @@ class CallLogConfigurationSpec extends Specification {
         }
     }
 
-    def "the caller, the target and the message are cut to the columns of the call log"() {
+    def "the user and the target are cut to the columns of the call log"() {
         given:
-        CallerContext.set(new Caller('u' * 300, 'c' * 300))
+        CallerContext.set(new Caller('u' * 300, 'corr-1'))
 
         expect:
         runner.run { ApplicationContext context ->
             context.getBean(ProTechPort).read((1..60).collect { raised(number: "CHG00310${it.toString().padLeft(2, '0')}") })
             with(recorded[0]) {
                 assert userName().length() == CallLogEntry.USER_MAX
-                assert correlationId().length() == CallLogEntry.CORRELATION_MAX
+                assert correlationId() == 'corr-1'
                 assert target().length() <= CallLogEntry.TARGET_MAX
                 assert target().startsWith('CHG0031001,CHG0031002,')
                 assert target().endsWith('...')

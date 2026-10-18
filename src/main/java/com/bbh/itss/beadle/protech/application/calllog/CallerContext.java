@@ -9,15 +9,11 @@ import static lombok.AccessLevel.PRIVATE;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 
 /**
- * The caller of the work on the current thread: the user and correlation id of the call of Beadle-GUI being served
- * ({@code X-Beadle-User}, {@code X-Correlation-Id}), or {@code system} for the scheduled work.
+ * The caller of the work on the current thread: the user and correlation id of the call of Beadle-GUI being served,
+ * or {@link Caller#SYSTEM} for the scheduled work.
  */
 @NoArgsConstructor(access = PRIVATE)
 public final class CallerContext {
-
-    public static final String USER_HEADER = "X-Beadle-User";
-    public static final String CORRELATION_HEADER = "X-Correlation-Id";
-    public static final String SYSTEM_USER = "system";
 
     private static final ThreadLocal<Caller> CURRENT = new ThreadLocal<>();
 

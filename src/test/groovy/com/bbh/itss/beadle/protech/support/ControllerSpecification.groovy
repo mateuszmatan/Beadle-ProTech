@@ -26,7 +26,7 @@ abstract class ControllerSpecification extends Specification {
     def setup() {
         mvc = standaloneSetup(controller())
                 .setControllerAdvice(new ApiExceptionHandler())
-                .addFilters(new ServiceTokenFilter(TOKEN))
+                .addFilters(new ServiceTokenFilter(TOKEN, null))
                 .build()
     }
 
