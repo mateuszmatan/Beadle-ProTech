@@ -29,13 +29,14 @@ class DemoProTechLookups implements ProTechLookupPort {
             "Jane Smith", "Kenji Watanabe", "Laura Kingsley", "Marcus Webb", "Mateusz Matan", "Michael Grant",
             "Olivia Bennett", "Priya Natarajan", "Rebecca Lawson", "Robert Ellison", "Samuel Price", "Sophia Turner",
             "Thomas Ashby", "William Hayes");
-    static final List<Lookup> DEPARTMENTS = List.of(new Lookup("AI Lab", "Cost centre 4110"),
+    static final List<Lookup> BUSINESS_SERVICES = List.of(new Lookup("AI Lab", "Cost centre 4110"),
             new Lookup("Capital Partners", "Cost centre 4220"), new Lookup("Compliance", "Cost centre 4630"),
             new Lookup("Corporate Technology", "Cost centre 4310"), new Lookup("Custody", "Cost centre 4410"),
             new Lookup("Fund Services", "Cost centre 4510"), new Lookup("Information Security", "Cost centre 4320"),
             new Lookup("Infrastructure & Operations", "Cost centre 4330"),
             new Lookup("Investor Services", "Cost centre 4520"), new Lookup("Private Banking", "Cost centre 4710"),
             new Lookup("Treasury", "Cost centre 4810"));
+    static final List<Lookup> DEPARTMENTS = BUSINESS_SERVICES;
     static final List<Product> CATALOGUE = List.of(
             new Product("DOCSENSE", "DocSense", "AI Lab", "AI Lab Engineering"),
             new Product("ADVISORAI", "Advisor Assistant", "AI Lab", "AI Lab Engineering"),
@@ -117,7 +118,7 @@ class DemoProTechLookups implements ProTechLookupPort {
     private static Stream<Lookup> lookups(LookupKind kind) {
         return switch (kind) {
             case USERS -> USERS.stream().map(name -> new Lookup(name, emailOf(name)));
-            case DEPARTMENTS -> DEPARTMENTS.stream();
+            case BUSINESS_SERVICES, DEPARTMENTS -> BUSINESS_SERVICES.stream();
             case ASSIGNMENT_GROUPS -> Stream.concat(CATALOGUE.stream()
                     .map(product -> new Lookup(product.ownerTeam() + SUPPORT, product.department())),
                     INFRASTRUCTURE_GROUPS.stream()).distinct();
