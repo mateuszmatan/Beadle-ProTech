@@ -21,7 +21,7 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
  */
 @Builder(toBuilder = true)
 public record ProductionChange(Long id, String number, Long productId, String productCode, String productName,
-                               Long departmentId, String departmentName, String openedBy, String fixVersion,
+                               Long businessServiceId, String businessServiceName, String openedBy, String fixVersion,
                                ChangeSchedule schedule, String shortDescription, String description,
                                ChangeTemplate template, List<String> epicKeys, List<String> storyKeys,
                                List<ChangeTask> tasks, String url, ChangeState state, List<WorkflowStep> workflow,

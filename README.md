@@ -217,9 +217,7 @@ kustomize edit set image beadle-protech=<registry>/<project>/beadle-protech:0.1.
 oc apply -k .
 ```
 
-Run one replica: the ticker runs in every replica and each would send the callbacks. During a rolling update the
-old and the new pod may both send one; Beadle-GUI reads the change again on each, so a repeated callback does no
-harm. The demo ProTech keeps its changes in memory, one copy per pod.
+The Deployment runs 1 replica (`replicas: 1`) on test (`rd`, `qc`) and production (`prod`) OpenShift environments. Redundant instances are not needed because OpenShift automatically respawns the pod if it becomes unavailable. It mounts emptyDir `/application/logs` for rolling logs. Callbacks to Beadle-GUI are idempotent.
 
 ## Tests
 

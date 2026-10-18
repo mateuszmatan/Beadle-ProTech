@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: beadle-protech
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 5
   strategy:
     type: RollingUpdate
@@ -76,3 +76,9 @@ spec:
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: logs
+              mountPath: /application/logs
+      volumes:
+        - name: logs
+          emptyDir: {}

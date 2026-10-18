@@ -123,7 +123,7 @@ class ProTechAdaptersSpec extends Specification {
         ProTechFields.DEFAULTS.changeStates().keySet() as List == ChangeState.values() as List
         ProTechFields.DEFAULTS.changeStates()[CLOSED].first() == '3'
         ProTechFields.DEFAULTS.taskStates()[CANCELED].first() == '4'
-        ProTechFields.DEFAULTS.lookups().size() == 8
+        ProTechFields.DEFAULTS.lookups().size() == 9
     }
 
     @EnableConfigurationProperties([ProTechProperties, DemoProTechProperties])

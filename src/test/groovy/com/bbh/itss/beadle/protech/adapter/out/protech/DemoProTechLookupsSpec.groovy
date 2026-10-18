@@ -5,6 +5,7 @@ import com.bbh.itss.beadle.protech.domain.change.LookupKind
 import spock.lang.Specification
 
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS
+import static com.bbh.itss.beadle.protech.domain.change.LookupKind.BUSINESS_SERVICES
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CLIENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CONFIGURATION_ITEMS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.DEPARTMENTS
@@ -40,6 +41,7 @@ class DemoProTechLookupsSpec extends Specification {
     def "the departments are BBH's with their cost centre"() {
         when:
         def found = lookups.find(DEPARTMENTS, null, 100)
+        def businessServices = lookups.find(BUSINESS_SERVICES, null, 100)
 
         then:
         found*.value() == ['AI Lab', 'Capital Partners', 'Compliance', 'Corporate Technology', 'Custody',
@@ -47,6 +49,7 @@ class DemoProTechLookupsSpec extends Specification {
                            'Investor Services', 'Private Banking', 'Treasury']
         found.every { it.detail() ==~ /Cost centre \d{4}/ }
         lookups.find(DEPARTMENTS, 'operations', 20)*.value() == ['Infrastructure & Operations']
+        businessServices == found
     }
 
     def "the assignment groups are the support groups of the product teams and the infrastructure groups"() {

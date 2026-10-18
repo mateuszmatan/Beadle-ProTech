@@ -30,6 +30,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeState.PRIMARY_APPR
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SECONDARY_APPROVAL;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SUPPORT_APPROVAL;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GROUPS;
+import static com.bbh.itss.beadle.protech.domain.change.LookupKind.BUSINESS_SERVICES;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CLIENTS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CONFIGURATION_ITEMS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.DEPARTMENTS;
@@ -75,6 +76,7 @@ public record ProTechFields(Map<ChangeField, String> change, Map<TaskField, Stri
             APPROVED, List.of("approved", "not_required"));
     static final Map<LookupKind, LookupTable> LOOKUPS = Map.of(
             USERS, new LookupTable("sys_user", "name", "email", "active=true"),
+            BUSINESS_SERVICES, new LookupTable("cmn_department", "name", "cost_center", ""),
             DEPARTMENTS, new LookupTable("cmn_department", "name", "cost_center", ""),
             ASSIGNMENT_GROUPS, new LookupTable("sys_user_group", "name", "description", "active=true"),
             RELEASES, new LookupTable("rm_release", "short_description", "number", ""),

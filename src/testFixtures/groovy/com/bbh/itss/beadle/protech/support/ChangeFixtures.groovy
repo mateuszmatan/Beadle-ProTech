@@ -29,8 +29,15 @@ class ChangeFixtures {
     static final Instant RAISED = Instant.parse('2026-10-05T09:00:00Z')
 
     static <T extends Record> T copy(Map changes, T record) {
+        def mapped = new HashMap(changes)
+        if (mapped.containsKey('departmentId') && !mapped.containsKey('businessServiceId')) {
+            mapped.businessServiceId = mapped.departmentId
+        }
+        if (mapped.containsKey('departmentName') && !mapped.containsKey('businessServiceName')) {
+            mapped.businessServiceName = mapped.departmentName
+        }
         def components = record.class.recordComponents
-        def args = components.collect { changes.containsKey(it.name) ? changes[it.name] : it.accessor.invoke(record) }
+        def args = components.collect { mapped.containsKey(it.name) ? mapped[it.name] : it.accessor.invoke(record) }
         record.class.declaredConstructors.find { it.parameterCount == components.length }
                 .newInstance(args as Object[]) as T
     }
@@ -93,7 +100,7 @@ class ChangeFixtures {
 
     static ProductionChange raised(Map changes = [:]) {
         copy(changes, ProductionChange.builder().id(7L).number('CHG0031001').productId(1L).productCode('CERTSCANNER')
-                .productName('CertScanner').departmentId(3L).departmentName('Corporate Technology')
+                .productName('CertScanner').businessServiceId(3L).businessServiceName('Corporate Technology')
                 .fixVersion(FIX_VERSION).schedule(schedule()).shortDescription('CertScanner CERT 4.2: Expiry alerts')
                 .description('Production release CERT 4.2 of CertScanner.').template(template(release: FIX_VERSION))
                 .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
