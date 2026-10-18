@@ -11,6 +11,7 @@ import spock.lang.Specification
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.privileged
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.problemsThrownBy
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
@@ -112,7 +113,7 @@ class ChangeTemplateSpec extends Specification {
         schedule(edits).check(false, problems.at('schedule'))
 
         then:
-        problems.list().collect { "$it.field $it.message".toString() } == expected
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() } == expected
 
         where:
         edits                                                                        || expected
@@ -134,7 +135,7 @@ class ChangeTemplateSpec extends Specification {
         schedule(edits).check(downtime, problems.at('schedule'))
 
         then:
-        problems.list().collect { "$it.field $it.message".toString() } == expected
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() } == expected
 
         where:
         downtime | edits                                                                      || expected
@@ -153,6 +154,6 @@ class ChangeTemplateSpec extends Specification {
     private static List<String> problems(ChangeTemplate template) {
         def problems = new ValidationProblems()
         template.validate(problems.at('template'))
-        problems.list().collect { "$it.field $it.message".toString() }
+        problemsThrownBy(problems).collect { "$it.field $it.message".toString() }
     }
 }

@@ -16,6 +16,9 @@ import com.bbh.itss.beadle.protech.domain.change.SecureCoding
 import com.bbh.itss.beadle.protech.domain.change.TaskDetails
 import com.bbh.itss.beadle.protech.domain.change.TaskState
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
+import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
+import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem
+import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems
 
 import java.time.Instant
 
@@ -106,5 +109,15 @@ class ChangeFixtures {
 
     static Instant at(String text) {
         Instant.parse(text)
+    }
+
+    /** The field problems the {@link InvalidRequestException} of {@code problems} names; none when they pass. */
+    static List<FieldProblem> problemsThrownBy(ValidationProblems problems) {
+        try {
+            problems.throwIfAny()
+            []
+        } catch (InvalidRequestException e) {
+            e.problems()
+        }
     }
 }

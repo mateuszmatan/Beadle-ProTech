@@ -61,11 +61,6 @@ record TableRow(Map<String, Object> fields) {
         return part(field, "display_value");
     }
 
-    /** The display value of the field, or {@code fallback} when the field is not mapped or not in the answer. */
-    String text(String field, String fallback) {
-        return has(field) ? display(field) : fallback;
-    }
-
     /** The date-time of the field, or {@code fallback} when the field is not mapped or not in the answer. */
     Instant instant(String field, Instant fallback) {
         return has(field) ? instantOf(value(field)) : fallback;

@@ -9,6 +9,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_D
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.issued
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.problemsThrownBy
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
@@ -45,7 +46,7 @@ class ProductionChangeSpec extends Specification {
         issued(edits).validate(problems)
 
         then:
-        problems.list().collect { it.field() + ' ' + it.message() } == expected
+        problemsThrownBy(problems).collect { it.field() + ' ' + it.message() } == expected
 
         where:
         problem                          | edits                                                               || expected
