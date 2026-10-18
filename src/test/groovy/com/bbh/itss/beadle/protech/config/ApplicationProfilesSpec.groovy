@@ -103,13 +103,14 @@ class ApplicationProfilesSpec extends Specification {
         profile << ['rd', 'qc', 'prod']
     }
 
-    def "the #profile profile does not start while PROTECH_URL is #blank, since the demo ProTech would answer in its place"() {
+    def "the #profile profile does not start while PROTECH_URL is #blank, since the demo ProTech would answer in its place, and names the secret to set it in"() {
         when:
         environment([profile], ORACLE + variables, RealProTechConfiguration)
 
         then:
         def e = thrown(IllegalStateException)
         e.message.startsWith('The rd, qc and prod profiles need the real ProTech, but PROTECH_URL is blank')
+        e.message.endsWith('PROTECH_PASSWORD in the secret beadle-protech-account.')
 
         where:
         profile | variables                                 || blank

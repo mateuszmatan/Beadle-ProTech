@@ -1,6 +1,5 @@
 package com.bbh.itss.beadle.protech.config
 
-import org.springframework.mock.env.MockEnvironment
 import org.yaml.snakeyaml.Yaml
 import spock.lang.Specification
 
@@ -31,15 +30,6 @@ class OpenShiftManifestsSpec extends Specification {
 
         where:
         profile << ['rd', 'qc', 'prod']
-    }
-
-    def "the start refused for a blank PROTECH_URL names the secret the Deployment reads it from"() {
-        when:
-        RealProTechConfiguration.realProTechCheck(new MockEnvironment()).postProcessBeanFactory(null)
-
-        then:
-        def e = thrown(IllegalStateException)
-        e.message.endsWith('PROTECH_PASSWORD in the secret beadle-protech-account.')
     }
 
     def "no manifest calls ProTech ServiceNow, a word kept for the product and its REST API: #file.name"() {

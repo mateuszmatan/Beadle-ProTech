@@ -16,6 +16,7 @@ import com.bbh.itss.beadle.protech.domain.change.TaskState;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.RequiredArgsConstructor;
+import lombok.With;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -258,7 +259,7 @@ class DemoProTechAdapter implements ProTechPort {
                 current = current.with(apply(current.change(), update.requested(), update.dueAt()), update.dueAt());
             }
         }
-        return current.waiting(waiting);
+        return current.withQueued(waiting);
     }
 
     private ProductionChange apply(ProductionChange current, ProductionChange requested, Instant at) {
@@ -282,15 +283,11 @@ class DemoProTechAdapter implements ProTechPort {
     private record Queued(Instant dueAt, ProductionChange requested) {
     }
 
-    private record Held(ProductionChange change, Instant createdAt, List<Queued> queued, List<WorkflowStep> kept,
-                        Instant rescheduledAt, Map<String, Instant> tasked) {
+    private record Held(ProductionChange change, Instant createdAt, @With List<Queued> queued,
+                        List<WorkflowStep> kept, Instant rescheduledAt, Map<String, Instant> tasked) {
 
         Held queued(Queued update) {
-            return waiting(Stream.concat(queued.stream(), Stream.of(update)).toList());
-        }
-
-        Held waiting(List<Queued> waiting) {
-            return new Held(change, createdAt, waiting, kept, rescheduledAt, tasked);
+            return withQueued(Stream.concat(queued.stream(), Stream.of(update)).toList());
         }
 
         Held with(ProductionChange applied, Instant at) {
