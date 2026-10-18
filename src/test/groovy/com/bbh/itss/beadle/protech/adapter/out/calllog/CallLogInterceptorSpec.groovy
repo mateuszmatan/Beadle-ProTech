@@ -1,23 +1,24 @@
-package com.bbh.itss.beadle.protech.config
+package com.bbh.itss.beadle.protech.adapter.out.calllog
 
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort
-import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
+import com.bbh.itss.beadle.protech.config.CallLogConfiguration
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
 import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import com.bbh.itss.beadle.protech.domain.change.Lookup
 import com.bbh.itss.beadle.protech.domain.change.LookupKind
 import com.bbh.itss.beadle.protech.domain.change.ProTechMode
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
-import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -44,7 +45,7 @@ import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
 import static java.time.Clock.fixed
 import static java.time.ZoneOffset.UTC
 
-class CallLogConfigurationSpec extends Specification {
+class CallLogInterceptorSpec extends Specification {
 
     static final Instant NOW = Instant.parse('2026-10-15T09:00:00Z')
 

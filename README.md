@@ -34,6 +34,7 @@ com.bbh.itss.beadle.protech
 ├── adapter/in/schedule        the ticker that looks for moved changes
 ├── adapter/out/protech        LiveProTechAdapter (Table API) and the demo ProTech for the laptop
 ├── adapter/out/gui            the callbacks to Beadle-GUI
+├── adapter/out/calllog        writes every call of the ports to ProTech and Beadle-GUI to the call log
 ├── adapter/out/persistence    JPA: call log, followed changes
 └── config                     Spring wiring and properties
 ```

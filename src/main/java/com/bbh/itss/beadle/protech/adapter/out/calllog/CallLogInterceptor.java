@@ -1,4 +1,4 @@
-package com.bbh.itss.beadle.protech.config;
+package com.bbh.itss.beadle.protech.adapter.out.calllog;
 
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort;
@@ -59,7 +59,7 @@ import static org.springframework.util.ClassUtils.hasMethod;
  */
 @Slf4j
 @RequiredArgsConstructor
-class CallLogInterceptor implements MethodInterceptor {
+public class CallLogInterceptor implements MethodInterceptor {
 
     static final Set<String> UNLOGGED = Set.of("mode");
     /** The calls that only read: logged at DEBUG, every other call changes something and is logged at INFO. */
@@ -70,7 +70,7 @@ class CallLogInterceptor implements MethodInterceptor {
     private final ObjectProvider<CallLogPort> callLog;
     private final ObjectProvider<Clock> clock;
 
-    static Pointcut pointcut() {
+    public static Pointcut pointcut() {
         return new StaticMethodMatcherPointcut() {
             @Override
             public boolean matches(Method method, Class<?> targetClass) {
