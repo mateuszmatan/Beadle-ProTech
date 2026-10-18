@@ -60,7 +60,8 @@ dependencies {
     testFixturesApi platform(libs.spock.bom)
     testFixturesApi libs.spock.core
     testFixturesApi libs.spock.spring
-    testFixturesApi libs.archunit.junit5
+
+    testImplementation libs.archunit.junit5
 }
 
 jacoco {
