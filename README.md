@@ -17,7 +17,7 @@ Beadle-GUI (8081) ──REST──> Beadle-ProTech (8083) ──Table API──>
 
 Only Beadle-GUI calls the API, and ProTech may call the webhook. Every call carries
 `Authorization: Bearer <BEADLE_SERVICE_TOKEN>`, the signed-in user in `X-Beadle-User` and the user action in
-`X-Correlation-Id` (at most 64 characters). The webhook also accepts its own `PROTECH_WEBHOOK_TOKEN`, which opens
+`X-Correlation-Id` (at most 64 bytes). The webhook also accepts its own `PROTECH_WEBHOOK_TOKEN`, which opens
 nothing else. The endpoints, bodies, headers and the callback are specified in [docs/CONTRACTS.md](docs/CONTRACTS.md),
 which is the same file in all three repositories. [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) lists the
 ProTech tables, fields and Table API calls behind every endpoint.

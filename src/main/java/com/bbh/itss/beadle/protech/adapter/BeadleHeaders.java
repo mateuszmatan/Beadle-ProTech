@@ -10,6 +10,6 @@ public final class BeadleHeaders {
 
     /** The user signed in to Beadle-GUI, percent-encoded in UTF-8; {@code system} for the work of a service. */
     public static final String USER = "X-Beadle-User";
-    /** The correlation id of the user action, at most {@code CallLogEntry.CORRELATION_MAX} characters. */
+    /** The correlation id of the user action, at most {@code CallLogEntry.CORRELATION_MAX} bytes in UTF-8. */
     public static final String CORRELATION_ID = "X-Correlation-Id";
 }

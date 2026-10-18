@@ -39,8 +39,8 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
  * services never leaves the cluster. Anything else is answered {@code 401} with a problem; the health endpoints under
  * {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift, and a blank token opens nothing. A
  * call let in runs as the caller its headers name ({@code X-Beadle-User}, percent-decoded, {@link Caller#UNKNOWN}
- * when there is none, and {@code X-Correlation-Id}, a fresh one when there is none and {@code 400} when it is longer
- * than 64 characters), so that the call log can tell who caused each call to ProTech; {@link CallerContext} puts the
+ * when there is none, and {@code X-Correlation-Id}, a fresh one when there is none and {@code 400}, logged, when it is
+ * longer than 64 bytes), so that the call log can tell who caused each call to ProTech; {@link CallerContext} puts the
  * correlation id in the MDC for every line logged meanwhile.
  */
 @Slf4j
@@ -54,7 +54,7 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
     public static final String BEARER = "Bearer ";
     public static final String DETAIL = "The call needs the Beadle service token as Authorization: Bearer <token>.";
     public static final String CORRELATION_TOO_LONG = "is too long: it may take at most " + CORRELATION_MAX
-            + " characters";
+            + " bytes";
     static final String UNAUTHORIZED_PROBLEM = "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"" + DETAIL
             + "\"}";
     static final String CORRELATION_PROBLEM = "{\"title\":\"Validation failed\",\"status\":400,\"detail\":\""
@@ -96,7 +96,10 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
             return;
         }
         String correlationId = trimToNull(request.getHeader(BeadleHeaders.CORRELATION_ID));
-        if (correlationId != null && bytes(correlationId) > CORRELATION_MAX) {
+        int length = correlationId == null ? 0 : bytes(correlationId);
+        if (length > CORRELATION_MAX) {
+            log.warn("Refused {} {}: X-Correlation-Id of {} bytes", request.getMethod(), request.getRequestURI(),
+                    length);
             problem(response, BAD_REQUEST, CORRELATION_PROBLEM);
             return;
         }
