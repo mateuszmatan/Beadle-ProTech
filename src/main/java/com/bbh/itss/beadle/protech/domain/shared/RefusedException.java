@@ -10,4 +10,16 @@ public class RefusedException extends IllegalStateException {
     public RefusedException(String message) {
         super(message);
     }
+
+    public static RefusedException noChange(String number) {
+        return new RefusedException("ProTech has no change " + number);
+    }
+
+    public static RefusedException noTask(String task, String change) {
+        return new RefusedException("ProTech has no change task " + task + " on " + change);
+    }
+
+    public static RefusedException nobodyToRemind(String change) {
+        return new RefusedException("ProTech has nobody to remind on " + change);
+    }
 }

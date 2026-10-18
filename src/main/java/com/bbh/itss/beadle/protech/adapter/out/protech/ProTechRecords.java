@@ -44,8 +44,6 @@ import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.REQUESTED;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeSchedule.UNPLANNED;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.nullsLast;
-import static java.util.function.Function.identity;
-import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.Strings.CI;
 
@@ -163,8 +161,7 @@ class ProTechRecords {
     private List<ChangeTask> tasksOf(List<ChangeTask> known, List<TableRow> rows,
                                      Map<String, List<TableRow>> approvals) {
         String number = fields.column(TaskField.NUMBER);
-        Map<String, ChangeTask> byNumber = known.stream().filter(task -> task.number() != null)
-                .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
+        Map<String, ChangeTask> byNumber = ChangeTask.byNumber(known);
         List<String> order = List.copyOf(byNumber.keySet());
         Function<TableRow, Integer> listed = row -> order.contains(row.value(number))
                 ? order.indexOf(row.value(number)) : order.size();

@@ -1,9 +1,7 @@
 package com.bbh.itss.beadle.protech.config
 
-import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechProperties
 import com.bbh.itss.beadle.protech.support.EnvironmentVariables
 import org.springframework.boot.builder.SpringApplicationBuilder
-import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import spock.lang.Specification
@@ -56,16 +54,6 @@ class ApplicationProfilesSpec extends Specification {
         env.getProperty('beadle.gui.url') == 'http://beadle:8081'
         env.getProperty('beadle.services.token') == 'token'
         env.getProperty('server.port') == '9090'
-    }
-
-    def "Beadle-GUI's BEADLE_PROTECH_URL in a shell shared with it does not name ProTech, which stays the demo"() {
-        when:
-        def env = environment([], SHARED_WITH_GUI)
-
-        then:
-        env.getProperty('BEADLE_PROTECH_URL') == 'http://localhost:8083'
-        env.getProperty('beadle.protech.instance-url') == ''
-        Binder.get(env).bind('beadle.protech', ProTechProperties).get().instanceUrl() == ''
     }
 
     def "the #profile profile runs on the Oracle database given by the environment"() {

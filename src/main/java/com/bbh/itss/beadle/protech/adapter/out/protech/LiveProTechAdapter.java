@@ -53,7 +53,6 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 import static org.apache.commons.lang3.Strings.CI;
-import static org.apache.commons.lang3.Strings.CS;
 
 /**
  * The live ProTech, used when {@code beadle.protech.instance-url} names it. ProTech runs on ServiceNow; this adapter
@@ -84,7 +83,7 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
         this.api = new TableApi(builder, properties);
         this.fields = properties.fields();
         this.records = new ProTechRecords(fields);
-        this.url = CS.removeEnd(trimToEmpty(properties.instanceUrl()), "/");
+        this.url = properties.instanceUrl();
         this.clock = clock;
     }
 
@@ -173,7 +172,7 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
                     + " waits for your approval.";
         }
         if (waiting.isEmpty()) {
-            throw new RefusedException("ProTech has nobody to remind on " + number);
+            throw RefusedException.nobodyToRemind(number);
         }
         for (TableRow row : waiting) {
             api.update(column(ApprovalField.TABLE), row.sysId(), Map.of(column(ApprovalField.COMMENTS), reminder),
@@ -280,7 +279,7 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
                 .toList();
         return (number == null ? Stream.<TableRow>empty() : api.list(column(ChangeField.TABLE),
                 column(ChangeField.NUMBER) + "=" + number, wanted, 1, "find " + number).stream()).findFirst()
-                .orElseThrow(() -> new RefusedException("ProTech has no change " + changeNumber));
+                .orElseThrow(() -> RefusedException.noChange(changeNumber));
     }
 
     private TableRow taskRow(String changeId, String changeNumber, String taskNumber) {
@@ -288,8 +287,7 @@ class LiveProTechAdapter implements ProTechPort, ProTechLookupPort {
         return (number == null ? Stream.<TableRow>empty() : api.list(column(TaskField.TABLE),
                 column(TaskField.CHANGE) + "=" + changeId + "^" + column(TaskField.NUMBER) + "=" + number,
                 List.of(SYS_ID, column(TaskField.NUMBER)), 1, "find " + number).stream()).findFirst()
-                .orElseThrow(() -> new RefusedException("ProTech has no change task " + taskNumber + " on "
-                        + changeNumber));
+                .orElseThrow(() -> RefusedException.noTask(taskNumber, changeNumber));
     }
 
     /** The tasks of the changes by the sys_id of their change. */

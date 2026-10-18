@@ -55,7 +55,6 @@ import static java.time.Duration.between;
 import static java.time.Duration.ofHours;
 import static java.time.Duration.ofMinutes;
 import static java.time.Instant.MAX;
-import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
@@ -144,7 +143,7 @@ class DemoProTechAdapter implements ProTechPort {
                 : change.approvals().stream().filter(found -> found.role() == approval.role())
                 .map(ChangeApproval::approver).filter(Objects::nonNull).toList();
         if (approvers.isEmpty()) {
-            throw new RefusedException("ProTech has nobody to remind on " + changeNumber);
+            throw RefusedException.nobodyToRemind(changeNumber);
         }
         return approvers;
     }
@@ -216,13 +215,12 @@ class DemoProTechAdapter implements ProTechPort {
     private static List<String> approversOf(ProductionChange change, String task) {
         return change.tasks().stream().filter(found -> task.equals(found.number())).findFirst()
                 .map(ChangeTask::approvers)
-                .orElseThrow(() -> new RefusedException("ProTech has no change task " + task + " on "
-                        + change.number()));
+                .orElseThrow(() -> RefusedException.noTask(task, change.number()));
     }
 
     private Held open(String number, Held found, Instant now) {
         if (found == null) {
-            throw new RefusedException("ProTech has no change " + number);
+            throw RefusedException.noChange(number);
         }
         Held current = applied(found, now);
         if (current.stateAt(now) == CLOSED) {
@@ -263,8 +261,7 @@ class DemoProTechAdapter implements ProTechPort {
 
     private ProductionChange apply(ProductionChange current, ProductionChange requested, Instant at) {
         boolean started = !at.isBefore(current.schedule().installationStart());
-        Map<String, ChangeTask> heldTasks = current.tasks().stream().filter(task -> task.number() != null)
-                .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
+        Map<String, ChangeTask> heldTasks = ChangeTask.byNumber(current.tasks());
         List<ChangeTask> changed = new ArrayList<>();
         for (ChangeTask task : requested.tasks()) {
             ChangeTask mine = heldTasks.remove(task.number());

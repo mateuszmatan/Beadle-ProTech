@@ -5,7 +5,9 @@ import lombok.With;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.Reminder.people;
@@ -13,6 +15,8 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS;
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN;
 import static java.time.Duration.ofMinutes;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
@@ -30,6 +34,12 @@ public record ChangeTask(String number, TaskDetails details, Instant start, Appr
         approvers = people(approvers);
         reminder = reminder == null || reminder.sentAt() == null ? null : reminder;
         state = getIfNull(state, OPEN);
+    }
+
+    /** The tasks that have a number, by number in their order; a number listed twice keeps its first task. */
+    public static Map<String, ChangeTask> byNumber(List<ChangeTask> tasks) {
+        return tasks.stream().filter(task -> task.number() != null)
+                .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
     }
 
     public static void validateTasks(List<ChangeTask> tasks, ChangeSchedule schedule, ValidationProblems problems) {

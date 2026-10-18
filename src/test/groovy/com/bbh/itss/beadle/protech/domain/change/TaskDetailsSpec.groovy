@@ -9,7 +9,6 @@ import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CLOSED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
-import static com.bbh.itss.beadle.protech.domain.shared.Text.bytes
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.ctask
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details

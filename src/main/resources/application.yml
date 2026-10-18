@@ -17,7 +17,6 @@ spring:
           time_zone: UTC
         type:
           preferred_instant_jdbc_type: TIMESTAMP
-          preferred_boolean_jdbc_type: INTEGER
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     analytics-enabled: false
