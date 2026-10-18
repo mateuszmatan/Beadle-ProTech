@@ -3,8 +3,9 @@
 ProTech is BBH's ServiceNow. When `beadle.protech.instance-url` (`PROTECH_URL`) names it, Beadle-ProTech talks to it
 through `LiveProTechAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
 service account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read
-timeout 10 s, so that a slow ProTech is answered `502` well within the 30 s Beadle-GUI waits for Beadle-ProTech). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
-ServiceNow values stand for each state.
+timeout 10 s, so that a slow ProTech is answered `502` well within the 30 s Beadle-GUI waits for Beadle-ProTech). This
+page lists which ProTech table and field holds each field of a Beadle change, and which ProTech values stand for each
+state.
 
 The mapping is a best effort made without access to the real instance. Every table name, field name and state value
 below is a property under `beadle.protech.fields.*` (class `ProTechFields`) with the default shown, so the real
@@ -148,7 +149,7 @@ asked, otherwise not approved; without records the task's own `approval` field d
 
 ## States
 
-A ServiceNow value matches a state of Beadle when it equals, ignoring case, one of the values listed for that state,
+A ProTech value matches a state of Beadle when it equals, ignoring case, one of the values listed for that state,
 compared with both the value and the display value of the field; the first state that lists it wins. A value no state
 lists keeps the state Beadle knew. Beadle never writes the state of a change; it writes the state of a task only to
 cancel it, with the first value listed for `CANCELED`.

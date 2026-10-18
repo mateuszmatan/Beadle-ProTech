@@ -12,9 +12,10 @@ import static org.springframework.http.HttpStatus.ACCEPTED;
 
 /**
  * The webhook ProTech calls when it moved a change: a business rule on {@code change_request}, {@code change_task}
- * and {@code sysapproval_approver} posts {@code {"number": "CHG0001234"}}, the number of the change, with the service
- * token. Beadle-ProTech looks at that change at once instead of at the next poll and calls Beadle-GUI back if it moved
- * past what Beadle-GUI knows; a change it does not follow is left alone. The answer is {@code 202} either way.
+ * and {@code sysapproval_approver} posts {@code {"number": "CHG0001234"}}, the number of the change, with
+ * {@code PROTECH_WEBHOOK_TOKEN}. Beadle-ProTech looks at that change at once instead of at the next poll and calls
+ * Beadle-GUI back if it moved past what Beadle-GUI knows; a change it does not follow is left alone. The answer is
+ * {@code 202} either way.
  */
 @RestController
 @RequestMapping("/api/protech/webhook")
