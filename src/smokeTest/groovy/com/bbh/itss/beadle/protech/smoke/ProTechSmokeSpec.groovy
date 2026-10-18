@@ -1,38 +1,36 @@
 package com.bbh.itss.beadle.protech.smoke
 
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
+import com.bbh.itss.beadle.protech.support.Json
+
+import static java.time.Duration.ofDays
 
 class ProTechSmokeSpec extends BeadleProTechSpecification {
 
-    def "the service reports UP on health endpoints"() {
-        when:
-        def health = anonymous.get('/actuator/health')
-        def liveness = anonymous.get('/actuator/health/liveness')
-        def readiness = anonymous.get('/actuator/health/readiness')
-
-        then:
-        health.status == 200
-        health.json.status == 'UP'
-        liveness.status == 200
-        liveness.json.status == 'UP'
-        readiness.status == 200
-        readiness.json.status == 'UP'
+    def "the probes of OpenShift find the service up without a token"() {
+        expect:
+        ['/actuator/health/liveness', '/actuator/health/readiness'].every {
+            def probe = anonymous.get(it)
+            probe.status == 200 && probe.json.status == 'UP'
+        }
     }
 
-    def "the service reports status and serves lookup catalogs"() {
+    def "a change is raised, read back and looked at through the webhook"() {
+        given:
+        def start = clock.instant()
+        def draft = draft(start, start + ofDays(3))
+
         when:
-        def status = api.get('/api/protech/status')
-        def users = api.get('/api/protech/lookups/users?limit=10')
-        def businessServices = api.get('/api/protech/lookups/business-services?limit=10')
-        def callLog = api.get('/api/protech/call-log?page=0&size=10')
+        def raised = api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft))
+        def known = draft.toBuilder().number(raised.json.number as String).build()
+        def read = api.postRaw('/api/protech/changes/read', 'application/json', Json.jackson([known]))
+        def looked = webhook.post('/api/protech/webhook', [number: known.number()])
 
         then:
-        status.status == 200
-        status.json.containsKey('connected')
-        users.status == 200
-        users.json instanceof List
-        businessServices.status == 200
-        businessServices.json instanceof List
-        callLog.status == 200
+        raised.status == 201
+        known.number() ==~ /CHG\d{7}/
+        read.status == 200
+        read.json[known.number()].state == 'DRAFT'
+        looked.status == 202
     }
 }

@@ -4,14 +4,17 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.web.client.RestClient
+import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 import spock.util.time.MutableClock
 
@@ -35,15 +38,24 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = [
         'spring.datasource.url=jdbc:h2:mem:beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000',
         'beadle.services.token=regression-service-token',
+        'beadle.protech.webhook-token=regression-webhook-token',
         'beadle.gui.url=http://beadle-gui.test:8081',
         'beadle.protech.poll=PT0.3S'])
 @ActiveProfiles('local')
 @ContextConfiguration(initializers = EnvironmentVariables)
 @Import(Regression)
-abstract class BeadleProTechSpecification extends ServiceSpecification {
+abstract class BeadleProTechSpecification extends Specification {
 
     static final String TOKEN = 'regression-service-token'
-    static final String USER = 'Mateusz Matan'
+    static final String WEBHOOK_TOKEN = 'regression-webhook-token'
+    /** The user signed in to Beadle-GUI, sent percent-encoded as Beadle-GUI sends it. */
+    static final String USER = 'Łukasz Wójcik'
+
+    @Value('${local.server.port}')
+    int port
+
+    @Autowired
+    JdbcTemplate jdbc
 
     @Autowired
     MutableClock clock
@@ -56,14 +68,18 @@ abstract class BeadleProTechSpecification extends ServiceSpecification {
     /** Long enough for a few looks of the watch, which runs every 0.3 s. */
     PollingConditions conditions = new PollingConditions(timeout: 30, delay: 0.2)
 
-    @Override
     ServiceClient getApi() {
-        super.api.withHeaders([Authorization: "Bearer $TOKEN" as String, 'X-Beadle-User': USER,
+        anonymous.withHeaders([Authorization: "Bearer $TOKEN" as String, 'X-Beadle-User': URLEncoder.encode(USER, 'UTF-8'),
                                'X-Correlation-Id': correlationId])
     }
 
+    /** ProTech calling the webhook, with the token it holds for it. */
+    ServiceClient getWebhook() {
+        anonymous.withHeaders([Authorization: "Bearer $WEBHOOK_TOKEN" as String])
+    }
+
     ServiceClient getAnonymous() {
-        super.api
+        new ServiceClient("http://localhost:$port")
     }
 
     /** The call log of this spec's calls to ProTech, oldest first. */

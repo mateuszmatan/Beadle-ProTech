@@ -30,10 +30,6 @@ class ServiceClient {
         new ServiceClient(baseUrl, headers + more)
     }
 
-    ServiceClient withoutHeader(String name) {
-        new ServiceClient(baseUrl, headers.findAll { !it.key.equalsIgnoreCase(name) })
-    }
-
     Response get(String path) {
         send(request(path).GET())
     }
@@ -48,10 +44,6 @@ class ServiceClient {
 
     Response put(String path, Object body) {
         send(request(path).PUT(json(body)))
-    }
-
-    Response delete(String path) {
-        send(request(path).DELETE())
     }
 
     private HttpRequest.Builder request(String path, String contentType = 'application/json') {

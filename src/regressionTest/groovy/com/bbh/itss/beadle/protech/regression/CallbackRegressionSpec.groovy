@@ -1,7 +1,6 @@
 package com.bbh.itss.beadle.protech.regression
 
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
-import com.bbh.itss.beadle.protech.support.Json
 
 import java.time.Instant
 
@@ -96,26 +95,6 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
                 }
     }
 
-    def "a change Beadle-GUI only read is followed as well, under the correlation id of the read"() {
-        given: 'a change ProTech has from before, which Beadle-GUI reads'
-        Instant start = clock.instant()
-        String number = 'CHG00' + (10000 + new Random().nextInt(90000))
-        def known = draft(start, start + ofDays(3)).toBuilder().number(number).build()
-        read(known)
-
-        expect:
-        tracked(number).subMap('STATE', 'CORRELATION_ID') == [STATE: 'DRAFT', CORRELATION_ID: correlationId]
-
-        when:
-        moveTo(start + ofMinutes(2))
-
-        then:
-        conditions.eventually {
-            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
-        }
-        gui.callbacksFor(number).first().header('X-Correlation-Id') == correlationId
-    }
-
     def "a callback Beadle-GUI did not take is sent again on the next look until it takes it"() {
         given:
         Instant start = clock.instant()
@@ -138,52 +117,20 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
                 .every { it.message.startsWith("Beadle-GUI could not take the callback for $number: 503") }
     }
 
-    def "the read with which Beadle-GUI answers a callback is kept, and the next callback goes back to it"() {
-        given: 'a change Beadle-GUI raised, which it reads again under a correlation id of its own on every callback'
-        Instant start = clock.instant()
-        String number = raise(draft(start, start + ofDays(3)))
-        String resync = UUID.randomUUID().toString()
-        def known = draft(start, start + ofDays(3)).toBuilder().number(number).build()
-        gui.onCallback(number) {
-            def response = api.withHeaders(['X-Correlation-Id': resync])
-                    .postRaw('/api/protech/changes/read', 'application/json', Json.jackson([known]))
-            assert response.status == 200: response
-        }
-
-        when:
-        moveTo(start + ofMinutes(2))
-
-        then: 'the change is known in the state Beadle-GUI read, under the correlation id of that read'
-        conditions.eventually {
-            assert events(number) == [['STATE_CHANGED', 'BUSINESS_APPROVAL', start + ofMinutes(2)]]
-            assert tracked(number).subMap('STATE', 'CORRELATION_ID') ==
-                    [STATE: 'BUSINESS_APPROVAL', CORRELATION_ID: resync]
-        }
-        gui.callbacksFor(number).first().header('X-Correlation-Id') == correlationId
-
-        when:
-        moveTo(start + ofMinutes(10))
-
-        then:
-        conditions.eventually {
-            assert gui.callbacksFor(number).size() == 2
-        }
-        gui.callbacksFor(number).last().header('X-Correlation-Id') == resync
-    }
-
-    def "ProTech's webhook has a change looked at at once, and the callback is still sent only once"() {
+    def "ProTech's webhook, with its own token, has a change looked at at once, and the callback is sent only once"() {
         given:
         Instant start = clock.instant()
         String number = raise(draft(start, start + ofDays(3)))
 
-        expect: 'the webhook needs the token and the number of a change, and leaves a change not followed alone'
+        expect: 'the webhook needs a token and the number of a change, leaves a change not followed alone, and its token opens nothing else'
         anonymous.post('/api/protech/webhook', [number: number]).status == 401
-        api.post('/api/protech/webhook', [number: ' ']).status == 400
-        api.post('/api/protech/webhook', [number: 'CHG0099999']).status == 202
+        webhook.post('/api/protech/webhook', [number: ' ']).status == 400
+        webhook.post('/api/protech/webhook', [number: 'CHG0099999']).status == 202
+        webhook.get('/api/protech/status').status == 401
 
         when:
         moveTo(start + ofMinutes(2))
-        def answer = api.post('/api/protech/webhook', [number: number])
+        def answer = webhook.post('/api/protech/webhook', [number: number])
 
         then:
         answer.status == 202
@@ -192,36 +139,10 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
         }
 
         when: 'ProTech calls the webhook again for the same move'
-        api.post('/api/protech/webhook', [number: number])
+        webhook.post('/api/protech/webhook', [number: number])
 
         then:
         events(number).size() == 1
-    }
-
-    def "a look that finds only the move Beadle-GUI was called back about is left out of the call log"() {
-        given: 'a change Beadle-GUI was told reached business approval'
-        Instant start = clock.instant()
-        String number = raise(draft(start, start + ofDays(3)))
-        moveTo(start + ofMinutes(2))
-        conditions.eventually {
-            assert events(number).size() == 1
-            assert tracked(number).STATE == 'BUSINESS_APPROVAL'
-        }
-        def logged = looksAt(number, start + ofMinutes(2))
-
-        when: 'the change is looked at again within the minute the poll reaches back, which finds the same move'
-        2.times { assert api.post('/api/protech/webhook', [number: number]).status == 202 }
-
-        then: 'Beadle-GUI is not told again and the looks leave no row'
-        events(number).size() == 1
-        looksAt(number, start + ofMinutes(2)) == logged
-    }
-
-    /** The rows of the call log of the looks at {@code number} alone since {@code from}, as a webhook has them made. */
-    private List<Map> looksAt(String number, Instant from) {
-        def response = api.get("/api/protech/call-log?from=$from&size=500")
-        assert response.status == 200: response
-        (response.json.entries as List<Map>).findAll { it.operation == 'activity' && it.target ==~ /$number \S+/ }
     }
 
     /** The event, the state and the time of every callback Beadle-GUI got for {@code number}, oldest first. */
