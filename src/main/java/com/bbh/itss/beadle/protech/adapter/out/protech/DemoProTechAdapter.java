@@ -17,6 +17,7 @@ import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -63,10 +64,11 @@ import static org.apache.commons.lang3.ObjectUtils.max;
  * A ProTech played by the clock, used until {@code beadle.protech.instance-url} names the real one: every change it
  * creates moves through the approval stages two minutes apart, its tasks are approved by the people of their
  * assignment group and an update shows after the apply delay. Its activity is the clock-driven workflow: what moved since a
- * time, no earlier than when the demo got the change. It holds the changes in memory, so each pod plays its own
- * ProTech: the demo is for a laptop and for trying Beadle out, not for rd, qc or prod.
+ * time, no earlier than when the demo got the change. It holds the changes in memory and plays only in the
+ * {@code local} profile: it is for a laptop and for trying Beadle out, never for rd, qc or prod.
  */
 @Component
+@Profile("local")
 @ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
 @RequiredArgsConstructor
 class DemoProTechAdapter implements ProTechPort {

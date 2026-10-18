@@ -4,6 +4,7 @@ import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,10 +16,11 @@ import static java.util.Locale.ROOT;
 import static java.util.stream.IntStream.range;
 
 /**
- * The lookups of the demo ProTech: a fixed catalogue of BBH people, business services, products with their support groups,
- * releases and configuration items, infrastructure groups, incidents, problems and clients.
+ * The lookups of the demo ProTech, on a laptop only: a fixed catalogue of BBH people, business services, products with
+ * their support groups, releases and configuration items, infrastructure groups, incidents, problems and clients.
  */
 @Component
+@Profile("local")
 @ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
 class DemoProTechLookups implements ProTechLookupPort {
 
