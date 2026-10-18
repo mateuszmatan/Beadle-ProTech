@@ -341,7 +341,7 @@ class LiveProTechAdapterSpec extends Specification {
         LookupKind.CLIENTS             | 'a^b'   | 'core_company'   | 'name,country'             | 'customer=true^nameLIKEa^^b^ORcountryLIKEa^^b^ORDERBYname'                               | [name: 'Alder Ridge Pension Fund', country: 'USA']         || new Lookup('Alder Ridge Pension Fund', 'USA')
     }
 
-    def "a refusal of ProTech names its message, while ProTech out of reach or signing in in vain is a failure to reach it"() {
+    def "a refusal of ProTech names its status and message, while ProTech out of reach or signing in in vain is a failure to reach it"() {
         given:
         expect(POST, 'change_request', [:]).andRespond(response)
 
@@ -363,8 +363,8 @@ class LiveProTechAdapterSpec extends Specification {
                      withStatus(CREATED).contentType(APPLICATION_JSON).body('{"result":{}}')]
         type << [RefusedException, RefusedException, UncheckedIOException, UncheckedIOException,
                  UncheckedIOException, UncheckedIOException]
-        message << ['ProTech refused to create the change: Operation Failed (Data Policy Exception: Category is mandatory)',
-                    'ProTech refused to create the change: Bad Request',
+        message << ['ProTech refused to create the change (400): Operation Failed (Data Policy Exception: Category is mandatory)',
+                    'ProTech refused to create the change (400): Bad Request',
                     'ProTech could not create the change: 401 User Not Authenticated (Required to provide Auth information)',
                     'ProTech could not create the change: 500 Internal Server Error',
                     'ProTech could not create the change: I/O error on POST request for ' +

@@ -50,9 +50,9 @@ behind by `s` seconds leaves an approval or task move within `s` seconds after a
 until the change moves again. The minute the poll reaches back (`{since}`) only keeps updates between two looks from
 being missed; it does not make up for a skew.
 
-A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's message
-(`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is answered
-`502` with the reason.
+A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is answered `409` with ProTech's status and
+message (`error.message` and `error.detail` of its answer). ProTech out of reach, a failed sign-in or a `5xx` answer is
+answered `502` with the reason.
 
 ## The change: `change_request` (`beadle.protech.fields.change.*`)
 

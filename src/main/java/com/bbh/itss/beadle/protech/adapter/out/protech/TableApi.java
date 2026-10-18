@@ -6,7 +6,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
@@ -14,6 +13,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.bbh.itss.beadle.protech.adapter.CallFailures.MAX_REASON;
+import static com.bbh.itss.beadle.protech.adapter.CallFailures.couldNot;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
@@ -27,14 +28,13 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
  * authentication as the Beadle service account. Reads answer every field with its value and its display value
  * ({@code sysparm_display_value=all}); writes give the display values ({@code sysparm_input_display_value=true}), so
  * that a person, a group or a configuration item is named as Beadle shows it. A refusal of ProTech (a {@code 4xx}
- * other than a failed sign-in) becomes an {@link RefusedException} with ProTech's message; ProTech out of reach,
- * a failed sign-in or a {@code 5xx} answer becomes an {@link UncheckedIOException}.
+ * other than a failed sign-in) becomes an {@link RefusedException} with ProTech's status and message; ProTech out of
+ * reach, a failed sign-in or a {@code 5xx} answer becomes an {@link UncheckedIOException}.
  */
 class TableApi {
 
     static final String PROTECH = "ProTech";
     static final String TABLE = "/api/now/table/{table}";
-    static final int MAX_REASON = 300;
     private static final Set<Integer> UNAVAILABLE = Set.of(401, 403, 407, 408, 429);
     private static final ParameterizedTypeReference<Result<List<Map<String, Object>>>> ROWS =
             new ParameterizedTypeReference<>() {
@@ -101,15 +101,15 @@ class TableApi {
     }
 
     static RuntimeException refusal(String operation, RestClientException cause) {
-        if (cause instanceof RestClientResponseException response && response.getStatusCode().is4xxClientError()
-                && !UNAVAILABLE.contains(response.getStatusCode().value())) {
-            return new RefusedException(PROTECH + " refused to " + operation + ": " + messageOf(response));
+        if (!(cause instanceof RestClientResponseException response)) {
+            return couldNot(PROTECH, operation, cause);
         }
-        String reason = cause instanceof RestClientResponseException response
-                ? response.getStatusCode().value() + " " + messageOf(response)
-                : defaultIfBlank(cause.getMessage(), cause.getClass().getSimpleName());
-        return new UncheckedIOException(PROTECH + " could not " + operation + ": " + truncate(reason, MAX_REASON),
-                new IOException(cause));
+        int status = response.getStatusCode().value();
+        if (response.getStatusCode().is4xxClientError() && !UNAVAILABLE.contains(status)) {
+            return new RefusedException(PROTECH + " refused to " + operation + " (" + status + "): "
+                    + messageOf(response));
+        }
+        return couldNot(PROTECH, operation, status + " " + messageOf(response), cause);
     }
 
     private static String messageOf(RestClientResponseException response) {
