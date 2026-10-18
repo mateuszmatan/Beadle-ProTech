@@ -18,6 +18,7 @@ import static com.bbh.itss.beadle.protech.domain.change.RiskAssessment.Question.
 import static com.bbh.itss.beadle.protech.domain.change.RiskAssessment.Question.PLATFORM_STATUS;
 import static com.bbh.itss.beadle.protech.domain.change.RiskAssessment.Question.VALIDATION_COMPLEXITY;
 import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.joining;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
@@ -62,8 +63,10 @@ public record RiskAssessment(String bbhWorkgroups, String changeComplexity, Stri
         }
     }
 
-    List<String> lines() {
-        return stream(Question.values()).map(question -> question.label() + ": " + question.answerIn(this)).toList();
+    /** How ProTech holds it: one line per question, {@code Complexity of the change: Simple}. */
+    public String text() {
+        return stream(Question.values()).map(question -> question.label() + ": " + question.answerIn(this))
+                .collect(joining("\n"));
     }
 
     @RequiredArgsConstructor

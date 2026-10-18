@@ -4,7 +4,6 @@ import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
 import lombok.Builder;
 
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.GROUP_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.NAME_MAX;
@@ -12,7 +11,6 @@ import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.TEXT_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIPTION_MAX;
 import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX;
-import static com.bbh.itss.beadle.protech.domain.shared.Text.abbreviateBytes;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 import static org.apache.commons.lang3.Strings.CI;
@@ -46,39 +44,8 @@ public record TaskDetails(String assignmentGroup, String assignedTo, String conf
         importance = release ? null : getIfNull(trimToNull(importance), MODERATE);
     }
 
-    public static List<TaskDetails> suggestedTasks(String productName, String supportGroup) {
-        return List.of(builder().assignmentGroup(RELEASE_MANAGEMENT).application(abbreviateBytes(productName, NAME_MAX))
-                        .shortDescription(abbreviateBytes("Deploy " + productName + " to production", SHORT_DESCRIPTION_MAX))
-                        .description(abbreviateBytes("Deploy the release of " + productName + " in the change window with its"
-                                + " deployment jobs, then run the smoke tests of the DevSecOps pipeline and record the"
-                                + " result in this task.", DESCRIPTION_MAX)).build(),
-                builder().assignmentGroup(supportGroup)
-                        .shortDescription(abbreviateBytes("Validate " + productName + " in production", SHORT_DESCRIPTION_MAX))
-                        .description(abbreviateBytes("Run the post-install validation of " + productName + ": the smoke tests"
-                                + " and the monitoring, then confirm the release with the business owner in this"
-                                + " task.", DESCRIPTION_MAX)).build());
-    }
-
-    public static void validateTasks(List<TaskDetails> tasks, ValidationProblems problems) {
-        problems.require("tasks", tasks, "add at least one change task");
-        validateEach(tasks, problems, TaskDetails::validate);
-    }
-
-    static <T> void validateEach(List<T> tasks, ValidationProblems problems, BiConsumer<T, ValidationProblems> check) {
-        if (tasks.size() > MAX_TASKS) {
-            problems.add("tasks", "may list at most " + MAX_TASKS + " change tasks");
-        }
-        for (int index = 0; index < tasks.size(); index++) {
-            check.accept(tasks.get(index), problems.at("tasks[" + index + "]"));
-        }
-    }
-
     public boolean releaseManagement() {
         return releaseManagement(assignmentGroup);
-    }
-
-    TaskDetails within(String changeConfigurationItem) {
-        return configurationItem == null ? toBuilder().configurationItem(changeConfigurationItem).build() : this;
     }
 
     void validate(ValidationProblems problems) {

@@ -47,9 +47,9 @@ class ChangeControllerSpec extends ControllerSpecification {
         def response = call(records(post('/api/protech/changes'), draft))
 
         then:
-        1 * proTech.raise(draft) >> new RaisedChange('CHG0031001', 'https://bbh.service-now.com/CHG0031001')
+        1 * proTech.raise(draft) >> new RaisedChange('CHG0031001', 'https://protech.bbh.test/CHG0031001')
         response.status == 201
-        bodyOf(response) == [number: 'CHG0031001', url: 'https://bbh.service-now.com/CHG0031001']
+        bodyOf(response) == [number: 'CHG0031001', url: 'https://protech.bbh.test/CHG0031001']
     }
 
     def "a raised change is followed under the correlation id of the call of Beadle-GUI"() {
@@ -210,8 +210,8 @@ class ChangeControllerSpec extends ControllerSpecification {
 
         where:
         body                                  || approval                           | reached
-        [role: 'BUSINESS', task: null]        || ApprovalRef.of(BUSINESS)           | ['Rebecca Lawson']
-        [role: null, task: ' CTASK0041001 ']  || ApprovalRef.ofTask('CTASK0041001') | ['Rebecca Lawson', 'Thomas Ashby']
+        [role: 'BUSINESS', task: null]        || new ApprovalRef(BUSINESS, null)    | ['Rebecca Lawson']
+        [role: null, task: ' CTASK0041001 ']  || new ApprovalRef(null, 'CTASK0041001') | ['Rebecca Lawson', 'Thomas Ashby']
     }
 
     def "a reminder names either a role or a task: #body"() {

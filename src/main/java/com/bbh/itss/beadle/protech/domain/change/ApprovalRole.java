@@ -27,4 +27,11 @@ public enum ApprovalRole {
     public String approverIn(Approvers approvers) {
         return named.apply(approvers);
     }
+
+    /** The approval of the role in a change in {@code state}: requested in its stage and given past it. */
+    public ApprovalState approvalIn(ChangeState state) {
+        int reached = state.compareTo(stage);
+        return reached < 0 ? ApprovalState.NOT_APPROVED : reached == 0 ? ApprovalState.REQUESTED
+                : ApprovalState.APPROVED;
+    }
 }

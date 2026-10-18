@@ -68,12 +68,12 @@ class RiskAssessmentSpec extends Specification {
         problems.list().collect { "$it.field $it.message".toString() } == ['backoutTesting must be one of' +
                 ' Less than 30 minutes, 30 mins - 2 hours, Greater than 2 hours, Unable to test']
         risk(bbhUsers: ' 26-250 ').bbhUsers() == '26-250'
-        RiskAssessment.builder().bbhUsers('All users').businessImpact('Low').build().lines() ==
+        RiskAssessment.builder().bbhUsers('All users').businessImpact('Low').build().text() ==
                 ['Number of BBH workgroups impacted: Single', 'Complexity of the change: Simple',
                  'Number of BBH users impacted: All users', 'Complexity of validation: Simple',
                  'Number of applications impacted: Single', 'Backout testing & duration: Less than 30 minutes',
                  'Number of impacted clients outside BBH: No clients', 'Platform status: Existing',
-                 'Business impact: Low']
+                 'Business impact: Low'].join('\n')
         RiskAssessment.DEFAULTS == new RiskAssessment('Single', 'Simple', 'Less than 5', 'Simple', 'Single',
                 'Less than 30 minutes', 'No clients', 'Existing', 'None')
         risk(platformStatus: ' ').platformStatus() == 'Existing'

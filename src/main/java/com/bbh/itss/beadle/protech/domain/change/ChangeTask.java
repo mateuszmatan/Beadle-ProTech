@@ -1,6 +1,7 @@
 package com.bbh.itss.beadle.protech.domain.change;
 
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
+import lombok.With;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -8,13 +9,14 @@ import java.util.List;
 
 import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED;
 import static com.bbh.itss.beadle.protech.domain.change.Reminder.people;
-import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.validateEach;
+import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.MAX_TASKS;
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED;
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN;
 import static java.time.Duration.ofMinutes;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
+@With
 public record ChangeTask(String number, TaskDetails details, Instant start, ApprovalState approval,
                          List<String> approvers, Reminder reminder, TaskState state) {
 
@@ -30,50 +32,17 @@ public record ChangeTask(String number, TaskDetails details, Instant start, Appr
         state = getIfNull(state, OPEN);
     }
 
-    public static ChangeTask of(TaskDetails details) {
-        return new ChangeTask(null, details, null, null, null, null, OPEN);
-    }
-
     public static void validateTasks(List<ChangeTask> tasks, ChangeSchedule schedule, ValidationProblems problems) {
-        validateEach(tasks, problems, (task, at) -> task.validate(schedule, at));
-    }
-
-    public ChangeTask numbered(String number) {
-        return new ChangeTask(number, details, start, approval, approvers, reminder, state);
-    }
-
-    public ChangeTask in(TaskState state) {
-        return new ChangeTask(number, details, start, approval, approvers, reminder, state);
-    }
-
-    public ChangeTask withApproval(ApprovalState approval, List<String> approvers) {
-        return new ChangeTask(number, details, start, approval, approvers, reminder, state);
-    }
-
-    public ChangeTask remindedBy(Reminder sent) {
-        return new ChangeTask(number, details, start, approval, approvers, sent, state);
-    }
-
-    public ChangeTask editedTo(ChangeTask edit) {
-        return new ChangeTask(number, edit.details, edit.start, approval, approvers, reminder, state);
+        if (tasks.size() > MAX_TASKS) {
+            problems.add("tasks", "may list at most " + MAX_TASKS + " change tasks");
+        }
+        for (int index = 0; index < tasks.size(); index++) {
+            tasks.get(index).validate(schedule, problems.at("tasks[" + index + "]"));
+        }
     }
 
     public boolean active() {
         return state != CANCELED;
-    }
-
-    public boolean awaited() {
-        return active() && !approval.approved();
-    }
-
-    Content content() {
-        return new Content(details, start);
-    }
-
-    ChangeTask plannedIn(ChangeSchedule schedule, String configurationItem) {
-        Instant earliest = schedule.installationStart() == null ? null : schedule.installationStart().plus(START_DELAY);
-        return new ChangeTask(number, details.within(configurationItem), getIfNull(start, earliest), approval,
-                approvers, reminder, state);
     }
 
     public void validate(ChangeSchedule schedule, ValidationProblems problems) {
@@ -89,8 +58,5 @@ public record ChangeTask(String number, TaskDetails details, Instant start, Appr
         if (start != null && schedule.installationEnd() != null && start.isAfter(schedule.installationEnd())) {
             problems.add("start", "must not be after the installation end");
         }
-    }
-
-    record Content(TaskDetails details, Instant start) {
     }
 }

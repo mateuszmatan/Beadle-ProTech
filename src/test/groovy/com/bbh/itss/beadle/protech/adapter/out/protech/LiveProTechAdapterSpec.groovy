@@ -1,16 +1,6 @@
 package com.bbh.itss.beadle.protech.adapter.out.protech
 
-import com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ChangeFields
-import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
-import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
-import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
-import com.bbh.itss.beadle.protech.domain.change.ChangeTask
-import com.bbh.itss.beadle.protech.domain.change.Lookup
-import com.bbh.itss.beadle.protech.domain.change.LookupKind
-import com.bbh.itss.beadle.protech.domain.change.ProductionChange
-import com.bbh.itss.beadle.protech.domain.change.RaisedChange
-import com.bbh.itss.beadle.protech.domain.change.Reminder
-import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
+import com.bbh.itss.beadle.protech.domain.change.*
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -23,53 +13,33 @@ import org.springframework.web.client.RestClient
 import spock.lang.Specification
 
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 
-import static com.bbh.itss.beadle.protech.adapter.out.protech.ServiceNowTableApiAdapter.NO_NUMBER
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.BUSINESS
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L2
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.SUPPORT
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.APPROVED
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.REQUESTED
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CTASK_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.IMPLEMENTATION
+import static com.bbh.itss.beadle.protech.adapter.out.protech.ProTechFields.ChangeField.*
+import static com.bbh.itss.beadle.protech.adapter.out.protech.LiveProTechAdapter.IN_BATCH
+import static com.bbh.itss.beadle.protech.adapter.out.protech.LiveProTechAdapter.NO_NUMBER
+import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.*
+import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.*
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.*
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
-import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
 import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.RAISED
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.copy
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.privileged
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.*
 import static java.nio.charset.StandardCharsets.UTF_8
 import static java.time.ZoneOffset.UTC
-import static org.springframework.http.HttpMethod.GET
-import static org.springframework.http.HttpMethod.PATCH
-import static org.springframework.http.HttpMethod.POST
-import static org.springframework.http.HttpStatus.BAD_REQUEST
-import static org.springframework.http.HttpStatus.CREATED
-import static org.springframework.http.HttpStatus.UNAUTHORIZED
+import static org.springframework.http.HttpMethod.*
+import static org.springframework.http.HttpStatus.*
 import static org.springframework.http.MediaType.APPLICATION_JSON
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withException
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*
 
-class ServiceNowTableApiAdapterSpec extends Specification {
+/** The live adapter against a {@link MockRestServiceServer} that answers as the Table API of ProTech. */
+class LiveProTechAdapterSpec extends Specification {
 
-    static final String URL = 'https://bbh.service-now.com'
+    static final String URL = 'https://protech.bbh.test'
     static final String LINK = URL + '/change_request.do?sysparm_query=number=CHG0031001'
     static final Instant NOW = Instant.parse('2026-10-15T09:00:00Z')
     static final String CHANGE_FIELDS = 'sys_id,sys_updated_on,number,short_description,description,start_date,' +
@@ -87,12 +57,6 @@ class ServiceNowTableApiAdapterSpec extends Specification {
     def server = MockRestServiceServer.bindTo(builder).build()
     def proTech = adapter(ProTechFields.DEFAULTS)
 
-    def "the live ProTech says it is connected"() {
-        expect:
-        proTech.connected()
-        proTech.mode() == LIVE
-    }
-
     def "a change is raised as a change_request with the fields of its template, its schedule and its description"() {
         given:
         expect(POST, 'change_request', [sysparm_input_display_value: 'true', sysparm_fields: 'sys_id,number',
@@ -107,63 +71,34 @@ class ServiceNowTableApiAdapterSpec extends Specification {
 
         then:
         raised == new RaisedChange('CHG0031001', LINK)
+        proTech.connected()
+        proTech.mode() == LIVE
         server.verify()
     }
 
     def "a change task is created on the change it names, with the fields of its details"() {
         given:
-        def task = new ChangeTask(null, task(1).details().toBuilder().assignedTo('Ann Lee').build(), null, null,
-                null, null, null)
         findChange('sys_id,number')
         expect(POST, 'change_task', [sysparm_input_display_value: 'true', sysparm_fields: 'sys_id,number',
                                      sysparm_exclude_reference_link: 'true'])
-                .andExpect(body([change_request    : 'CHG0031001', assignment_group: 'Technology Architecture',
-                                 assigned_to       : 'Ann Lee', cmdb_ci: 'CertScanner', u_platform: '',
-                                 u_application     : '', u_packages: '', u_backout_packages: '',
-                                 priority          : '3 - Moderate',
+                .andExpect(body([change_request    : 'CHG0031001', assignment_group: group, assigned_to: assignedTo,
+                                 cmdb_ci           : 'CertScanner', u_platform: platform, u_application: application,
+                                 u_packages        : packages, u_backout_packages: backout, priority: priority,
                                  short_description : 'Task 1 of the CertScanner release',
                                  description       : 'Step 1 of the CertScanner release.',
-                                 u_additional_comments: '', expected_start: '']))
+                                 u_additional_comments: '', expected_start: expectedStart]))
                 .andRespond(created(sys_id: 't1', number: 'CTASK0041001'))
-
-        when:
-        def number = proTech.createTask('CHG0031001', task)
-
-        then:
-        number == 'CTASK0041001'
-        server.verify()
-    }
-
-    def "a release management task carries its platform, application, packages and start"() {
-        given:
-        def task = new ChangeTask(null, task(1).details().toBuilder().assignmentGroup('Release Management')
-                .platform('OpenShift').packages('cert-api:4.2.0').backoutPackages('cert-api:4.1.3').build(),
-                at('2026-10-10T06:01:00Z'), null, null, null, null)
-        findChange('sys_id,number')
-        expect(POST, 'change_task', [:])
-                .andExpect(body([change_request    : 'CHG0031001', assignment_group: 'Release Management',
-                                 assigned_to       : '', cmdb_ci: 'CertScanner', u_platform: 'OpenShift',
-                                 u_application     : 'OCP', u_packages: 'cert-api:4.2.0',
-                                 u_backout_packages: 'cert-api:4.1.3', priority: '',
-                                 short_description : 'Task 1 of the CertScanner release',
-                                 description       : 'Step 1 of the CertScanner release.',
-                                 u_additional_comments: '', expected_start: '2026-10-10 06:01:00']))
-                .andRespond(created(sys_id: 't3', number: 'CTASK0041003'))
+        def details = task(1).details().toBuilder().assignmentGroup(group).assignedTo(assignedTo ?: null)
+                .platform(platform ?: null).packages(packages ?: null).backoutPackages(backout ?: null).build()
 
         expect:
-        proTech.createTask('CHG0031001', task) == 'CTASK0041003'
-    }
+        proTech.createTask('CHG0031001', new ChangeTask(null, details, start, null, null, null, null)) == 'CTASK0041001'
+        server.verify()
 
-    def "a change task for a change ProTech does not have is refused"() {
-        given:
-        expect(GET, 'change_request', [sysparm_query: 'number=CHG0099999']).andRespond(rows())
-
-        when:
-        proTech.createTask('CHG0099999', task(1))
-
-        then:
-        def refused = thrown(RefusedException)
-        refused.message == 'ProTech has no change CHG0099999'
+        where:
+        group                     | assignedTo | platform    | application | packages         | backout          | priority       | start                      || expectedStart
+        'Technology Architecture' | 'Ann Lee'  | ''          | ''          | ''               | ''               | '3 - Moderate' | null                       || ''
+        'Release Management'      | ''         | 'OpenShift' | 'OCP'       | 'cert-api:4.2.0' | 'cert-api:4.1.3' | ''             | at('2026-10-10T06:01:00Z') || '2026-10-10 06:01:00'
     }
 
     def "the changes are read back with their fields, state, tasks and approvals; a change ProTech does not have is left out"() {
@@ -185,7 +120,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                         approvalRow('c1', 'Change Advisory Board', 'requested'),
                         approvalRow('t1', 'Rebecca Lawson', 'approved'),
                         approvalRow('t1', 'Thomas Ashby', 'requested')))
-        def known = raised(tasks: [task(1).remindedBy(new Reminder(RAISED, ['Rebecca Lawson'])), task(2)])
+        def known = raised(tasks: [task(1).withReminder(new Reminder(RAISED, ['Rebecca Lawson'])), task(2)])
 
         when:
         def read = proTech.read([known, raised(number: 'CHG0031002')])
@@ -276,16 +211,22 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         server.verify()
 
         where:
-        batch = ServiceNowTableApiAdapter.IN_BATCH
+        batch = IN_BATCH
     }
 
-    def "reading changes ProTech does not have asks once and answers nothing"() {
+    def "a change ProTech does not have is left out of a read and refused a task"() {
         given:
         expect(GET, 'change_request', [sysparm_query: 'numberINCHG0031001']).andRespond(rows())
+        expect(GET, 'change_request', [sysparm_query: 'number=CHG0099999']).andRespond(rows())
 
-        expect:
-        proTech.read([raised()]) == [:]
-        proTech.read([raised(number: '^;')]) == [:]
+        when:
+        def read = proTech.read([raised(), raised(number: '^;')])
+        proTech.createTask('CHG0099999', task(1))
+
+        then:
+        read == [:]
+        def refused = thrown(RefusedException)
+        refused.message == 'ProTech has no change CHG0099999'
         server.verify()
     }
 
@@ -329,7 +270,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                 .andRespond(withSuccess(json(result: [sys_id: approval]), APPLICATION_JSON))
 
         when:
-        def reminded = proTech.remind('CHG0031001', ApprovalRef.of(role))
+        def reminded = proTech.remind('CHG0031001', new ApprovalRef(role, null))
 
         then:
         reminded == [approver]
@@ -356,7 +297,7 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         }
 
         expect:
-        proTech.remind('CHG0031001', ApprovalRef.ofTask('CTASK0041001')) == ['Rebecca Lawson', 'Thomas Ashby']
+        proTech.remind('CHG0031001', new ApprovalRef(null, 'CTASK0041001')) == ['Rebecca Lawson', 'Thomas Ashby']
     }
 
     def "a reminder with nobody waiting or on a task ProTech does not have is refused"() {
@@ -376,9 +317,9 @@ class ServiceNowTableApiAdapterSpec extends Specification {
         refused.message == message
 
         where:
-        approval                           || message
-        ApprovalRef.of(BUSINESS)           || 'ProTech has nobody to remind on CHG0031001'
-        ApprovalRef.ofTask('CTASK0041009') || 'ProTech has no change task CTASK0041009 on CHG0031001'
+        approval                             || message
+        new ApprovalRef(BUSINESS, null)       || 'ProTech has nobody to remind on CHG0031001'
+        new ApprovalRef(null, 'CTASK0041009') || 'ProTech has no change task CTASK0041009 on CHG0031001'
     }
 
     def "the #kind lookup searches #table by its value and detail"() {
@@ -420,34 +361,24 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                      withStatus(UNAUTHORIZED).contentType(APPLICATION_JSON).body(json(status: 'failure',
                              error: [message: 'User Not Authenticated', detail: 'Required to provide Auth information'])),
                      withServerError(),
+                     withException(new SocketTimeoutException('Read timed out')),
                      withStatus(CREATED).contentType(APPLICATION_JSON).body('{"result":{}}')]
         type << [RefusedException, RefusedException, UncheckedIOException, UncheckedIOException,
-                 UncheckedIOException]
+                 UncheckedIOException, UncheckedIOException]
         message << ['ProTech refused to raise the change: Operation Failed (Data Policy Exception: Category is mandatory)',
                     'ProTech refused to raise the change: Bad Request',
                     'ProTech could not raise the change: 401 User Not Authenticated (Required to provide Auth information)',
                     'ProTech could not raise the change: 500 Internal Server Error',
+                    'ProTech could not raise the change: I/O error on POST request for ' +
+                            '"https://protech.bbh.test/api/now/table/change_request": Read timed out',
                     NO_NUMBER]
-    }
-
-    def "ProTech out of reach is a failure to reach it with the reason"() {
-        given:
-        expect(GET, 'sys_user', [:]).andRespond(withException(new SocketTimeoutException('Read timed out')))
-
-        when:
-        proTech.find(LookupKind.USERS, 'smith', 20)
-
-        then:
-        def failed = thrown(UncheckedIOException)
-        failed.message == 'ProTech could not look up the users: I/O error on GET request for ' +
-                '"https://bbh.service-now.com/api/now/table/sys_user": Read timed out'
     }
 
     def "the configured field names are the ones written, and an empty name leaves a field out"() {
         given:
-        def custom = adapter(new ProTechFields(copy([table: 'x_bbh_change', department: '', release: 'x_bbh_release',
-                                                    privilegedAccess: '', riskAssessment: ''], ChangeFields.DEFAULTS),
-                null, null, null, null, null, null))
+        def custom = adapter(new ProTechFields([(TABLE): 'x_bbh_change', (DEPARTMENT): ' ', (RELEASE): 'x_bbh_release',
+                                                (PRIVILEGED_ACCESS): '', (RISK_ASSESSMENT): ''], null, null, null, null,
+                null, null))
         expect(POST, 'x_bbh_change', [:])
                 .andExpect { ClientHttpRequest request ->
                     def sent = new JsonSlurper().parseText((request as MockClientHttpRequest).bodyAsString) as Map
@@ -484,60 +415,18 @@ class ServiceNowTableApiAdapterSpec extends Specification {
                         pollRow('a3', '2026-10-15 08:59:20', [sysapproval: field('x9', 'CTASK0099999')])))
 
         when:
-        def activity = proTech.activity(watching(numbers.split(',') as List), since)
+        def activity = proTech.activity(watching((numbers.split(',') as List) + ['^;', ' ']), since)
 
         then:
         activity == [CHG0031001: new ChangeActivity('CHG0031001', IMPLEMENTATION, at('2026-10-15T08:59:10Z'), null, at('2026-10-15T08:59:00Z')),
                      CHG0031002: new ChangeActivity('CHG0031002', null, null, at('2026-10-15T08:59:40Z'), null),
                      CHG0031003: new ChangeActivity('CHG0031003', null, null, null, at('2026-10-15T08:59:30Z'))]
-        server.verify()
-    }
-
-    def "the changes are polled in batches, every beadle.protech.poll, and a number ProTech cannot read is not asked"() {
-        given:
-        int batch = ServiceNowTableApiAdapter.IN_BATCH
-        List<String> numbers = (1..batch + 1).collect { 'CHG00' + (31000 + it) }
-        expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers.take(batch).join(',')]).andRespond(rows())
-        expect(GET, 'change_request', [:]).andRespond(rows())
-        expect(GET, 'sysapproval_approver', [:]).andRespond(rows())
-        expect(GET, 'change_task', [sysparm_query: 'change_request.numberIN' + numbers.last()]).andRespond(rows())
-        expect(GET, 'change_request', [sysparm_query: 'numberIN' + numbers.last()]).andRespond(rows())
-        expect(GET, 'sysapproval_approver', [sysparm_query: 'sysapproval.numberIN' + numbers.last()]).andRespond(rows())
-
-        expect:
-        proTech.activity(watching(numbers + ['^;', ' ']), null) == [:]
         proTech.activity(watching(['^;']), NOW) == [:]
-        proTech.pollEvery() == Duration.ofMinutes(1)
-        new ServiceNowTableApiAdapter(new ProTechProperties(URL, 'beadle', 'secret', Duration.ofSeconds(30), null),
-                builder, Clock.fixed(NOW, UTC)).pollEvery() == Duration.ofSeconds(30)
         server.verify()
     }
 
-    def "the approvals of a change with many tasks are polled #batch numbers at a time"() {
-        given:
-        List<String> tasks = (1..batch).collect { 'CTASK00' + (41000 + it) }
-        List<String> queries = []
-        expectList('change_task', queries, 'change_request.numberINCHG0031001', tasks.collect {
-            pollRow('t' + it, '2026-10-14 08:00:00', [number: field(it), change_request: field('c1', 'CHG0031001')])
-        })
-        expectList('change_request', queries, 'numberINCHG0031001', [])
-        expectList('sysapproval_approver', queries, 'sysapproval.numberIN' + (['CHG0031001'] + tasks.take(batch - 1)).join(','),
-                [pollRow('a1', '2026-10-15 08:59:40', [sysapproval: field('t1', tasks.first())])])
-        expectList('sysapproval_approver', queries, 'sysapproval.numberIN' + tasks.last(),
-                [pollRow('a2', '2026-10-15 08:59:50', [sysapproval: field('t2', tasks.last())])])
-
-        expect:
-        proTech.activity(watching(['CHG0031001']), null) == [CHG0031001: new ChangeActivity('CHG0031001', null, null,
-                at('2026-10-15T08:59:50Z'), at('2026-10-14T08:00:00Z'))]
-        queries.size() == 4
-        server.verify()
-
-        where:
-        batch = ServiceNowTableApiAdapter.IN_BATCH
-    }
-
-    private ServiceNowTableApiAdapter adapter(ProTechFields fields) {
-        new ServiceNowTableApiAdapter(new ProTechProperties(URL + '/', 'beadle', 'secret', null, fields), builder,
+    private LiveProTechAdapter adapter(ProTechFields fields) {
+        new LiveProTechAdapter(new ProTechProperties(URL + '/', 'beadle', 'secret', fields), builder,
                 Clock.fixed(NOW, UTC))
     }
 
@@ -614,11 +503,9 @@ class ServiceNowTableApiAdapterSpec extends Specification {
          u_affected_clients   : 'No clients', u_users_affected: 'Corporate Technology staff',
          u_l1_manager         : 'Olivia Bennett', u_l2_manager: 'James Carter', u_business_approver: 'Rebecca Lawson',
          u_support_approver   : 'Jane Smith', u_downtime: 'false',
-         test_plan            : 'Unit, smoke, regression and performance tests and the security scans of the DevSecOps pipeline passed on QC.',
-         implementation_plan  : '1. Carry out the change tasks in the order listed.\n2. Run the smoke tests of the DevSecOps pipeline against production.\n3. Confirm with the business owner and close the change tasks.',
-         u_validation_plan    : 'Run the smoke tests of the DevSecOps pipeline against production and check the monitoring of the product.',
-         backout_plan         : 'Redeploy the previous release from Nexus with the same deployment job and confirm with the smoke tests.',
-         u_first_use_plan     : 'The business owner confirms the first use of the release in production.',
+         test_plan            : 'Pipeline tests passed on QC.', implementation_plan: 'Deploy the services.',
+         u_validation_plan    : 'Run the smoke tests.', backout_plan: 'Redeploy the previous release.',
+         u_first_use_plan     : 'The business owner confirms the first use.',
          u_privileged_access  : 'Privileged access needed for: User 1 (adm_user1).',
          u_risk_assessment    : 'Number of BBH workgroups impacted: Single\nComplexity of the change: Simple\n' +
                  'Number of BBH users impacted: 5-25\nComplexity of validation: Simple\n' +

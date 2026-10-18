@@ -4,14 +4,10 @@ import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Locale.ROOT;
 import static lombok.AccessLevel.PRIVATE;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
-import static org.apache.commons.lang3.StringUtils.lowerCase;
-import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.commons.lang3.Strings.CS;
 
 @NoArgsConstructor(access = PRIVATE)
@@ -19,11 +15,6 @@ public final class Text {
 
     public static boolean isUrl(String value) {
         return CS.startsWithAny(value, "http://", "https://");
-    }
-
-    public static boolean matches(String search, String... values) {
-        String needle = trimToEmpty(search).toLowerCase(ROOT);
-        return needle.isEmpty() || Stream.of(values).anyMatch(value -> CS.contains(lowerCase(value, ROOT), needle));
     }
 
     public static int bytes(String value) {
@@ -44,11 +35,8 @@ public final class Text {
         return codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
     }
 
+    /** The values that are not blank, trimmed, each once. */
     public static List<String> clean(List<String> values) {
-        return trimmed(values).stream().distinct().toList();
-    }
-
-    public static List<String> trimmed(List<String> values) {
-        return emptyIfNull(values).stream().filter(StringUtils::isNotBlank).map(String::trim).toList();
+        return emptyIfNull(values).stream().filter(StringUtils::isNotBlank).map(String::trim).distinct().toList();
     }
 }

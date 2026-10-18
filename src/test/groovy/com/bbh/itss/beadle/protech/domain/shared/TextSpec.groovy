@@ -5,16 +5,13 @@ import spock.lang.Specification
 import static com.bbh.itss.beadle.protech.domain.shared.Text.abbreviateBytes
 import static com.bbh.itss.beadle.protech.domain.shared.Text.bytes
 import static com.bbh.itss.beadle.protech.domain.shared.Text.clean
-import static com.bbh.itss.beadle.protech.domain.shared.Text.trimmed
 
 class TextSpec extends Specification {
 
-    def "clean keeps the first occurrence of each value, trimmed keeps repeated values, both in their order"() {
+    def "clean keeps the first occurrence of each value that is not blank, trimmed, in their order"() {
         expect:
-        clean(['b', 'a', ' b']) == ['b', 'a']
-        trimmed([' -s ', 'settings.xml', '', null, ' ', '-gs', 'settings.xml ']) ==
-                ['-s', 'settings.xml', '-gs', 'settings.xml']
-        [clean(null), trimmed(null), trimmed([])] == [[], [], []]
+        clean(['b', 'a', ' b', '', null, ' ']) == ['b', 'a']
+        clean(null) == []
     }
 
     def "abbreviate cuts a text to the UTF-8 bytes of an Oracle column on a character boundary"() {
@@ -28,14 +25,12 @@ class TextSpec extends Specification {
         bytes(abbreviateBytes('é' * 300, 160)) <= 160
     }
 
-    def "the cleaned and trimmed lists cannot be changed"() {
+    def "the cleaned list cannot be changed, and a URL is told by its scheme"() {
         when:
-        Text."$method"(['a']).add('b')
+        clean(['a']).add('b')
 
         then:
         thrown(UnsupportedOperationException)
-
-        where:
-        method << ['clean', 'trimmed']
+        Text.isUrl('https://bbh.com') && Text.isUrl('http://bbh') && !Text.isUrl('ftp://bbh') && !Text.isUrl(null)
     }
 }

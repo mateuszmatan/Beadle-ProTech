@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
+import org.slf4j.MDC;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.StaticMethodMatcherPointcut;
@@ -55,7 +56,8 @@ import static org.springframework.util.ClassUtils.hasMethod;
  * Writes a row of the call log around every call of a port to another system: who caused it, the correlation id,
  * the system, the operation (the name of the port method), its target (what the call was about, the number of what it
  * created first), the outcome with the message of a failure, and the duration. The row is written in a transaction
- * of its own and a call log that cannot be written never fails the call. A look at the activity of the changes that
+ * of its own and a call log that cannot be written never fails the call. Each call is logged too, under the correlation
+ * id of its caller in the MDC: a read at DEBUG, a change at INFO and a failure at WARN. A look at the activity of the changes that
  * calls for no callback is left out, so that the ticks of the watch do not flood the log: one that found nothing, or
  * only moves Beadle-GUI knows already (the move it was just called back about, or its own action, which the poll
  * finds again while it reaches back). A failed look is written.
@@ -64,7 +66,10 @@ import static org.springframework.util.ClassUtils.hasMethod;
 @RequiredArgsConstructor
 class CallLogInterceptor implements MethodInterceptor {
 
-    static final Set<String> UNLOGGED = Set.of("connected", "mode", "pollEvery");
+    static final Set<String> UNLOGGED = Set.of("connected", "mode");
+    /** The calls that only read: logged at DEBUG, every other call changes something and is logged at INFO. */
+    static final Set<String> READS = Set.of("read", "find", "activity");
+    static final String MDC_KEY = "correlationId";
     static final String QUIET = "activity";
     static final Map<Class<?>, ExternalSystem> SYSTEMS = Map.of(ProTechPort.class, PROTECH,
             ProTechLookupPort.class, PROTECH, CallbackPort.class, GUI);
@@ -101,31 +106,53 @@ class CallLogInterceptor implements MethodInterceptor {
         }
         Instant at = now(clock.getIfAvailable(Clock::systemUTC));
         long started = System.nanoTime();
+        String before = MDC.get(MDC_KEY);
+        MDC.put(MDC_KEY, CallerContext.current().correlationId());
         try {
             Object result = invocation.proceed();
+            String target = targetOf(invocation.getArguments(), result);
+            long elapsed = elapsedSince(started);
+            if (READS.contains(method.getName())) {
+                log.debug("{} {} {} answered in {} ms", system.get(), method.getName(), target, elapsed);
+            } else {
+                log.info("{} {} {} done in {} ms", system.get(), method.getName(), target, elapsed);
+            }
             if (!quiet(method, invocation.getArguments(), result, at)) {
-                record(system.get(), method, targetOf(invocation.getArguments(), result), at, started, SUCCESS, null);
+                record(system.get(), method, target, at, elapsed, SUCCESS, null);
             }
             return result;
         } catch (Throwable e) {
-            record(system.get(), method, targetOf(invocation.getArguments(), null), at, started, FAILURE,
-                    defaultIfBlank(e.getMessage(), e.getClass().getSimpleName()));
+            String target = targetOf(invocation.getArguments(), null);
+            String message = defaultIfBlank(e.getMessage(), e.getClass().getSimpleName());
+            long elapsed = elapsedSince(started);
+            log.warn("{} {} {} failed after {} ms: {}", system.get(), method.getName(), target, elapsed, message);
+            record(system.get(), method, target, at, elapsed, FAILURE, message);
             throw e;
+        } finally {
+            if (before == null) {
+                MDC.remove(MDC_KEY);
+            } else {
+                MDC.put(MDC_KEY, before);
+            }
         }
     }
 
-    private void record(ExternalSystem system, Method method, String target, Instant at, long started,
+    private void record(ExternalSystem system, Method method, String target, Instant at, long elapsed,
                         Outcome outcome, String message) {
         Caller caller = CallerContext.current();
         CallLogEntry entry = new CallLogEntry(null, at, abbreviateBytes(caller.user(), USER_MAX),
                 abbreviateBytes(caller.correlationId(), CORRELATION_MAX), system, method.getName(), target, outcome,
-                abbreviateBytes(message, MESSAGE_MAX), (System.nanoTime() - started) / 1_000_000);
+                abbreviateBytes(message, MESSAGE_MAX), elapsed);
         try {
             callLog.getObject().record(entry);
         } catch (RuntimeException e) {
             log.warn("The call of {}.{} on {} could not be written to the call log: {}", system, method.getName(),
                     entry.target(), e.getMessage());
         }
+    }
+
+    private static long elapsedSince(long started) {
+        return (System.nanoTime() - started) / 1_000_000;
     }
 
     /**

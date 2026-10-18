@@ -8,7 +8,6 @@ import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -32,9 +31,6 @@ public interface ProTechPort {
 
     /** Reminds the approver of a role or the approvers of a change task and answers whom it reminded. */
     List<String> remind(String changeNumber, ApprovalRef approval);
-
-    /** How long to wait between two looks at the {@link #activity} of the changes: the poll of ProTech. */
-    Duration pollEvery();
 
     /**
      * What ProTech did to the {@code watched} changes since {@code since}, by number; a change ProTech did nothing to,

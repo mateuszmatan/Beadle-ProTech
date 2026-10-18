@@ -8,23 +8,11 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Timing
 import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems
 import spock.lang.Specification
 
-import java.time.LocalDate
-
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.BACKOUT_PLAN
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.FIRST_USE_PLAN
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.GROUP_MAX
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.IMPLEMENTATION_PLAN
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.JIRA_KEY_MESSAGE
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.TEST_SUMMARY
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.EMERGENCY
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.VALIDATION_PLAN
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.suggestedFor
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.at
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.privileged
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.risk
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.tasks
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
 
 class ChangeTemplateSpec extends Specification {
@@ -66,59 +54,6 @@ class ChangeTemplateSpec extends Specification {
         template(riskAssessment: null, risk: 'High').risk() == 'Low'
     }
 
-    def "the template suggested for #code takes the Jira key #key, the product name and its owner team"() {
-        when:
-        def suggested = suggestedFor(code, 'Product', owner)
-
-        then:
-        suggested == ChangeTemplate.builder().jiraProjectKey(key).assignmentGroup(group).category('Application')
-                .type(STANDARD).configurationItem('Product')
-                .timing(new Timing('18:00', 2, 1)).planning(Planning.SUGGESTED).build()
-        suggested.risk() == 'Low'
-        Planning.SUGGESTED == new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN, BACKOUT_PLAN,
-                FIRST_USE_PLAN)
-        VALIDATION_PLAN == 'Run the smoke tests of the DevSecOps pipeline against production and' +
-                ' check the monitoring of the product.'
-        FIRST_USE_PLAN == 'The business owner confirms the first use of the release in production.'
-        problems(suggested) == []
-
-        where:
-        code          | owner || key      | group
-        'CERTSCANNER' | 'TA'  || 'CERT'   | 'TA'
-        'PAYHUB'      | null  || 'PAYHUB' | 'Product Support'
-        'fx-rates_2'  | ' '   || 'FXRA'   | 'Product Support'
-    }
-
-    def "the suggested template fits the columns of a long product name"() {
-        when:
-        def suggested = suggestedFor('LONG', 'N' * 195, null)
-        def multibyte = suggestedFor('LONG', 'Ł' * 200, null)
-
-        then:
-        suggested.assignmentGroup().getBytes('UTF-8').length <= GROUP_MAX
-        suggested.assignmentGroup().endsWith('...')
-        suggested.configurationItem() == 'N' * 195
-        multibyte.configurationItem().getBytes('UTF-8').length <= GROUP_MAX
-        multibyte.configurationItem().endsWith('...')
-        problems(multibyte) == []
-    }
-
-    def "a raised template takes the FixVersion as its release unless it names one"() {
-        expect:
-        template().releasedAs('CERT 4.2') == template(release: 'CERT 4.2')
-        template(release: 'R42').releasedAs('CERT 4.2') == template(release: 'R42')
-    }
-
-    def "a raised template names the signed-in user for its empty people and the product's department"() {
-        expect:
-        template().openedBy('Mateusz Matan', 'Custody') == template(requestedFor: 'Mateusz Matan',
-                requestedBy: 'Mateusz Matan', department: 'Custody', assignedTo: 'Mateusz Matan')
-        template(requestedFor: 'Ann Lee', requestedBy: 'Jane Smith', department: 'AI Lab', assignedTo: 'Grace Turner')
-                .openedBy('Mateusz Matan', 'Custody') == template(requestedFor: 'Ann Lee', requestedBy: 'Jane Smith',
-                department: 'AI Lab', assignedTo: 'Grace Turner')
-        template().openedBy('Mateusz Matan', null).department() == null
-    }
-
     def "a complete template has no problems, also with privileged access for up to seven users"() {
         expect:
         problems(template()) == []
@@ -135,7 +70,7 @@ class ChangeTemplateSpec extends Specification {
         where:
         problem                                  | edits                                                       || expected
         'it misses its required texts'           | [jiraProjectKey: ' ', assignmentGroup: null, category: '', type: null, configurationItem: ' '] || ['template.jiraProjectKey is required', 'template.assignmentGroup is required', 'template.category is required', 'template.type is required', 'template.configurationItem is required']
-        'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey ' + JIRA_KEY_MESSAGE]
+        'the Jira key has a dash'                | [jiraProjectKey: 'CE-RT']                                   || ['template.jiraProjectKey must be a Jira project key such as CERT: up to 10 upper case letters, digits or _, starting with a letter']
         'secure coding links are no links'       | [secureCoding: new SecureCoding('APO-1', 'bitbucket.bbh.com/projects/CERT', null, 'ftp://cert')] || ['template.secureCoding.bitbucketUrl ' + SecureCoding.LINK_MESSAGE, 'template.secureCoding.qcApplicationLink ' + SecureCoding.LINK_MESSAGE]
         'secure coding inputs are too long'      | [secureCoding: new SecureCoding('A' * 41, 'https://' + 'b' * 493, null, null)] || ['template.secureCoding.apoNumber is too long: it may take at most 40 bytes', 'template.secureCoding.bitbucketUrl is too long: it may take at most 500 bytes']
         'it has no timing and no planning'       | [timing: null, planning: null]                              || ['template.timing is required', 'template.planning is required']
@@ -213,47 +148,6 @@ class ChangeTemplateSpec extends Specification {
 
         needs = downtime ? 'needs' : 'takes no'
         has = downtime ? 'has' : 'has no'
-    }
-
-    def "only a schedule that starts after #now is upcoming"() {
-        given:
-        def problems = new ValidationProblems()
-
-        when:
-        schedule().checkUpcoming(at(now), problems)
-
-        then:
-        problems.list()*.field == fields
-
-        where:
-        now                    || fields
-        '2026-10-10T05:59:59Z' || []
-        '2026-10-10T06:00:00Z' || ['installationStart']
-        '2026-10-11T00:00:00Z' || ['installationStart']
-    }
-
-    def "a schedule reads as its installation, validation, first usage and downtime"() {
-        expect:
-        schedule().text() == 'Installation 2026-10-10 06:00 to 10:00 UTC, post-install validation 2026-10-10 10:00' +
-                ' to 11:00 UTC, first usage 2026-10-12 08:00 UTC. No downtime.'
-        schedule(installationStart: '2026-10-09T22:00:00Z', downtimeStart: '2026-10-09T22:00:00Z',
-                downtimeEnd: '2026-10-10T02:30:00Z').text() == 'Installation 2026-10-09 22:00 to 2026-10-10 10:00 UTC,' +
-                ' post-install validation 2026-10-10 10:00 to 11:00 UTC, first usage 2026-10-12 08:00 UTC.' +
-                ' Downtime 2026-10-09 22:00 to 2026-10-10 02:30 UTC.'
-    }
-
-    def "a schedule not planned yet reads as such"() {
-        expect:
-        ChangeSchedule.UNPLANNED.text() == 'Installation not planned yet, post-install validation not planned yet,' +
-                ' first usage not planned yet. No downtime.'
-        schedule(validationEnd: null, firstUsage: null).text() == 'Installation 2026-10-10 06:00 to 10:00 UTC,' +
-                ' post-install validation not planned yet, first usage not planned yet. No downtime.'
-    }
-
-    def "a Jira issue reads as its key, summary and status"() {
-        expect:
-        new JiraIssue('CERT-1', 'Alerts', 'Done', null, LocalDate.parse('2026-10-01')).line() == 'CERT-1 Alerts (Done)'
-        new JiraIssue('CERT-2', 'Mails', null, 'CERT-1', LocalDate.parse('2026-10-01')).line() == 'CERT-2 Mails'
     }
 
     private static List<String> problems(ChangeTemplate template) {

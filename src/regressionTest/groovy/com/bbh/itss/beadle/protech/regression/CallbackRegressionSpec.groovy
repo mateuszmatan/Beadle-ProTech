@@ -11,7 +11,7 @@ import static java.time.Duration.ofMinutes
 
 class CallbackRegressionSpec extends BeadleProTechSpecification {
 
-    def "Beadle-GUI hears of every state, approval and task move of a change it raised, with the service token and the correlation id of the raise"() {
+    def "Beadle-GUI hears of every state, approval and task move of a change it raised, with the service token and the correlation id of the raise in a header"() {
         given: 'a change installed in an hour, with two tasks'
         Instant start = clock.instant()
         String number = raise(draft(start, start + ofHours(1)))
@@ -33,7 +33,7 @@ class CallbackRegressionSpec extends BeadleProTechSpecification {
             header('X-Correlation-Id') == correlationId
             header('Content-Type').startsWith('application/json')
             body == [number: number, event: 'STATE_CHANGED', state: 'BUSINESS_APPROVAL',
-                     at: (start + ofMinutes(2)).toString(), correlationId: correlationId]
+                     at: (start + ofMinutes(2)).toString()]
             status == 202
         }
         conditions.eventually {

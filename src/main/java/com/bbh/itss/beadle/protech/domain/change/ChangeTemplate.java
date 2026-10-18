@@ -8,16 +8,11 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD;
-import static com.bbh.itss.beadle.protech.domain.shared.Text.abbreviateBytes;
 import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.joining;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.BooleanUtils.isTrue;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
-import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
-import static org.apache.commons.lang3.StringUtils.defaultString;
-import static org.apache.commons.lang3.StringUtils.trim;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 import static org.apache.commons.lang3.StringUtils.upperCase;
 
@@ -30,11 +25,6 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
                              PrivilegedAccess privilegedAccess, RiskAssessment riskAssessment,
                              String secureCodingTicket, SecureCoding secureCoding) {
 
-    public static final String JIRA_KEY = "^[A-Z][A-Z0-9_]{0,9}$";
-    public static final String JIRA_KEY_MESSAGE = "must be a Jira project key such as CERT: up to 10 upper case"
-            + " letters, digits or _, starting with a letter";
-    public static final String TIME_OF_DAY = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
-    public static final String TIME_OF_DAY_MESSAGE = "must be a time of day such as 18:00";
     public static final int GROUP_MAX = 200;
     public static final int NAME_MAX = 100;
     public static final int NUMBER_MAX = 40;
@@ -45,25 +35,8 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
     public static final List<String> CATEGORIES = List.of("Application", "Hardware", "Infrastructure",
             "System Software", "Network", "Telecom", "Data Amendment", "Desktop Software", "Storage", "Facilities",
             "Other", "Database");
-
-    public static final String TEST_SUMMARY = """
-            Unit, smoke, regression and performance tests and the security scans of the DevSecOps \
-            pipeline passed on QC.""";
-    public static final String IMPLEMENTATION_PLAN = """
-            1. Carry out the change tasks in the order listed.
-            2. Run the smoke tests of the DevSecOps pipeline against production.
-            3. Confirm with the business owner and close the change tasks.""";
-    public static final String VALIDATION_PLAN = """
-            Run the smoke tests of the DevSecOps pipeline against production and check the monitoring of the \
-            product.""";
-    public static final String BACKOUT_PLAN = """
-            Redeploy the previous release from Nexus with the same deployment job and confirm with the \
-            smoke tests.""";
-    public static final String FIRST_USE_PLAN = "The business owner confirms the first use of the release in"
-            + " production.";
-
-    private static final Pattern JIRA_KEY_PATTERN = Pattern.compile(JIRA_KEY);
-    private static final Pattern TIME_OF_DAY_PATTERN = Pattern.compile(TIME_OF_DAY);
+    private static final Pattern JIRA_KEY = Pattern.compile("^[A-Z][A-Z0-9_]{0,9}$");
+    private static final Pattern TIME_OF_DAY = Pattern.compile("^([01][0-9]|2[0-3]):[0-5][0-9]$");
 
     @Getter
     @RequiredArgsConstructor
@@ -97,32 +70,6 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         secureCoding = getIfNull(secureCoding, SecureCoding.NONE);
     }
 
-    public static ChangeTemplate suggestedFor(String code, String name, String ownerTeam) {
-        return builder().jiraProjectKey(jiraKeyOf(code))
-                .assignmentGroup(abbreviateBytes(defaultIfBlank(trim(ownerTeam), name + " Support"), GROUP_MAX))
-                .category(CATEGORIES.get(0)).type(STANDARD).configurationItem(abbreviateBytes(name, GROUP_MAX))
-                .timing(Timing.SUGGESTED)
-                .planning(Planning.SUGGESTED).build();
-    }
-
-    public static String jiraKeyOf(String code) {
-        String letters = defaultString(code).toUpperCase(ROOT).replaceAll("[^A-Z0-9]", "");
-        return letters.length() <= 6 ? letters : letters.substring(0, 4);
-    }
-
-    public static boolean isJiraKey(String key) {
-        return key != null && JIRA_KEY_PATTERN.matcher(key).matches();
-    }
-
-    public ChangeTemplate releasedAs(String fixVersion) {
-        return release != null ? this : toBuilder().release(fixVersion).build();
-    }
-
-    public ChangeTemplate openedBy(String user, String departmentName) {
-        return toBuilder().requestedFor(getIfNull(requestedFor, user)).requestedBy(getIfNull(requestedBy, user))
-                .department(getIfNull(department, departmentName)).assignedTo(getIfNull(assignedTo, user)).build();
-    }
-
     public ChangeTemplate edited(ChangeTemplate changes) {
         return changes.toBuilder().jiraProjectKey(jiraProjectKey).type(type).timing(timing).secureCoding(secureCoding)
                 .build();
@@ -136,8 +83,9 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
                 .require("configurationItem", configurationItem, REQUIRED)
                 .require("timing", timing, REQUIRED)
                 .require("planning", planning, REQUIRED);
-        if (jiraProjectKey != null && !isJiraKey(jiraProjectKey)) {
-            problems.add("jiraProjectKey", JIRA_KEY_MESSAGE);
+        if (jiraProjectKey != null && !JIRA_KEY.matcher(jiraProjectKey).matches()) {
+            problems.add("jiraProjectKey", "must be a Jira project key such as CERT: up to 10 upper case letters, "
+                    + "digits or _, starting with a letter");
         }
         if (category != null && !CATEGORIES.contains(category)) {
             problems.add("category", "must be one of " + String.join(", ", CATEGORIES));
@@ -188,8 +136,6 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
 
     public record Timing(String installationStart, Integer installationHours, Integer validationHours) {
 
-        public static final Timing SUGGESTED = new Timing("18:00", 2, 1);
-
         public Timing {
             installationStart = trimToNull(installationStart);
         }
@@ -198,8 +144,8 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
             problems.require("installationStart", installationStart, REQUIRED)
                     .require("installationHours", installationHours, REQUIRED)
                     .require("validationHours", validationHours, REQUIRED);
-            if (installationStart != null && !TIME_OF_DAY_PATTERN.matcher(installationStart).matches()) {
-                problems.add("installationStart", TIME_OF_DAY_MESSAGE);
+            if (installationStart != null && !TIME_OF_DAY.matcher(installationStart).matches()) {
+                problems.add("installationStart", "must be a time of day such as 18:00");
             }
             between(problems, "installationHours", installationHours, 1);
             between(problems, "validationHours", validationHours, 0);
@@ -214,9 +160,6 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
 
     public record Planning(String testSummary, String implementationPlan, String validationPlan,
                            String backoutPlan, String firstUsePlan) {
-
-        public static final Planning SUGGESTED = new Planning(TEST_SUMMARY, IMPLEMENTATION_PLAN, VALIDATION_PLAN,
-                BACKOUT_PLAN, FIRST_USE_PLAN);
 
         public Planning {
             testSummary = trimToNull(testSummary);
@@ -272,7 +215,8 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
             }
         }
 
-        String text() {
+        /** How ProTech holds it: {@code Privileged access needed for: Ann Lee (adm_alee).} */
+        public String text() {
             return !required ? "Privileged access: not needed." : "Privileged access needed for: "
                     + users.stream().map(PrivilegedUser::text).collect(joining(", ")) + ".";
         }

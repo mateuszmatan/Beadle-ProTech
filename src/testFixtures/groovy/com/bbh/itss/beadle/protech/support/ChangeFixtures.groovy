@@ -1,7 +1,7 @@
 package com.bbh.itss.beadle.protech.support
 
+import com.bbh.itss.beadle.protech.domain.change.ApprovalRole
 import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
-import com.bbh.itss.beadle.protech.domain.change.ChangeProduct
 import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate
@@ -10,7 +10,6 @@ import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Planning
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.PrivilegedAccess
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.PrivilegedUser
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Timing
-import com.bbh.itss.beadle.protech.domain.change.JiraIssue
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.domain.change.RiskAssessment
 import com.bbh.itss.beadle.protech.domain.change.SecureCoding
@@ -19,7 +18,6 @@ import com.bbh.itss.beadle.protech.domain.change.TaskState
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
 
 import java.time.Instant
-import java.time.LocalDate
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Type.STANDARD
@@ -37,30 +35,18 @@ class ChangeFixtures {
                 .newInstance(args as Object[]) as T
     }
 
-    static ChangeProduct changeProduct(Map changes = [:]) {
-        copy(changes, new ChangeProduct(1L, 'CERTSCANNER', 'CertScanner', 'Technology Architecture', 3L,
-                'Corporate Technology', null))
-    }
-
     static ChangeTemplate template(Map changes = [:]) {
         copy(changes, ChangeTemplate.builder().jiraProjectKey('CERT').assignmentGroup('Technology Architecture')
                 .category('Application').type(STANDARD).configurationItem('CertScanner')
                 .approvers(new Approvers('Olivia Bennett', 'James Carter', 'Rebecca Lawson', 'Jane Smith'))
-                .timing(Timing.SUGGESTED).planning(Planning.SUGGESTED).riskAssessment(risk()).build())
+                .timing(new Timing('18:00', 2, 1)).planning(new Planning('Pipeline tests passed on QC.',
+                'Deploy the services.', 'Run the smoke tests.', 'Redeploy the previous release.',
+                'The business owner confirms the first use.')).riskAssessment(risk()).build())
     }
 
     static SecureCoding secureCoding(Map changes = [:]) {
         copy(changes, new SecureCoding('APO-12345', 'https://bitbucket.bbh.com/projects/CERT/repos/cert',
                 'https://jenkins.bbh.com/job/CERT/job/cert-release/', 'https://cert.qc.bbh.com'))
-    }
-
-    static Map secureCodingJson(Map changes = [:]) {
-        secureCodingJson(secureCoding(changes))
-    }
-
-    static Map secureCodingJson(SecureCoding inputs) {
-        [apoNumber: inputs.apoNumber(), bitbucketUrl: inputs.bitbucketUrl(), artifactLink: inputs.artifactLink(),
-         qcApplicationLink: inputs.qcApplicationLink()]
     }
 
     static RiskAssessment risk(Map changes = [:]) {
@@ -89,34 +75,6 @@ class ChangeFixtures {
         (1..count).collect { details(it) }
     }
 
-    static List<Map> tasksJson(int count = 2) {
-        tasks(count).collect { [assignmentGroup: it.assignmentGroup(), shortDescription: it.shortDescription(),
-                                description    : it.description()] }
-    }
-
-    static Map detailsJson(TaskDetails details) {
-        [assignmentGroup   : details.assignmentGroup(), assignedTo: details.assignedTo(),
-         configurationItem : details.configurationItem(), platform: details.platform(),
-         application       : details.application(), packages: details.packages(),
-         backoutPackages   : details.backoutPackages(), importance: details.importance(),
-         shortDescription  : details.shortDescription(), description: details.description(),
-         additionalComments: details.additionalComments()]
-    }
-
-    static Map changeTaskJson(Map details = [:], Instant start = null) {
-        [details: tasksJson(1)[0] + details, start: start?.toString()]
-    }
-
-    static List<Map> changeTasksJson(int count = 2) {
-        tasksJson(count).collect { [details: it, start: null] }
-    }
-
-    static List<TaskDetails> migratedTasks(String productName) {
-        TaskDetails.suggestedTasks(productName, null).collect {
-            it.toBuilder().assignmentGroup('Technology Architecture').configurationItem('CertScanner').build()
-        }
-    }
-
     static ChangeTask task(int index = 1) {
         ctask("CTASK004100$index", "Task $index of the CertScanner release", "Step $index of the CertScanner release.",
                 OPEN)
@@ -141,55 +99,9 @@ class ChangeFixtures {
                 .epicKeys(['CERT-1']).storyKeys(['CERT-2'])
                 .tasks([task(1), task(2)])
                 .state(DRAFT).workflow([new WorkflowStep(DRAFT, RAISED)])
-                .approvals(ChangeApproval.of(template().approvers())).syncedAt(RAISED).version(0L)
+                .approvals(ApprovalRole.values().collect { new ChangeApproval(it, it.approverIn(template().approvers()),
+                        null, null) }).syncedAt(RAISED).version(0L)
                 .createdAt(RAISED).build())
-    }
-
-    static JiraIssue epic(String key, String summary, String updated = '2026-09-20') {
-        new JiraIssue(key, summary, 'Done', null, LocalDate.parse(updated))
-    }
-
-    static JiraIssue story(String key, String summary, String epicKey, String updated = '2026-09-18') {
-        new JiraIssue(key, summary, 'Done', epicKey, LocalDate.parse(updated))
-    }
-
-    static Map templateJson(Map changes = [:]) {
-        Map json = [jiraProjectKey    : 'CERT', requestedFor: null, requestedBy: null, department: null,
-                    assignmentGroup   : 'Technology Architecture', category: 'Application', assignedTo: null,
-                    type              : 'STANDARD', release: null, configurationItem: 'CertScanner',
-                    incident          : null, directBusinessService: null, problem: null, risk: 'Moderate',
-                    affectedClients   : null, usersAffected: null,
-                    approvers         : [l1Manager: 'Olivia Bennett', l2Manager: 'James Carter',
-                                         businessApprover: 'Rebecca Lawson', supportApprover: 'Jane Smith'],
-                    downtime          : false,
-                    timing            : [installationStart: '18:00', installationHours: 2, validationHours: 1],
-                    planning          : [testSummary       : 'Pipeline tests passed on QC.',
-                                         implementationPlan: 'Deploy the services.',
-                                         validationPlan    : 'Run the smoke tests.',
-                                         backoutPlan       : 'Redeploy the previous release.',
-                                         firstUsePlan      : 'The business owner confirms the first use.'],
-                    privilegedAccess  : [required: false, users: []],
-                    riskAssessment    : [bbhWorkgroups: 'Single', changeComplexity: 'Simple', bbhUsers: '5-25',
-                                         validationComplexity: 'Simple', bbhApplications: 'Single',
-                                         backoutTesting: 'Less than 30 minutes', clientsOutsideBbh: 'No clients',
-                                         platformStatus: 'Existing', businessImpact: 'Low'],
-                    secureCodingTicket: null,
-                    secureCoding      : secureCodingJson(SecureCoding.NONE)]
-        changes.each { String path, value ->
-            List<String> keys = path.tokenize('.')
-            Map target = keys.init().inject(json) { Map map, String key -> map[key] as Map }
-            target[keys.last()] = value
-        }
-        json
-    }
-
-    static Map scheduleJson(Instant installationStart, boolean downtime = false) {
-        [installationStart: installationStart.toString(), installationEnd: installationStart.plusSeconds(7200).toString(),
-         validationStart  : installationStart.plusSeconds(7200).toString(),
-         validationEnd    : installationStart.plusSeconds(10800).toString(),
-         firstUsage       : installationStart.plusSeconds(54000).toString(),
-         downtimeStart    : downtime ? installationStart.toString() : null,
-         downtimeEnd      : downtime ? installationStart.plusSeconds(5400).toString() : null]
     }
 
     static Instant at(String text) {

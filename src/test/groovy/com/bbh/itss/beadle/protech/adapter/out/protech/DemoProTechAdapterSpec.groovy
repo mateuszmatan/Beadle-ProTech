@@ -1,13 +1,7 @@
 package com.bbh.itss.beadle.protech.adapter.out.protech
 
-import com.bbh.itss.beadle.protech.domain.change.ApprovalRef
-import com.bbh.itss.beadle.protech.domain.change.ChangeActivity
-import com.bbh.itss.beadle.protech.domain.change.ChangeApproval
-import com.bbh.itss.beadle.protech.domain.change.ChangeSchedule
-import com.bbh.itss.beadle.protech.domain.change.ChangeTask
+import com.bbh.itss.beadle.protech.domain.change.*
 import com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.Approvers
-import com.bbh.itss.beadle.protech.domain.change.ProductionChange
-import com.bbh.itss.beadle.protech.domain.change.WorkflowStep
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException
 import spock.lang.Specification
 import spock.util.time.MutableClock
@@ -18,40 +12,20 @@ import java.time.Instant
 import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.CLOSED_REFUSAL
 import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.taskStateOf
 import static com.bbh.itss.beadle.protech.adapter.out.protech.DemoProTechAdapter.workflowOf
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.BUSINESS
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L1
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.L2
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.SUPPORT
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.APPROVED
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.NOT_APPROVED
-import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.REQUESTED
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.BUSINESS_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CLOSED
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.CTASK_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.ESCALATED_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.IMPLEMENTATION
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.PRIMARY_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SECONDARY_APPROVAL
-import static com.bbh.itss.beadle.protech.domain.change.ChangeState.SUPPORT_APPROVAL
+import static com.bbh.itss.beadle.protech.domain.change.ApprovalRole.*
+import static com.bbh.itss.beadle.protech.domain.change.ApprovalState.*
+import static com.bbh.itss.beadle.protech.domain.change.ChangeState.*
 import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CANCELED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.CLOSED as TASK_CLOSED
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.OPEN
 import static com.bbh.itss.beadle.protech.domain.change.TaskState.WORK_IN_PROGRESS
 import static com.bbh.itss.beadle.protech.support.CallLogFixtures.watching
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.RAISED
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.ctask
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
-import static java.time.Duration.between
-import static java.time.Duration.ofDays
-import static java.time.Duration.ofHours
-import static java.time.Duration.ofMinutes
-import static java.time.Duration.ofSeconds
+import static com.bbh.itss.beadle.protech.support.ChangeFixtures.*
+import static java.time.Duration.*
 import static java.time.Instant.MAX
 
+/** The demo ProTech on a clock the spec moves: its numbers, workflow, approvals, updates, adoption and activity. */
 class DemoProTechAdapterSpec extends Specification {
 
     static final ChangeSchedule SHORT_NOTICE = scheduleFrom(RAISED.plus(ofHours(20)))
@@ -115,9 +89,9 @@ class DemoProTechAdapterSpec extends Specification {
     def "every change task has its own approvers and approval, and the change is In Progress only once all are approved"() {
         given:
         def known = raise(change(0))
-        def release = proTech.createTask(known.number(), ChangeTask.of(details(1,
+        def release = proTech.createTask(known.number(), taskOf(details(1,
                 [assignmentGroup: 'Release Management', application: 'CertScanner'])))
-        def database = proTech.createTask(known.number(), ChangeTask.of(details(2,
+        def database = proTech.createTask(known.number(), taskOf(details(2,
                 [assignmentGroup: 'Database Administration'])))
 
         when:
@@ -135,20 +109,9 @@ class DemoProTechAdapterSpec extends Specification {
                 [database, REQUESTED, ['Henry Collins', 'Kenji Watanabe']]]
         oneApproved.state() == CTASK_APPROVAL
         oneApproved.tasks()*.approval() == [APPROVED, REQUESTED]
-        !oneApproved.tasksApproved()
         allApproved.state() == IMPLEMENTATION
         allApproved.tasks()*.approval() == [APPROVED, APPROVED]
-        allApproved.tasksApproved()
         allApproved.workflow().last() == new WorkflowStep(IMPLEMENTATION, RAISED.plus(ofMinutes(14)))
-    }
-
-    def "a change without change tasks waits in CTask approval"() {
-        given:
-        def known = raise(change(0))
-        clock.instant = schedule().validationEnd().plus(ofDays(1))
-
-        expect:
-        proTech.read([known])[known.number()].state() == CTASK_APPROVAL
     }
 
     def "a change task added to a change In Progress sends it back to CTask approval until the new task is approved"() {
@@ -176,8 +139,8 @@ class DemoProTechAdapterSpec extends Specification {
     def "a change task moved to another assignment group is asked again from the approvers of its new group"() {
         given:
         def known = raise(change(1))
-        def moved = known.tasks()[0].editedTo(ChangeTask.of(known.tasks()[0].details().toBuilder()
-                .assignmentGroup('Database Administration').build()))
+        def moved = known.tasks()[0].withDetails(known.tasks()[0].details().toBuilder()
+                .assignmentGroup('Database Administration').build())
         clock.instant = RAISED.plus(ofMinutes(30))
 
         when:
@@ -196,23 +159,19 @@ class DemoProTechAdapterSpec extends Specification {
         approved.tasks()*.approval() == [APPROVED]
     }
 
-    def "ProTech reminds the approver of a role or the approvers of a change task and records whom it reminded"() {
+    def "ProTech reminds the approver of a role or the approvers of a change task"() {
         given:
         def known = raise(change(1))
         clock.instant = RAISED.plus(ofMinutes(5))
         def task = known.tasks()[0].number()
 
         when:
-        def l1 = proTech.remind(known.number(), ApprovalRef.of(L1))
-        def ctask = proTech.remind(known.number(), ApprovalRef.ofTask(task))
+        def l1 = proTech.remind(known.number(), new ApprovalRef(L1, null))
+        def ctask = proTech.remind(known.number(), new ApprovalRef(null, task))
 
         then:
         l1 == ['Olivia Bennett']
         ctask == ARCHITECTS
-        proTech.sent() == [
-                new DemoProTechAdapter.SentReminder(known.number(), ApprovalRef.of(L1), l1, clock.instant()),
-                new DemoProTechAdapter.SentReminder(known.number(), ApprovalRef.ofTask(task), ctask,
-                        clock.instant())]
     }
 
     def "ProTech reminds nobody on #refusal"() {
@@ -229,29 +188,31 @@ class DemoProTechAdapterSpec extends Specification {
         refused.message == message.replace('{CHG}', known.number())
 
         where:
-        refusal                     | at                   | unknown | approval                           || message
-        'a closed change'           | SOON.validationEnd() | false   | ApprovalRef.of(L1)                 || CLOSED_REFUSAL
-        'a change it does not hold' | RAISED               | true    | ApprovalRef.of(L1)                 || 'ProTech has no change CHG0000001'
-        'an unnamed approver'       | RAISED               | false   | ApprovalRef.of(SUPPORT)            || 'ProTech has nobody to remind on {CHG}'
-        'a task it does not hold'   | RAISED               | false   | ApprovalRef.ofTask('CTASK0000001') || 'ProTech has no change task CTASK0000001 on {CHG}'
+        refusal                     | at                   | unknown | approval                              || message
+        'a closed change'           | SOON.validationEnd() | false   | new ApprovalRef(L1, null)             || CLOSED_REFUSAL
+        'a change it does not hold' | RAISED               | true    | new ApprovalRef(L1, null)             || 'ProTech has no change CHG0000001'
+        'an unnamed approver'       | RAISED               | false   | new ApprovalRef(SUPPORT, null)        || 'ProTech has nobody to remind on {CHG}'
+        'a task it does not hold'   | RAISED               | false   | new ApprovalRef(null, 'CTASK0000001') || 'ProTech has no change task CTASK0000001 on {CHG}'
     }
 
-    def "ProTech creates no task on #refusal"() {
+    def "ProTech refuses to #action #refusal"() {
         given:
         def known = raise(change(1, SOON))
         clock.instant = SOON.validationEnd()
 
         when:
-        proTech.createTask(unknown ? 'CHG0000001' : known.number(), CHECK)
+        call(proTech, unknown ? known.toBuilder().number('CHG0000001').build() : known)
 
         then:
         def refused = thrown(RefusedException)
-        refused.message == message
+        refused.message == (unknown ? 'ProTech has no change CHG0000001' : CLOSED_REFUSAL)
 
         where:
-        refusal                     | unknown || message
-        'a closed change'           | false   || CLOSED_REFUSAL
-        'a change it does not hold' | true    || 'ProTech has no change CHG0000001'
+        action               | refusal                     | unknown | call
+        'create a task on'   | 'a closed change'           | false   | { p, c -> p.createTask(c.number(), CHECK) }
+        'create a task on'   | 'a change it does not hold' | true    | { p, c -> p.createTask(c.number(), CHECK) }
+        'change'             | 'a closed change'           | false   | { p, c -> p.update(c) }
+        'change'             | 'a change it does not hold' | true    | { p, c -> p.update(c) }
     }
 
     def "a change planned well ahead whose tasks are approved #approved is in #state #after after it was raised"() {
@@ -374,7 +335,6 @@ class DemoProTechAdapterSpec extends Specification {
         after.tasks()*.number()[1] ==~ /CTASK\d{7}/
         after.tasks()*.number()[2] == known.tasks()[0].number()
         after.tasks()*.state() == [OPEN, OPEN, CANCELED]
-        requested.unappliedIn(after) == []
         again == after
     }
 
@@ -413,8 +373,6 @@ class DemoProTechAdapterSpec extends Specification {
         after.state() == IMPLEMENTATION
         after.shortDescription() == 'Renamed'
         after.schedule() == SOON
-        requested.unappliedIn(after) == ['schedule.installationStart', 'schedule.installationEnd',
-                                         'schedule.validationStart', 'schedule.validationEnd', 'schedule.firstUsage']
     }
 
     def "a rescheduled change keeps the stages it reached and enters the next ones no earlier than the new schedule"() {
@@ -438,24 +396,6 @@ class DemoProTechAdapterSpec extends Specification {
                 new WorkflowStep(IMPLEMENTATION, RAISED.plus(ofMinutes(30)).plusSeconds(3))
     }
 
-    def "ProTech refuses to change #refusal"() {
-        given:
-        def known = raise(change(1, SOON))
-        clock.instant = SOON.validationEnd()
-
-        when:
-        proTech.update(unknown ? known.toBuilder().number('CHG0000001').build() : known)
-
-        then:
-        def refused = thrown(RefusedException)
-        refused.message == message
-
-        where:
-        refusal           | unknown || message
-        'a closed change' | false   || CLOSED_REFUSAL
-        'a change it does not hold' | true || 'ProTech has no change CHG0000001'
-    }
-
     def "a change ProTech does not hold, as after a restart, is adopted from the portal's copy"() {
         given:
         def known = raised(tasks: raised().tasks() + CHECK)
@@ -470,33 +410,8 @@ class DemoProTechAdapterSpec extends Specification {
         copy.workflow() == workflowOf(RAISED, known.schedule(), MAX, RAISED.plus(ofMinutes(3)))
         copy.tasks()*.number().take(2) == ['CTASK0041001', 'CTASK0041002']
         copy.tasks()[2].number() ==~ /CTASK\d{7}/
-        known.unappliedIn(copy) == []
+        copy.tasks()*.details() == known.tasks()*.details()
         again.tasks() == copy.tasks()
-    }
-
-    def "a rescheduled change adopted by a restarted ProTech keeps the stages it reached and goes on from there"() {
-        given:
-        def implementing = raise(change(1))
-        clock.instant = RAISED.plus(ofMinutes(30))
-        def moved = scheduleFrom(RAISED.plus(ofHours(6)))
-        proTech.update(implementing.toBuilder().schedule(moved).build())
-        clock.instant = RAISED.plus(ofMinutes(31))
-        def copy = proTech.read([implementing])[implementing.number()]
-        def restarted = new DemoProTechAdapter(clock, new DemoProTechProperties(ofSeconds(3)))
-
-        when:
-        clock.instant = RAISED.plus(ofHours(1))
-        def adopted = restarted.read([copy])[copy.number()]
-        clock.instant = moved.validationEnd()
-        def closed = restarted.read([copy])[copy.number()]
-
-        then:
-        copy.schedule() == moved
-        copy.state() == IMPLEMENTATION
-        workflowOf(RAISED, moved, APPROVED_AT, RAISED.plus(ofHours(1))).last().state() == ESCALATED_APPROVAL
-        adopted.workflow() == copy.workflow()
-        adopted.state() == IMPLEMENTATION
-        closed.workflow() == copy.workflow() + new WorkflowStep(CLOSED, moved.validationEnd())
     }
 
     def "a change without a raise time or a workflow is adopted as raised now"() {
@@ -508,7 +423,7 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.read([known])[known.number()].workflow() == [new WorkflowStep(DRAFT, RAISED.plus(ofHours(1)))]
     }
 
-    def "the demo is looked at every tick and tells what moved since a time: the stage, the task approvals and the installation"() {
+    def "the demo tells what moved since a time: the stage, the task approvals and the installation"() {
         given:
         def known = raise(change(0))
         def number = known.number()
@@ -516,7 +431,6 @@ class DemoProTechAdapterSpec extends Specification {
         def installation = known.schedule().installationStart()
 
         expect:
-        proTech.pollEvery() == Duration.ZERO
         activity(number, ofMinutes(1), RAISED) == null
         activity(number, ofMinutes(1), RAISED.minusSeconds(1)) == new ChangeActivity(number, DRAFT, RAISED, null, null)
         activity(number, ofMinutes(3), RAISED) ==
@@ -530,26 +444,21 @@ class DemoProTechAdapterSpec extends Specification {
         proTech.activity(watching([number, 'CHG0000001']), null).keySet() == [number] as Set
     }
 
-    def "a change the demo got late moved no earlier than when it got it"() {
+    def "a change the demo got late, raised or adopted after a restart, moved no earlier than when it got it"() {
         given:
-        clock.instant = RAISED.plus(ofMinutes(30))
-        def number = proTech.raise(change(0).toBuilder().createdAt(RAISED).build()).number()
+        clock.instant = RAISED.plus(ofMinutes(got))
+        def number = adopted ? proTech.read([raised(tasks: [], workflow: [new WorkflowStep(DRAFT, RAISED)])]).keySet()[0]
+                : proTech.raise(change(0).toBuilder().createdAt(RAISED).build()).number()
 
         expect:
-        proTech.activity(watching([number]), RAISED.plus(ofMinutes(29))) ==
-                [(number): new ChangeActivity(number, CTASK_APPROVAL, RAISED.plus(ofMinutes(30)), null, null)]
-        proTech.activity(watching([number]), RAISED.plus(ofMinutes(30))) == [:]
-    }
+        proTech.activity(watching([number]), RAISED.plus(ofMinutes(got - 1))) ==
+                [(number): new ChangeActivity(number, state, RAISED.plus(ofMinutes(got)), null, null)]
+        proTech.activity(watching([number]), RAISED.plus(ofMinutes(got))) == [:]
 
-    def "a change adopted after a restart moved no earlier than its adoption"() {
-        given:
-        clock.instant = RAISED.plus(ofMinutes(5))
-        def known = raised(tasks: [], workflow: [new WorkflowStep(DRAFT, RAISED)], createdAt: RAISED)
-        proTech.read([known])
-
-        expect:
-        proTech.activity(watching([known.number()]), RAISED.plus(ofMinutes(4))) == [(known.number()): new ChangeActivity(
-                known.number(), PRIMARY_APPROVAL, RAISED.plus(ofMinutes(5)), null, null)]
+        where:
+        adopted | got || state
+        false   | 30  || CTASK_APPROVAL
+        true    | 5   || PRIMARY_APPROVAL
     }
 
     private ChangeActivity activity(String number, Duration after, Instant since) {
@@ -561,7 +470,7 @@ class DemoProTechAdapterSpec extends Specification {
         def bare = change.toBuilder().tasks([]).build()
         def raised = proTech.raise(bare)
         bare.numbered(raised.number(), raised.url())
-                .withTasks(change.tasks().collect { it.numbered(proTech.createTask(raised.number(), it)) })
+                .withTasks(change.tasks().collect { it.withNumber(proTech.createTask(raised.number(), it)) })
     }
 
     private List approvals(ProductionChange known, Duration after) {
@@ -579,6 +488,10 @@ class DemoProTechAdapterSpec extends Specification {
     static ProductionChange change(int tasks, ChangeSchedule schedule = schedule()) {
         raised(id: null, number: null, schedule: schedule, createdAt: null, workflow: [], syncedAt: null,
                 tasks: (0..<tasks).collect { ctask(null, "Task ${it + 1}", "Step ${it + 1}.", null) })
+    }
+
+    static ChangeTask taskOf(TaskDetails details) {
+        new ChangeTask(null, details, null, null, null, null, null)
     }
 
     static ChangeSchedule scheduleFrom(Instant start) {

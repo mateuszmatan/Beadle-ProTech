@@ -27,7 +27,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 /**
  * Runs Beadle-ProTech on a random port with the demo ProTech on an in-memory H2 in Oracle mode, a clock that only
- * moves when a spec moves it, a tick every second and {@link GuiCallbacks} as Beadle-GUI. The environment variables
+ * moves when a spec moves it, a look at ProTech every 0.3 s and {@link GuiCallbacks} as Beadle-GUI. The environment variables
  * are those of a shell shared with Beadle-GUI ({@link EnvironmentVariables#SHARED_WITH_GUI}), which must leave the
  * demo ProTech playing. Every spec shares the one application and its clock, so a spec tells its data apart by the
  * correlation id of its calls or by the number of its changes, and only ever moves the clock forward.
@@ -36,7 +36,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
         'spring.datasource.url=jdbc:h2:mem:beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000',
         'beadle.services.token=regression-service-token',
         'beadle.gui.url=http://beadle-gui.test:8081',
-        'beadle.protech.tick=PT0.3S'])
+        'beadle.protech.poll=PT0.3S'])
 @ActiveProfiles('local')
 @ContextConfiguration(initializers = EnvironmentVariables)
 @Import(Regression)
@@ -53,7 +53,7 @@ abstract class BeadleProTechSpecification extends ServiceSpecification {
 
     String correlationId = UUID.randomUUID().toString()
 
-    /** Long enough for a few ticks of the watch, which runs every second. */
+    /** Long enough for a few looks of the watch, which runs every 0.3 s. */
     PollingConditions conditions = new PollingConditions(timeout: 30, delay: 0.2)
 
     @Override
@@ -104,7 +104,7 @@ abstract class BeadleProTechSpecification extends ServiceSpecification {
     /** Creates the task {@code index} of the fixtures on change {@code number} and answers its number. */
     String createTask(String number, int index) {
         def created = api.postRaw("/api/protech/changes/$number/tasks", 'application/json',
-                Json.jackson(task(index).numbered(null)))
+                Json.jackson(task(index).withNumber(null)))
         assert created.status == 201: created
         created.json.number
     }

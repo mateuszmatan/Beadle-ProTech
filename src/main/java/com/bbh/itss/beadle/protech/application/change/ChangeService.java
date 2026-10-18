@@ -23,14 +23,9 @@ import java.util.Map;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeSchedule.UNPLANNED;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT;
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTask.validateTasks;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIPTION_MAX;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.checkTemplateAndSchedule;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
-import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 /**
@@ -60,7 +55,7 @@ public class ChangeService implements ChangesUseCase {
     @WithoutTransaction
     public RaisedChange raise(ProductionChange draft) {
         ValidationProblems problems = new ValidationProblems();
-        check(draft, problems);
+        draft.validate(problems);
         problems.throwIfAny();
         RaisedChange raised = proTech.raise(draft);
         tracked.track(List.of(TrackedChange.seen(raised.number(), DRAFT, now(clock), correlationId())));
@@ -109,7 +104,7 @@ public class ChangeService implements ChangesUseCase {
         if (change.number() != null && !change.number().equals(path)) {
             problems.add("number", "must be " + path + ", the change of the path");
         }
-        check(change, problems);
+        change.validate(problems);
         problems.throwIfAny();
         proTech.update(change.number() == null ? change.numbered(path, change.url()) : change);
         touched(path);
@@ -125,15 +120,6 @@ public class ChangeService implements ChangesUseCase {
         List<String> reminded = proTech.remind(number, new ApprovalRef(approval.role(), trimToNull(approval.task())));
         touched(number);
         return reminded;
-    }
-
-    private static void check(ProductionChange change, ValidationProblems problems) {
-        problems.require("shortDescription", trimToNull(change.shortDescription()), REQUIRED)
-                .fits("shortDescription", change.shortDescription(), SHORT_DESCRIPTION_MAX)
-                .require("description", trimToNull(change.description()), REQUIRED)
-                .fits("description", change.description(), DESCRIPTION_MAX);
-        checkTemplateAndSchedule(change.template(), change.schedule(), null, problems);
-        validateTasks(change.tasks(), getIfNull(change.schedule(), UNPLANNED), problems);
     }
 
     /** What Beadle-GUI did itself is no news to it: the callbacks skip it. */

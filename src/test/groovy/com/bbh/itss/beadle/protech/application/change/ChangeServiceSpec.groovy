@@ -116,7 +116,7 @@ class ChangeServiceSpec extends Specification {
         'an incomplete template'         | [template: template(assignmentGroup: null)]                   || ['template.assignmentGroup']
         'no schedule'                    | [schedule: null]                                              || ['schedule']
         'a schedule out of order'        | [schedule: schedule(installationEnd: '2026-10-10T05:00:00Z')] || ['schedule.installationEnd']
-        'a task without a group'         | [tasks: [ChangeTask.of(details(1, [assignmentGroup: null]))]] || ['tasks[0].details.assignmentGroup']
+        'a task without a group'         | [tasks: [new ChangeTask(null, details(1, [assignmentGroup: null]), null, null, null, null, null)]] || ['tasks[0].details.assignmentGroup']
         'a release task without a start' | [tasks: [releaseTask([:], null)]]                             || ['tasks[0].start']
     }
 
@@ -142,7 +142,7 @@ class ChangeServiceSpec extends Specification {
         where:
         problem                          | number       | task                                               || fields
         'no change number'               | ' '          | task(1)                                            || ['number']
-        'no short description'           | 'CHG0031001' | ChangeTask.of(details(1, [shortDescription: null])) || ['details.shortDescription']
+        'no short description'           | 'CHG0031001' | new ChangeTask(null, details(1, [shortDescription: null]), null, null, null, null, null) || ['details.shortDescription']
         'a release task without a start' | 'CHG0031001' | releaseTask([:], null)                             || ['start']
     }
 
@@ -217,8 +217,8 @@ class ChangeServiceSpec extends Specification {
 
         where:
         approval                              || expected
-        ApprovalRef.of(L1)                    || ApprovalRef.of(L1)
-        new ApprovalRef(null, ' CTASK0041001 ') || ApprovalRef.ofTask('CTASK0041001')
+        new ApprovalRef(L1, null)             || new ApprovalRef(L1, null)
+        new ApprovalRef(null, ' CTASK0041001 ') || new ApprovalRef(null, 'CTASK0041001')
     }
 
     def "a reminder with #problem is refused"() {
@@ -235,6 +235,6 @@ class ChangeServiceSpec extends Specification {
         problem                     | number       | approval                            || field    | message
         'neither a role nor a task' | 'CHG0031001' | new ApprovalRef(null, ' ')          || 'task'   | ONE_OF_ROLE_OR_TASK
         'both a role and a task'    | 'CHG0031001' | new ApprovalRef(L1, 'CTASK0041001') || 'task'   | ONE_OF_ROLE_OR_TASK
-        'no change number'          | ''           | ApprovalRef.of(L1)                  || 'number' | 'is required'
+        'no change number'          | ''           | new ApprovalRef(L1, null)           || 'number' | 'is required'
     }
 }

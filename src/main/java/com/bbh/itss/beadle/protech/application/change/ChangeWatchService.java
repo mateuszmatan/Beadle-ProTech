@@ -35,13 +35,14 @@ import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 /**
- * Watches the changes Beadle-GUI knows for what ProTech does to them. Each tick looks at ProTech once its poll
- * interval has passed (the demo ProTech at every tick, the live one every {@code beadle.protech.poll}), and ProTech's
- * webhook has one change looked at at once. A look asks for what moved since the earliest last look minus
- * {@link #MARGIN}, and sends Beadle-GUI one callback per change that moved past what it knows, under the correlation id of the user action that last touched the change. A change is marked
- * reported only once Beadle-GUI took its callback, so a failed callback is sent again at the next look; the report is
- * merged over the change as it is written down by then, which keeps the read with which Beadle-GUI answers the
- * callback and any action of Beadle-GUI noted since the look.
+ * Watches the changes Beadle-GUI knows for what ProTech does to them: every {@code beadle.protech.poll} the ticker looks
+ * at all of them, and ProTech's webhook has one change looked at at once. A look asks for what moved since the
+ * earliest last look minus {@link #MARGIN} and sends Beadle-GUI one callback per change that moved past what it
+ * knows, under the correlation id of the user action that last touched the change. A change is marked reported only
+ * once Beadle-GUI took its callback, so a failed callback is sent again at the next look; a tick and a webhook look at
+ * once at worst tell Beadle-GUI twice, which it answers by reading the change again. The report is merged over the
+ * change as it is written down by then, which keeps the read with which Beadle-GUI answers the callback and any action
+ * of Beadle-GUI noted since the look.
  */
 @UseCase
 @RequiredArgsConstructor
@@ -58,22 +59,16 @@ public class ChangeWatchService implements ChangeWatchUseCase {
     private final ProTechPort proTech;
     private final CallbackPort callbacks;
     private final Clock clock;
-    private Instant lookedAt;
 
     @Override
     @WithoutTransaction
-    public synchronized WatchReport tick() {
-        Instant now = now(clock);
-        if (lookedAt != null && now.isBefore(lookedAt.plus(proTech.pollEvery()))) {
-            return WatchReport.NOTHING;
-        }
-        lookedAt = now;
-        return lookAt(tracked.watched(), now);
+    public WatchReport tick() {
+        return lookAt(tracked.watched(), now(clock));
     }
 
     @Override
     @WithoutTransaction
-    public synchronized WatchReport look(String number) {
+    public WatchReport look(String number) {
         String wanted = trimToNull(number);
         if (wanted == null) {
             throw InvalidRequestException.of("number", REQUIRED);
