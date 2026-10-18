@@ -1,26 +1,25 @@
 package com.bbh.itss.beadle.protech.config;
 
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort;
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogEntry;
 import com.bbh.itss.beadle.protech.domain.calllog.Caller;
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem;
 import com.bbh.itss.beadle.protech.domain.calllog.Outcome;
 import com.bbh.itss.beadle.protech.domain.change.ApprovalRef;
 import com.bbh.itss.beadle.protech.domain.change.ChangeCallback;
 import com.bbh.itss.beadle.protech.domain.change.ChangeTask;
+import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
-import com.bbh.itss.beadle.protech.domain.change.CreatedChange;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.MDC;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,9 +53,9 @@ import static org.springframework.util.ClassUtils.hasMethod;
  * the system, the operation (the name of the port method), its target (what the call was about, the number of what it
  * created first), the outcome with the message of a failure, and the duration. The row is written in a transaction
  * of its own and a call log that cannot be written never fails the call. Each call is logged too, under the
- * correlation id of its caller in the MDC: a read at DEBUG, a change at INFO and a failure at WARN. A look at the
- * activity of the changes that found nothing is left out of the call log, so that the ticks of the watch do not flood
- * it; a failed look is written.
+ * correlation id {@link CallerContext} keeps in the MDC: a read at DEBUG, a change at INFO and a failure at WARN. A
+ * look at the activity of the changes that found nothing is left out of the call log, so that the ticks of the watch
+ * do not flood it; a failed look is written.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -65,7 +64,6 @@ class CallLogInterceptor implements MethodInterceptor {
     static final Set<String> UNLOGGED = Set.of("mode");
     /** The calls that only read: logged at DEBUG, every other call changes something and is logged at INFO. */
     static final Set<String> READS = Set.of("read", "find", "activity");
-    static final String MDC_KEY = "correlationId";
     static final String ACTIVITY = "activity";
     static final List<Class<?>> PORTS = List.of(ProTechPort.class, ProTechLookupPort.class, CallbackPort.class);
 
@@ -89,8 +87,6 @@ class CallLogInterceptor implements MethodInterceptor {
         ExternalSystem system = invocation.getThis() instanceof CallbackPort ? GUI : PROTECH;
         Instant at = now(clock.getIfAvailable(Clock::systemUTC));
         long started = System.nanoTime();
-        String before = MDC.get(MDC_KEY);
-        MDC.put(MDC_KEY, CallerContext.current().correlationId());
         try {
             Object result = invocation.proceed();
             String target = targetOf(invocation.getArguments(), result);
@@ -111,12 +107,6 @@ class CallLogInterceptor implements MethodInterceptor {
             log.warn("{} {} {} failed after {} ms: {}", system, method.getName(), target, elapsed, message);
             record(system, method, target, at, elapsed, FAILURE, message);
             throw e;
-        } finally {
-            if (before == null) {
-                MDC.remove(MDC_KEY);
-            } else {
-                MDC.put(MDC_KEY, before);
-            }
         }
     }
 

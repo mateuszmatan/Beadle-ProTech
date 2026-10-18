@@ -14,6 +14,7 @@ import jakarta.persistence.Converter
 import jakarta.persistence.Embeddable
 import jakarta.persistence.Entity
 import jakarta.persistence.MappedSuperclass
+import org.slf4j.MDC
 import org.springframework.data.repository.Repository
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.RestController
@@ -24,6 +25,8 @@ import spock.lang.Specification
 import java.util.function.Predicate
 
 import static com.tngtech.archunit.base.DescribedPredicate.describe
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import static com.tngtech.archunit.lang.SimpleConditionEvent.violated
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
@@ -42,8 +45,6 @@ class ArchitectureSpec extends Specification {
     static final String PERSISTENCE = ROOT + '.adapter.out.persistence..'
     static final String CONFIG = ROOT + '.config..'
     static final String[] HTTP_ADAPTERS = [ROOT + '.adapter.out.protech..', ROOT + '.adapter.out.gui..']
-    static final String[] FRAMEWORKS = ['jakarta..', 'org.springframework..', 'org.hibernate..', 'tools.jackson..',
-                                        'com.fasterxml..', 'org.slf4j..']
     static final String[] HELPERS = ['org.apache.commons.lang3..', 'org.apache.commons.collections4..', 'lombok..']
 
     @Shared
@@ -61,12 +62,10 @@ class ArchitectureSpec extends Specification {
     private static List<ArchRule> rules() {
         [classes().that().doNotHaveFullyQualifiedName(BeadleProTechApplication.name)
                  .should().resideInAnyPackage(DOMAIN, APPLICATION, ADAPTER, CONFIG),
-         classes().that().resideInAPackage(DOMAIN)
-                 .should().onlyDependOnClassesThat().resideInAnyPackage('java..', DOMAIN, *HELPERS),
-         classes().that().resideInAPackage(APPLICATION)
-                 .should().onlyDependOnClassesThat().resideInAnyPackage('java..', DOMAIN, APPLICATION, *HELPERS),
-         noClasses().that().resideInAnyPackage(DOMAIN, APPLICATION)
-                 .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORKS),
+         classes().that().resideInAPackage(DOMAIN).should().onlyDependOnClassesThat(
+                 DescribedPredicate.or(resideInAnyPackage('java..', DOMAIN, *HELPERS), equivalentTo(MDC))),
+         classes().that().resideInAPackage(APPLICATION).should().onlyDependOnClassesThat()
+                 .resideInAnyPackage('java..', DOMAIN, APPLICATION, 'org.slf4j..', *HELPERS),
          noClasses().that().resideInAPackage(ADAPTER).should().dependOnClassesThat().resideInAPackage(CONFIG),
          noClasses().that().resideInAPackage(ADAPTER_IN)
                  .should().dependOnClassesThat().resideInAPackage(ADAPTER_OUT),

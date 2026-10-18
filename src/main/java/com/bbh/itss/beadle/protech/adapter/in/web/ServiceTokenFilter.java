@@ -1,14 +1,13 @@
 package com.bbh.itss.beadle.protech.adapter.in.web;
 
 import com.bbh.itss.beadle.protech.adapter.BeadleHeaders;
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.domain.calllog.Caller;
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -41,8 +40,8 @@ import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE;
  * {@code /actuator/health}, spelled plainly, are open to the probes of OpenShift, and a blank token opens nothing. A
  * call let in runs as the caller its headers name ({@code X-Beadle-User}, percent-decoded, {@link Caller#UNKNOWN}
  * when there is none, and {@code X-Correlation-Id}, a fresh one when there is none and {@code 400} when it is longer
- * than 64 characters), so that the call log can tell who caused each call to
- * ProTech; the correlation id is in the MDC as {@value #MDC_KEY} for every line logged meanwhile.
+ * than 64 characters), so that the call log can tell who caused each call to ProTech; {@link CallerContext} puts the
+ * correlation id in the MDC for every line logged meanwhile.
  */
 @Slf4j
 @Component
@@ -61,7 +60,6 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
     static final String CORRELATION_PROBLEM = "{\"title\":\"Validation failed\",\"status\":400,\"detail\":\""
             + BeadleHeaders.CORRELATION_ID + " " + CORRELATION_TOO_LONG + "\",\"problems\":[{\"field\":\""
             + BeadleHeaders.CORRELATION_ID + "\",\"message\":\"" + CORRELATION_TOO_LONG + "\"}]}";
-    public static final String MDC_KEY = "correlationId";
 
     private final byte[] token;
     private final byte[] webhookToken;
@@ -104,13 +102,8 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
         }
         Caller caller = new Caller(userOf(request.getHeader(BeadleHeaders.USER)),
                 correlationId == null ? UUID.randomUUID().toString() : correlationId);
-        CallerContext.set(caller);
-        MDC.put(MDC_KEY, caller.correlationId());
-        try {
+        try (CallerContext.Scope scope = CallerContext.open(caller)) {
             chain.doFilter(request, response);
-        } finally {
-            CallerContext.clear();
-            MDC.remove(MDC_KEY);
         }
     }
 

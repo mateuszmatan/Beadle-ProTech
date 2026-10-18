@@ -3,7 +3,7 @@ package com.bbh.itss.beadle.protech.adapter.in.web
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
 import groovy.json.JsonSlurper
 import org.slf4j.LoggerFactory

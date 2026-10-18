@@ -1,6 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change
 
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
 import com.bbh.itss.beadle.protech.application.change.port.out.TrackedChangePort
 import com.bbh.itss.beadle.protech.domain.calllog.Caller
@@ -10,6 +10,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechStatus
 import com.bbh.itss.beadle.protech.domain.change.CreatedChange
 import com.bbh.itss.beadle.protech.domain.change.TrackedChange
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException
+import spock.lang.AutoCleanup
 import spock.lang.Specification
 
 import java.time.Instant
@@ -35,13 +36,8 @@ class ChangeServiceSpec extends Specification {
     TrackedChangePort tracked = Mock()
     def service = new ChangeService(proTech, tracked, fixed(NOW, UTC))
 
-    def setup() {
-        CallerContext.set(new Caller('Mateusz Matan', 'corr-1'))
-    }
-
-    def cleanup() {
-        CallerContext.clear()
-    }
+    @AutoCleanup
+    CallerContext.Scope caller = CallerContext.open(new Caller('Mateusz Matan', 'corr-1'))
 
     def "the status says which ProTech it is, and only the live one is connected"() {
         given:

@@ -1,7 +1,7 @@
 package com.bbh.itss.beadle.protech.config
 
 import com.bbh.itss.beadle.protech.application.callback.port.out.CallbackPort
-import com.bbh.itss.beadle.protech.application.calllog.CallerContext
+import com.bbh.itss.beadle.protech.domain.calllog.CallerContext
 import com.bbh.itss.beadle.protech.application.calllog.port.out.CallLogPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort
@@ -23,6 +23,7 @@ import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
 import org.slf4j.MDC
+import spock.lang.AutoCleanup
 import spock.lang.Specification
 
 import java.time.Clock
@@ -92,13 +93,12 @@ class CallLogConfigurationSpec extends Specification {
                 }] as CallbackPort
             } as Supplier<CallbackPort>)
 
-    def cleanup() {
-        CallerContext.clear()
-    }
+    @AutoCleanup
+    CallerContext.Scope caller
 
     def "every call of ProTech is written to the call log with the caller, its target, outcome and duration"() {
         given:
-        CallerContext.set(new Caller('Mateusz Matan', 'corr-1'))
+        caller = CallerContext.open(new Caller('Mateusz Matan', 'corr-1'))
 
         expect:
         runner.run { ApplicationContext context ->
@@ -169,7 +169,7 @@ class CallLogConfigurationSpec extends Specification {
 
     def "the user and the target are cut to the columns of the call log"() {
         given:
-        CallerContext.set(new Caller('u' * 300, 'corr-1'))
+        caller = CallerContext.open(new Caller('u' * 300, 'corr-1'))
 
         expect:
         runner.run { ApplicationContext context ->
@@ -196,7 +196,7 @@ class CallLogConfigurationSpec extends Specification {
 
     def "a look at ProTech that found #found is #written"() {
         given:
-        CallerContext.set(new Caller('system', 'poll-1'))
+        caller = CallerContext.open(new Caller('system', 'poll-1'))
         moved = found
 
         expect:
