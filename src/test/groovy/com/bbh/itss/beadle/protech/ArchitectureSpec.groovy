@@ -2,6 +2,7 @@ package com.bbh.itss.beadle.protech
 
 import com.bbh.itss.beadle.protech.application.UseCase
 import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaAnnotation
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.importer.ClassFileImporter
@@ -15,7 +16,10 @@ import jakarta.persistence.Embeddable
 import jakarta.persistence.Entity
 import jakarta.persistence.MappedSuperclass
 import org.slf4j.MDC
+import org.springframework.context.annotation.Profile
 import org.springframework.data.repository.Repository
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -26,9 +30,11 @@ import java.util.function.Predicate
 
 import static com.tngtech.archunit.base.DescribedPredicate.describe
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import static com.tngtech.archunit.lang.SimpleConditionEvent.violated
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 
@@ -38,6 +44,7 @@ class ArchitectureSpec extends Specification {
     static final String ROOT = 'com.bbh.itss.beadle.protech'
     static final String DOMAIN = ROOT + '.domain..'
     static final String APPLICATION = ROOT + '.application..'
+    static final String PORTS = ROOT + '.application..port..'
     static final String ADAPTER = ROOT + '.adapter..'
     static final String ADAPTER_IN = ROOT + '.adapter.in..'
     static final String ADAPTER_OUT = ROOT + '.adapter.out..'
@@ -67,12 +74,20 @@ class ArchitectureSpec extends Specification {
          classes().that().resideInAPackage(APPLICATION).should().onlyDependOnClassesThat()
                  .resideInAnyPackage('java..', DOMAIN, APPLICATION, 'org.slf4j..', *HELPERS),
          noClasses().that().resideInAPackage(ADAPTER).should().dependOnClassesThat().resideInAPackage(CONFIG),
-         noClasses().that().resideInAPackage(ADAPTER_IN)
-                 .should().dependOnClassesThat().resideInAPackage(ADAPTER_OUT),
-         noClasses().that().resideInAPackage(ADAPTER_OUT)
-                 .should().dependOnClassesThat().resideInAPackage(ADAPTER_IN),
+         noClasses().that().resideInAPackage(ADAPTER).should().dependOnClassesThat(DescribedPredicate.and(
+                 resideInAPackage(APPLICATION), DescribedPredicate.not(resideInAPackage(PORTS)))),
+         slices().matching(ROOT + '.adapter.(*).(*)..').should().notDependOnEachOther(),
          noClasses().that().resideInAPackage(ADAPTER_IN)
                  .should().dependOnClassesThat().resideInAPackage(ROOT + '.application..port.out..'),
+         classes().that(describedAs('implement an out port') { JavaClass type ->
+             !type.isInterface() && type.allRawInterfaces.any { it.packageName.contains('.port.out') }
+         }).should().resideInAPackage(ADAPTER_OUT),
+         methods().that().areAnnotatedWith(Scheduled).should().beDeclaredInClassesThat().resideInAPackage(ADAPTER_IN),
+         classes().that().haveSimpleNameStartingWith('Demo').and().areAnnotatedWith(Component)
+                 .should().beAnnotatedWith(describe('@Profile("local")', { JavaAnnotation<?> annotation ->
+                     annotation.rawType.isEquivalentTo(Profile) &&
+                             annotation.get('value').map { it as List }.orElse([]) == ['local']
+                 } as Predicate<JavaAnnotation<?>>)),
          classes().that(describedAs('are controllers or controller advice') { JavaClass type ->
              [RestController, RestControllerAdvice, Controller].any { type.isAnnotatedWith(it) }
          }).should().resideInAPackage(WEB),
