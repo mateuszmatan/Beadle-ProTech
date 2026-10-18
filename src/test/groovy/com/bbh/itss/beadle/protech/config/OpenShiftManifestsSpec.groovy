@@ -10,12 +10,13 @@ class OpenShiftManifestsSpec extends Specification {
 
     static final File MANIFESTS = new File('deploy/openshift/beadle-protech')
 
-    def "the pod reads the ConfigMap, the database and ProTech secrets of Beadle-ProTech and the token all Beadle services share"() {
+    def "one pod reads the ConfigMap, the database and ProTech secrets of Beadle-ProTech and the token all Beadle services share"() {
         when:
         Map spec = manifest('base/deployment.yaml').spec
         List<Map> sources = spec.template.spec.containers.first().envFrom
 
         then:
+        spec.replicas == 1
         sources*.configMapRef.findAll()*.name == ['beadle-protech-config']
         sources*.secretRef.findAll()*.name == ['beadle-protech-db', 'beadle-services', 'beadle-protech-account']
         sources.every { !it.secretRef?.optional }
