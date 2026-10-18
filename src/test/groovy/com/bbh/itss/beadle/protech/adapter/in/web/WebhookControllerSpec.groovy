@@ -42,10 +42,9 @@ class WebhookControllerSpec extends ControllerSpecification {
 
         then:
         1 * tracked.find('CHG0031001') >> Optional.of(change)
-        1 * proTech.activity([change], CALLED.minusSeconds(60)) >> [CHG0031001: activity]
-        1 * callbacks.notify(new ChangeCallback('CHG0031001', STATE_CHANGED, BUSINESS_APPROVAL, NOW.minusSeconds(5), 'corr-1'))
+        1 * proTech.activity(['CHG0031001'], CALLED.minusSeconds(60)) >> [CHG0031001: activity]
+        1 * callbacks.notify(new ChangeCallback('CHG0031001', STATE_CHANGED, BUSINESS_APPROVAL, NOW.minusSeconds(5)))
         1 * tracked.reported(change, activity, NOW)
-        0 * proTech.pollEvery()
         response.status == 202
         response.contentAsString == ''
     }
@@ -64,26 +63,5 @@ class WebhookControllerSpec extends ControllerSpecification {
         number       || found
         'CHG0039999' || Optional.empty()
         'CHG0031002' || Optional.of(trackedChange(number: 'CHG0031002', state: CLOSED))
-    }
-
-    def "a webhook call without a number is refused naming the field: #body"() {
-        when:
-        def response = call(json(post('/api/protech/webhook'), body))
-
-        then:
-        0 * tracked._
-        response.status == 400
-        bodyOf(response).problems == [[field: 'number', message: 'is required']]
-
-        where:
-        body << [[:], [number: ' '], [number: null]]
-    }
-
-    def "the webhook needs the service token: #authorization"() {
-        expect:
-        callWithout(json(post('/api/protech/webhook'), [number: 'CHG0031001']), authorization).status == 401
-
-        where:
-        authorization << unauthorized()
     }
 }

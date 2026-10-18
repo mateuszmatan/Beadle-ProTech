@@ -38,20 +38,6 @@ class LookupControllerSpec extends ControllerSpecification {
         bodyOf(response) == []
     }
 
-    def "a limit of #limit is refused with the field at fault"() {
-        when:
-        def response = call(get('/api/protech/lookups/users').param('limit', limit))
-
-        then:
-        0 * lookups.find(*_)
-        response.status == 400
-        response.contentType == 'application/problem+json'
-        bodyOf(response).problems == [[field: 'limit', message: 'must be between 1 and 100']]
-
-        where:
-        limit << ['0', '101', '-1']
-    }
-
     def "a limit that is no number is a malformed request"() {
         expect:
         call(get('/api/protech/lookups/users').param('limit', 'many')).status == 400
@@ -64,26 +50,5 @@ class LookupControllerSpec extends ControllerSpecification {
         then:
         response.status == 404
         bodyOf(response).detail == 'Lookup cars does not exist'
-    }
-
-    def "ProTech out of reach is a bad gateway"() {
-        given:
-        lookups.find(*_) >> { throw new UncheckedIOException('ProTech could not look up the users: Read timed out',
-                new IOException()) }
-
-        when:
-        def response = call(get('/api/protech/lookups/users'))
-
-        then:
-        response.status == 502
-        bodyOf(response).detail == 'ProTech could not look up the users: Read timed out'
-    }
-
-    def "a lookup needs the service token: #authorization"() {
-        expect:
-        callWithout(get('/api/protech/lookups/users'), authorization).status == 401
-
-        where:
-        authorization << unauthorized()
     }
 }

@@ -1,7 +1,6 @@
 package com.bbh.itss.beadle.protech.application.change;
 
 import com.bbh.itss.beadle.protech.application.UseCase;
-import com.bbh.itss.beadle.protech.application.WithoutTransaction;
 import com.bbh.itss.beadle.protech.application.calllog.CallerContext;
 import com.bbh.itss.beadle.protech.application.change.port.in.ChangesUseCase;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechPort;
@@ -23,14 +22,9 @@ import java.util.Map;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeSchedule.UNPLANNED;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeState.DRAFT;
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTask.validateTasks;
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.DESCRIPTION_MAX;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.SHORT_DESCRIPTION_MAX;
-import static com.bbh.itss.beadle.protech.domain.change.ProductionChange.checkTemplateAndSchedule;
 import static com.bbh.itss.beadle.protech.domain.shared.Timestamps.now;
 import static org.apache.commons.collections4.ListUtils.emptyIfNull;
-import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
 /**
@@ -51,16 +45,14 @@ public class ChangeService implements ChangesUseCase {
     private final Clock clock;
 
     @Override
-    @WithoutTransaction
     public ProTechStatus status() {
-        return new ProTechStatus(proTech.connected(), proTech.mode());
+        return new ProTechStatus(proTech.mode());
     }
 
     @Override
-    @WithoutTransaction
     public RaisedChange raise(ProductionChange draft) {
         ValidationProblems problems = new ValidationProblems();
-        check(draft, problems);
+        draft.validate(problems);
         problems.throwIfAny();
         RaisedChange raised = proTech.raise(draft);
         tracked.track(List.of(TrackedChange.seen(raised.number(), DRAFT, now(clock), correlationId())));
@@ -68,7 +60,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public String createTask(String changeNumber, ChangeTask task) {
         ValidationProblems problems = new ValidationProblems();
         task.validate(UNPLANNED, problems);
@@ -80,7 +71,6 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public Map<String, ProductionChange> read(List<ProductionChange> known) {
         List<ProductionChange> listed = emptyIfNull(known);
         ValidationProblems problems = new ValidationProblems();
@@ -102,21 +92,19 @@ public class ChangeService implements ChangesUseCase {
     }
 
     @Override
-    @WithoutTransaction
     public void update(String number, ProductionChange change) {
         ValidationProblems problems = new ValidationProblems();
         String path = numbered(number);
         if (change.number() != null && !change.number().equals(path)) {
             problems.add("number", "must be " + path + ", the change of the path");
         }
-        check(change, problems);
+        change.validate(problems);
         problems.throwIfAny();
         proTech.update(change.number() == null ? change.numbered(path, change.url()) : change);
         touched(path);
     }
 
     @Override
-    @WithoutTransaction
     public List<String> remind(String changeNumber, ApprovalRef approval) {
         if ((approval.role() == null) == (trimToNull(approval.task()) == null)) {
             throw InvalidRequestException.of("task", ONE_OF_ROLE_OR_TASK);
@@ -125,15 +113,6 @@ public class ChangeService implements ChangesUseCase {
         List<String> reminded = proTech.remind(number, new ApprovalRef(approval.role(), trimToNull(approval.task())));
         touched(number);
         return reminded;
-    }
-
-    private static void check(ProductionChange change, ValidationProblems problems) {
-        problems.require("shortDescription", trimToNull(change.shortDescription()), REQUIRED)
-                .fits("shortDescription", change.shortDescription(), SHORT_DESCRIPTION_MAX)
-                .require("description", trimToNull(change.description()), REQUIRED)
-                .fits("description", change.description(), DESCRIPTION_MAX);
-        checkTemplateAndSchedule(change.template(), change.schedule(), null, problems);
-        validateTasks(change.tasks(), getIfNull(change.schedule(), UNPLANNED), problems);
     }
 
     /** What Beadle-GUI did itself is no news to it: the callbacks skip it. */

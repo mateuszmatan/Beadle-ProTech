@@ -19,9 +19,7 @@ import static org.apache.commons.collections4.ListUtils.emptyIfNull;
 import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.commons.lang3.StringUtils.truncate;
-import static org.apache.commons.lang3.Strings.CS;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 /**
@@ -48,7 +46,7 @@ class TableApi {
     private final RestClient client;
 
     TableApi(RestClient.Builder builder, ProTechProperties properties) {
-        this.client = builder.baseUrl(CS.removeEnd(trimToEmpty(properties.instanceUrl()), "/"))
+        this.client = builder.baseUrl(properties.instanceUrl())
                 .defaultHeaders(headers -> headers.setBasicAuth(defaultString(properties.username()),
                         defaultString(properties.password()), UTF_8))
                 .build();

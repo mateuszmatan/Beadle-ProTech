@@ -3,7 +3,6 @@ package com.bbh.itss.beadle.protech.adapter.out.protech;
 import com.bbh.itss.beadle.protech.application.change.port.out.ProTechLookupPort;
 import com.bbh.itss.beadle.protech.domain.change.Lookup;
 import com.bbh.itss.beadle.protech.domain.change.LookupKind;
-import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +15,7 @@ import static java.util.Locale.ROOT;
 import static java.util.stream.IntStream.range;
 
 /**
- * The lookups of the demo ProTech: a fixed catalogue of BBH people, departments, products with their support groups,
+ * The lookups of the demo ProTech: a fixed catalogue of BBH people, business services, products with their support groups,
  * releases and configuration items, infrastructure groups, incidents, problems and clients.
  */
 @Component
@@ -36,7 +35,6 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Infrastructure & Operations", "Cost centre 4330"),
             new Lookup("Investor Services", "Cost centre 4520"), new Lookup("Private Banking", "Cost centre 4710"),
             new Lookup("Treasury", "Cost centre 4810"));
-    static final List<Lookup> DEPARTMENTS = BUSINESS_SERVICES;
     static final List<Product> CATALOGUE = List.of(
             new Product("DOCSENSE", "DocSense", "AI Lab", "AI Lab Engineering"),
             new Product("ADVISORAI", "Advisor Assistant", "AI Lab", "AI Lab Engineering"),
@@ -101,16 +99,6 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Willow Creek Municipal Plan", "Custody"));
 
     @Override
-    public boolean connected() {
-        return false;
-    }
-
-    @Override
-    public ProTechMode mode() {
-        return ProTechMode.DEMO;
-    }
-
-    @Override
     public List<Lookup> find(LookupKind kind, String query, int limit) {
         return lookups(kind).filter(lookup -> lookup.matches(query)).limit(limit).toList();
     }
@@ -118,9 +106,9 @@ class DemoProTechLookups implements ProTechLookupPort {
     private static Stream<Lookup> lookups(LookupKind kind) {
         return switch (kind) {
             case USERS -> USERS.stream().map(name -> new Lookup(name, emailOf(name)));
-            case BUSINESS_SERVICES, DEPARTMENTS -> BUSINESS_SERVICES.stream();
+            case BUSINESS_SERVICES -> BUSINESS_SERVICES.stream();
             case ASSIGNMENT_GROUPS -> Stream.concat(CATALOGUE.stream()
-                    .map(product -> new Lookup(product.ownerTeam() + SUPPORT, product.department())),
+                    .map(product -> new Lookup(product.ownerTeam() + SUPPORT, product.businessService())),
                     INFRASTRUCTURE_GROUPS.stream()).distinct();
             case RELEASES -> CATALOGUE.stream().flatMap(DemoProTechLookups::releasesOf);
             case CONFIGURATION_ITEMS -> CATALOGUE.stream()
@@ -143,6 +131,6 @@ class DemoProTechLookups implements ProTechLookupPort {
         return name.toLowerCase(ROOT).replaceAll("[^a-z ]", "").replace(' ', '.') + "@bbh.com";
     }
 
-    record Product(String code, String name, String department, String ownerTeam) {
+    record Product(String code, String name, String businessService, String ownerTeam) {
     }
 }

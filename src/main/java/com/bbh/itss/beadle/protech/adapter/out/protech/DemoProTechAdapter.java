@@ -13,7 +13,6 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 import com.bbh.itss.beadle.protech.domain.change.ProductionChange;
 import com.bbh.itss.beadle.protech.domain.change.RaisedChange;
 import com.bbh.itss.beadle.protech.domain.change.TaskState;
-import com.bbh.itss.beadle.protech.domain.change.TrackedChange;
 import com.bbh.itss.beadle.protech.domain.change.WorkflowStep;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -57,7 +55,6 @@ import static java.time.Duration.between;
 import static java.time.Duration.ofHours;
 import static java.time.Duration.ofMinutes;
 import static java.time.Instant.MAX;
-import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ObjectUtils.getIfNull;
 import static org.apache.commons.lang3.ObjectUtils.max;
@@ -65,8 +62,9 @@ import static org.apache.commons.lang3.ObjectUtils.max;
 /**
  * A ProTech played by the clock, used until {@code beadle.protech.instance-url} names the real one: every change it raises
  * moves through the approval stages two minutes apart, its tasks are approved by the people of their assignment
- * group, an update shows after the apply delay and the reminders it sends are recorded. Its activity is the
- * clock-driven workflow: what moved since a time, no earlier than when the demo got the change.
+ * group and an update shows after the apply delay. Its activity is the clock-driven workflow: what moved since a
+ * time, no earlier than when the demo got the change. It holds the changes in memory, so each pod plays its own
+ * ProTech: the demo is for a laptop and for trying Beadle out, not for rd, qc or prod.
  */
 @Component
 @ConditionalOnExpression(ProTechProperties.NOT_CONFIGURED)
@@ -82,14 +80,8 @@ class DemoProTechAdapter implements ProTechPort {
     private final AtomicInteger tasks = new AtomicInteger(1_000_000 + new SecureRandom().nextInt(8_000_000));
     private final Map<String, Held> held = new ConcurrentHashMap<>();
     private final Map<String, Instant> received = new ConcurrentHashMap<>();
-    private final List<SentReminder> reminders = new CopyOnWriteArrayList<>();
     private final Clock clock;
     private final DemoProTechProperties properties;
-
-    @Override
-    public boolean connected() {
-        return false;
-    }
 
     @Override
     public ProTechMode mode() {
@@ -114,7 +106,7 @@ class DemoProTechAdapter implements ProTechPort {
         String number = nextTask();
         held.compute(changeNumber, (key, found) -> {
             Held current = open(key, found, at);
-            return current.with(current.change().withTasks(List.of(task.numbered(number).in(OPEN))), at);
+            return current.with(current.change().withTasks(List.of(task.withNumber(number).withState(OPEN))), at);
         });
         return number;
     }
@@ -151,15 +143,9 @@ class DemoProTechAdapter implements ProTechPort {
                 : change.approvals().stream().filter(found -> found.role() == approval.role())
                 .map(ChangeApproval::approver).filter(Objects::nonNull).toList();
         if (approvers.isEmpty()) {
-            throw new RefusedException("ProTech has nobody to remind on " + changeNumber);
+            throw RefusedException.nobodyToRemind(changeNumber);
         }
-        reminders.add(new SentReminder(changeNumber, approval, approvers, now));
         return approvers;
-    }
-
-    @Override
-    public Duration pollEvery() {
-        return Duration.ZERO;
     }
 
     /**
@@ -168,11 +154,10 @@ class DemoProTechAdapter implements ProTechPort {
      * change counts as made when it got it.
      */
     @Override
-    public Map<String, ChangeActivity> activity(Collection<TrackedChange> watched, Instant since) {
+    public Map<String, ChangeActivity> activity(Collection<String> numbers, Instant since) {
         Instant now = now(clock);
         Map<String, ChangeActivity> moved = new LinkedHashMap<>();
-        for (TrackedChange change : watched) {
-            String number = change.number();
+        for (String number : numbers) {
             Held current = held.computeIfPresent(number, (key, found) -> applied(found, now));
             if (current != null) {
                 ChangeActivity activity = current.activityAt(number, now, received.getOrDefault(number, now));
@@ -183,10 +168,6 @@ class DemoProTechAdapter implements ProTechPort {
             }
         }
         return moved;
-    }
-
-    List<SentReminder> sent() {
-        return List.copyOf(reminders);
     }
 
     static List<WorkflowStep> workflowOf(Instant raisedAt, ChangeSchedule schedule, Instant tasksApproved,
@@ -227,11 +208,6 @@ class DemoProTechAdapter implements ProTechPort {
         return state == IMPLEMENTATION && installing ? WORK_IN_PROGRESS : OPEN;
     }
 
-    static ApprovalState approvalOf(ChangeState state, ChangeState stage) {
-        int reached = state.compareTo(stage);
-        return reached < 0 ? NOT_APPROVED : reached == 0 ? REQUESTED : APPROVED;
-    }
-
     static ApprovalState approvalAt(Instant now, Instant requested, Instant approved) {
         return now.isBefore(requested) ? NOT_APPROVED : now.isBefore(approved) ? REQUESTED : APPROVED;
     }
@@ -239,13 +215,12 @@ class DemoProTechAdapter implements ProTechPort {
     private static List<String> approversOf(ProductionChange change, String task) {
         return change.tasks().stream().filter(found -> task.equals(found.number())).findFirst()
                 .map(ChangeTask::approvers)
-                .orElseThrow(() -> new RefusedException("ProTech has no change task " + task + " on "
-                        + change.number()));
+                .orElseThrow(() -> RefusedException.noTask(task, change.number()));
     }
 
     private Held open(String number, Held found, Instant now) {
         if (found == null) {
-            throw new RefusedException("ProTech has no change " + number);
+            throw RefusedException.noChange(number);
         }
         Held current = applied(found, now);
         if (current.stateAt(now) == CLOSED) {
@@ -259,16 +234,12 @@ class DemoProTechAdapter implements ProTechPort {
         Instant raisedAt = getIfNull(known.createdAt(), now);
         List<ChangeTask> numbered = numbered(known.tasks());
         return new Held(known.toBuilder().tasks(numbered).build(), raisedAt, List.of(), reached,
-                reached.isEmpty() ? null : last(reached).enteredAt(),
+                reached.isEmpty() ? null : reached.getLast().enteredAt(),
                 numbered.stream().collect(toMap(ChangeTask::number, task -> raisedAt, (first, second) -> first)));
     }
 
-    private static WorkflowStep last(List<WorkflowStep> steps) {
-        return steps.get(steps.size() - 1);
-    }
-
     private List<ChangeTask> numbered(List<ChangeTask> changed) {
-        return changed.stream().map(task -> task.number() == null ? task.numbered(nextTask()) : task).toList();
+        return changed.stream().map(task -> task.number() == null ? task.withNumber(nextTask()) : task).toList();
     }
 
     private String nextTask() {
@@ -290,24 +261,20 @@ class DemoProTechAdapter implements ProTechPort {
 
     private ProductionChange apply(ProductionChange current, ProductionChange requested, Instant at) {
         boolean started = !at.isBefore(current.schedule().installationStart());
-        Map<String, ChangeTask> heldTasks = current.tasks().stream().filter(task -> task.number() != null)
-                .collect(toMap(ChangeTask::number, identity(), (first, second) -> first, LinkedHashMap::new));
+        Map<String, ChangeTask> heldTasks = ChangeTask.byNumber(current.tasks());
         List<ChangeTask> changed = new ArrayList<>();
         for (ChangeTask task : requested.tasks()) {
             ChangeTask mine = heldTasks.remove(task.number());
-            changed.add(mine == null ? task.numbered(null).in(OPEN)
-                    : mine.state().frozen() ? mine : mine.editedTo(task));
+            changed.add(mine == null ? task.withNumber(null).withState(OPEN)
+                    : mine.state().frozen() ? mine : mine.withDetails(task.details()).withStart(task.start()));
         }
         List<ChangeTask> dropped = heldTasks.values().stream()
-                .map(task -> task.state().frozen() ? task : task.in(CANCELED)).toList();
+                .map(task -> task.state().frozen() ? task : task.withState(CANCELED)).toList();
         return current.toBuilder().shortDescription(requested.shortDescription())
                 .description(requested.description())
                 .schedule(started ? current.schedule() : requested.schedule())
                 .template(current.template().edited(requested.template()))
                 .tasks(numbered(Stream.concat(changed.stream(), dropped.stream()).toList())).build();
-    }
-
-    record SentReminder(String changeNumber, ApprovalRef approval, List<String> sentTo, Instant at) {
     }
 
     private record Queued(Instant dueAt, ProductionChange requested) {
@@ -369,7 +336,7 @@ class DemoProTechAdapter implements ProTechPort {
             if (kept.isEmpty()) {
                 return workflowOf(raisedAt, change.schedule(), approved, now);
             }
-            ChangeState reached = last(kept).state();
+            ChangeState reached = kept.getLast().state();
             return Stream.concat(kept.stream(), workflowOf(raisedAt, change.schedule(), approved, MAX).stream()
                     .filter(step -> step.state().compareTo(reached) > 0)
                     .map(step -> new WorkflowStep(step.state(), max(step.enteredAt(), rescheduledAt)))
@@ -377,11 +344,11 @@ class DemoProTechAdapter implements ProTechPort {
         }
 
         ChangeState stateAt(Instant now) {
-            return last(workflowAt(now)).state();
+            return workflowAt(now).getLast().state();
         }
 
         ChangeActivity activityAt(String number, Instant now, Instant receivedAt) {
-            WorkflowStep step = last(workflowAt(now));
+            WorkflowStep step = workflowAt(now).getLast();
             Map<String, Instant> approved = approvedAt();
             Instant approvals = change.tasks().stream().filter(ChangeTask::active)
                     .flatMap(task -> Stream.of(requestedAt(task), approved.get(task.number())))
@@ -399,19 +366,19 @@ class DemoProTechAdapter implements ProTechPort {
 
         ProductionChange copyFor(ProductionChange known, Instant now) {
             List<WorkflowStep> workflow = workflowAt(now);
-            ChangeState state = last(workflow).state();
+            ChangeState state = workflow.getLast().state();
             boolean installing = !now.isBefore(change.schedule().installationStart());
             Map<String, Instant> approved = approvedAt();
             return known.toBuilder().shortDescription(change.shortDescription()).description(change.description())
                     .schedule(change.schedule()).template(change.template())
                     .tasks(change.tasks().stream().map(task -> task.withApproval(task.active()
                                     ? approvalAt(now, requestedAt(task), approved.get(task.number()))
-                                    : task.approval(), DemoApprovers.of(task.details().assignmentGroup()))
-                            .in(taskStateOf(task.state(), state, installing))).toList())
+                                    : task.approval()).withApprovers(DemoApprovers.of(task.details().assignmentGroup()))
+                            .withState(taskStateOf(task.state(), state, installing))).toList())
                     .url(change.url()).state(state).workflow(workflow)
                     .approvals(Stream.of(ApprovalRole.values()).map(role -> new ChangeApproval(role,
-                            role.approverIn(change.template().approvers()), approvalOf(state, role.stage()),
-                            null)).toList()).build();
+                            role.approverIn(change.template().approvers()), role.approvalIn(state), null)).toList())
+                    .build();
         }
     }
 }

@@ -17,7 +17,6 @@ spring:
           time_zone: UTC
         type:
           preferred_instant_jdbc_type: TIMESTAMP
-          preferred_boolean_jdbc_type: INTEGER
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     analytics-enabled: false
@@ -52,10 +51,11 @@ beadle:
     instance-url: ${PROTECH_URL:}
     username: ${PROTECH_USERNAME:}
     password: ${PROTECH_PASSWORD:}
+    # The token ProTech sends to the webhook, accepted on POST /api/protech/webhook only.
+    webhook-token: ${PROTECH_WEBHOOK_TOKEN:}
+    # How often the ticker asks ProTech what moved.
     poll: ${PROTECH_POLL:PT1M}
-    tick: ${PROTECH_TICK:PT10S}
     demo:
-      enabled: ${PROTECH_DEMO:false}
       apply-delay: ${PROTECH_DEMO_APPLY_DELAY:PT3S}
 ---
 spring:
@@ -66,13 +66,13 @@ spring:
     url: ${DB_URL:jdbc:h2:file:${BEADLE_PROTECH_DATA_DIR:${user.home}/bbh-devsecops/beadle-protech}/beadle-protech;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:}
-  jpa:
-    hibernate:
-      ddl-auto: none
 management:
   endpoint:
     health:
       show-details: always
+beadle:
+  protech:
+    poll: ${PROTECH_POLL:PT10S}
 ---
 spring:
   config:

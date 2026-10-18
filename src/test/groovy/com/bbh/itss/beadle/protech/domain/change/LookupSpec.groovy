@@ -9,7 +9,7 @@ class LookupSpec extends Specification {
 
     def "a lookup kind is found by the path of its URL"() {
         expect:
-        LookupKind.values()*.path() == ['users', 'business-services', 'departments', 'assignment-groups', 'releases', 'configuration-items',
+        LookupKind.values()*.path() == ['users', 'business-services', 'assignment-groups', 'releases', 'configuration-items',
                                         'incidents', 'problems', 'clients']
         LookupKind.values().every { LookupKind.of(it.path()) == it }
         LookupKind.of('assignment-groups') == ASSIGNMENT_GROUPS

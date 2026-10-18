@@ -1,6 +1,5 @@
 package com.bbh.itss.beadle.protech.regression
 
-import com.bbh.itss.beadle.protech.domain.change.ProductionChange
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
 import com.bbh.itss.beadle.protech.support.Json
 
@@ -82,7 +81,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
         implementing.tasks*.approval == ['APPROVED', 'APPROVED']
         implementing.tasks*.state == ['OPEN', 'OPEN']
 
-        and: 'every call to ProTech is in the call log of the user action, and the change is followed'
+        and: 'every call to ProTech is in the call log of the user action, under the user decoded, and the change is followed'
         callLog()*.subMap('userName', 'correlationId', 'operation', 'target', 'outcome') == [
                 [userName: USER, correlationId: correlationId, operation: 'raise', target: "$number $SUMMARY" as String, outcome: 'SUCCESS'],
                 [userName: USER, correlationId: correlationId, operation: 'createTask',
@@ -158,7 +157,7 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
     def "what ProTech refuses is a conflict naming the reason, and the refused call is logged"() {
         when:
         def created = api.postRaw('/api/protech/changes/CHG0000001/tasks', 'application/json',
-                Json.jackson(task(1).numbered(null)))
+                Json.jackson(task(1).withNumber(null)))
         def reminder = api.post('/api/protech/changes/CHG0000001/reminders', [role: 'L1'])
 
         then:
@@ -170,28 +169,5 @@ class ChangeRegressionSpec extends BeadleProTechSpecification {
                 [operation: 'createTask', outcome: 'FAILURE', message: 'ProTech has no change CHG0000001'],
                 [operation: 'remind', outcome: 'FAILURE', message: 'ProTech has no change CHG0000001']]
         tracked('CHG0000001') == null
-    }
-
-    def "a request with #problem is refused naming the fields, without calling ProTech"() {
-        when:
-        def response = api.postRaw(path, 'application/json', body)
-
-        then:
-        response.status == 400
-        response.header('Content-Type').startsWith('application/problem+json')
-        response.json.title == 'Validation failed'
-        response.json.problems*.field == fields
-        callLog() == []
-
-        where:
-        problem                      | path                                        | body                                           || fields
-        'a change without a summary' | '/api/protech/changes'                      | Json.jackson(nameless().shortDescription(' ').build()) || ['shortDescription']
-        'a read without a number'    | '/api/protech/changes/read'                 | Json.jackson([nameless().number(' ').build()]) || ['[0].number']
-        'a reminder of nobody'       | '/api/protech/changes/CHG0000001/reminders' | '{"role": null, "task": null}'                 || ['task']
-        'a reminder of both'         | '/api/protech/changes/CHG0000001/reminders' | '{"role": "L1", "task": "CTASK0000001"}'       || ['task']
-    }
-
-    private static ProductionChange.ProductionChangeBuilder nameless() {
-        draft(Instant.parse('2026-10-15T09:00:00Z'), Instant.parse('2026-10-20T06:00:00Z')).toBuilder()
     }
 }

@@ -1,232 +1,130 @@
 # Beadle-ProTech
 
-Beadle-ProTech is the service between Beadle and ProTech, BBH's ServiceNow. It raises the production changes of
-Beadle-GUI as ProTech change requests with their tasks, reads them back as they move through the approval
-workflow, updates them, reminds their approvers and looks up the people, departments, assignment groups, releases,
-configuration items, incidents, problems and clients of ProTech. It signs in to ProTech with the generic service
-account of Beadle, keeps a call log of every call it makes and calls Beadle-GUI back when ProTech moves a change
-Beadle raised or read. Without a ProTech address it runs a demo ProTech that drives the workflow by the clock.
+Beadle-ProTech connects Beadle to ProTech, BBH's ServiceNow instance. For Beadle-GUI it raises production changes as
+ProTech change requests with their tasks, reads them back as they move through the approval workflow, updates them,
+reminds their approvers, and looks up people, business services, assignment groups, releases, configuration items,
+incidents, problems and clients. It signs in with Beadle's generic service account, logs every call it makes, and
+calls Beadle-GUI back when ProTech moves a change.
 
-[docs/CONTRACTS.md](docs/CONTRACTS.md) is the contract between the three Beadle repositories (Beadle-GUI,
-Beadle-Internal and Beadle-ProTech): the REST API of this service with its bodies, the headers every call carries
-and the callback to Beadle-GUI. The code follows it to the letter.
-[docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) tells how a change is stored in ProTech: the ServiceNow Table API
-calls behind every endpoint, the table and field of every field of a change, its tasks and approvals, the state
-values, the lookup tables, the poll that finds what moved, and how each name is configured.
-
-## API
-
-Every call carries `Authorization: Bearer <BEADLE_SERVICE_TOKEN>` (otherwise `401`), and from Beadle-GUI
-`X-Beadle-User` (the signed-in user, only logged; percent-encoded in UTF-8 as `URLEncoder` writes it, so that a
-name such as `Łukasz Wójcik` survives the header as `%C5%81ukasz+W%C3%B3jcik`, and decoded before it is logged) and
-`X-Correlation-Id` (one per user action, logged and passed on in callbacks; a fresh one is minted when it is
-missing). Answers are JSON, errors `application/problem+json` with
-`status`, `title`, `detail` and, for validation, `problems: [{"field", "message"}]`. A request ProTech would refuse
-is refused with `400` and the fields at fault before it reaches ProTech; what ProTech refuses itself (a change it
-does not have, a closed change) answers `409` with ProTech's reason, and ProTech out of reach, a failed sign-in or
-a `5xx` of ProTech answers `502`. `Change` and `ChangeTask` are the JSON of the records `ProductionChange` and
-`ChangeTask` that docs/CONTRACTS.md describes.
-
-| Method and path | Body | Answer |
-|---|---|---|
-| `GET /api/protech/status` | | `{"connected": false, "mode": "demo"}` or `{"connected": true, "mode": "live"}` |
-| `POST /api/protech/changes` | a `Change` (the draft) | `201` `{"number": "CHG0001234", "url": "https://.../CHG0001234" or null}` |
-| `POST /api/protech/changes/{number}/tasks` | a `ChangeTask` | `201` `{"number": "CTASK0001234"}` |
-| `POST /api/protech/changes/read` | `[Change, ...]`, the changes Beadle-GUI knows | `{"CHG0001234": Change, ...}`, each as ProTech holds it now |
-| `PUT /api/protech/changes/{number}` | a `Change` | `204`; a task left out is canceled, a task without a number is created |
-| `POST /api/protech/changes/{number}/reminders` | `{"role": "BUSINESS"}` or `{"task": "CTASK0001234"}` | `["Rebecca Lawson", ...]`, the people reminded |
-| `GET /api/protech/lookups/{kind}?q=&limit=20` | | `[{"value": "...", "detail": "..."}]`; `kind` is `users`, `departments`, `assignment-groups`, `releases`, `configuration-items`, `incidents`, `problems` or `clients`, `limit` 1 to 100 |
-| `GET /api/protech/call-log?correlationId=&from=&to=&page=0&size=50` | | the call log, newest first, for diagnosis (`from` inclusive, `to` exclusive, `size` up to 500) |
-| `POST /api/protech/webhook` | `{"number": "CHG0001234"}`, sent by ProTech when it moved the change | `202`; the change is looked at at once (see below), a change not followed is left alone |
-| `GET /actuator/health` | | open without a token, with `/liveness` and `/readiness`; a path with a dot segment, `;` or an encoded character needs the token |
-
-### Callbacks to Beadle-GUI
-
-Every change raised or read through the API is written down in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI
-knows, the time up to which it knows what ProTech did, and the correlation id of the user action. A ticker looks
-every `beadle.protech.tick` (10 seconds) at ProTech: the demo ProTech at every tick, the live one once
-`beadle.protech.poll` (one minute) has passed, with three Table API queries for the changes, change tasks and
-approvals updated since the earliest last look less a minute. ProTech may also call the webhook
-`POST /api/protech/webhook` with the number of a change it moved (a business rule, see
-[docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md)): that change is then looked at at once, the same way, instead of
-at the next poll. Without the business rule the live adapter only polls. For each change that moved past what
-Beadle-GUI knows it posts one callback
-
-```json
-{"number": "CHG0001234", "event": "STATE_CHANGED", "state": "IMPLEMENTATION", "at": "2026-10-15T09:00:00Z", "correlationId": "..."}
-```
-
-to `{beadle.gui.url}/api/callbacks/protech` with the service token, `X-Beadle-User: system` and the
-`X-Correlation-Id` of the user action that last raised, read or acted on the change. The event is `STATE_CHANGED`
-when the change reached another state, otherwise `APPROVAL_CHANGED` when an approval of the change or of a task was
-requested or given, otherwise `TASK_CHANGED` when a task went in progress; one callback covers the change, since
-Beadle-GUI reads all of it again. The change counts as reported only once Beadle-GUI answered `2xx`: a callback it
-does not take is logged and sent again at the next look, and the ticker never fails a request. The report is merged
-over the change as it is written down by then, so the read with which Beadle-GUI answers the callback, and any action
-of Beadle-GUI since the look, keep their state, times and correlation id. What Beadle-GUI did
-itself (a task created, an update, a reminder) is no news to it and is not called back. A closed change is no
-longer followed. The live poll compares ProTech's `sys_updated_on` with the time Beadle-ProTech noted on its own
-clock when Beadle-GUI last raised, read or acted on the change, so **the clocks of ProTech and Beadle-ProTech must be
-synchronised** (NTP on both sides keeps them well within a second). A skew does harm whatever its size: with
-ProTech's clock ahead by `s` seconds, an action of Beadle-GUI (a task, an update, a reminder) is called back to it as
-a move of ProTech for `s` seconds after it, and Beadle-GUI records it as an action of `system:protech`; with ProTech's
-clock behind, an approval or task move made within `s` seconds after such an action is not called back until the
-change moves again. The minute the poll reaches back only widens its window, so that no update is missed between two
-looks; it does not make up for a skew.
-
-### Call log
-
-`BEADLE_PROTECH_CALL_LOG` holds one row per call to ProTech (the demo included) or Beadle-GUI: when, the user
-(`X-Beadle-User`, or `system` for the ticker), the correlation id, the system (`PROTECH` or `GUI`), the operation
-(the method of the port: `raise`, `createTask`, `read`, `update`, `remind`, `find`, `activity`, `notify`), its
-target (what was created first, then the change, task, role or lookup the call was about), `SUCCESS` or `FAILURE`
-with the message, and the duration. A look at the activity that calls for no callback is left out, so that the
-ticks do not flood the log: one that found nothing, and one that found only moves Beadle-GUI knows already (the move
-it was just called back about, or its own action, which the poll finds again for the minute it reaches back). A
-failed look is written. The row is written in its own transaction, and a call log that cannot be written never fails
-the call.
-
-## Repository layout
+## How it fits with the other two services
 
 ```
-settings.gradle, build.gradle      one Spring Boot module: whether the BBH Nexus is reachable, the dependencies, the test suites
-src/main/java                      the service, package com.bbh.itss.beadle.protech (hexagonal: adapter, application, domain, config)
-src/main/resources                 application.yml with the profiles, the Liquibase changelog (call log, followed changes)
-src/test, src/testFixtures         the Spock specs and the fixtures they share
-src/regressionTest                 the API end to end on H2 with the demo ProTech and a stand-in Beadle-GUI
-deploy/openshift/beadle-protech    the Kustomize base and the rd, qc and prod overlays
-Dockerfile                         the container image, on the Red Hat UBI 9 OpenJDK 21 runtime
-docs/CONTRACTS.md                  the contract between Beadle-GUI, Beadle-Internal and Beadle-ProTech
-docs/PROTECH-MAPPING.md            the fields of a change in ProTech and the Table API calls
+Beadle-GUI (8081) ──REST──> Beadle-ProTech (8083) ──Table API──> ProTech
+      ^                            │  ^
+      └─── callback: change moved ─┘  └── webhook: ProTech reports a moved change (optional)
+                                      Beadle-Internal (8082) talks to Jira, CyberTrack, Confluence and qTest
 ```
 
-The layers: `adapter/in/web` (the controllers and the error handling), `adapter/in/schedule` (the ticker),
-`adapter/out/protech` (the demo ProTech and the live `ServiceNowTableApiAdapter`), `adapter/out/gui` (the
-callbacks), `adapter/out/persistence` (the call log and the followed changes), `application/<area>` (the use cases
-behind `port/in`, the ports to the outside in `port/out`), `domain/<area>` (records and rules, no framework) and
-`config` (the service token filter, transactions, call log, scheduling). `ArchitectureSpec` keeps them apart.
+Only Beadle-GUI calls the API, and ProTech may call the webhook. Every call carries
+`Authorization: Bearer <BEADLE_SERVICE_TOKEN>`, the signed-in user in `X-Beadle-User` and the user action in
+`X-Correlation-Id` (at most 64 characters). The webhook also accepts its own `PROTECH_WEBHOOK_TOKEN`, which opens
+nothing else. The endpoints, bodies, headers and the callback are specified in [docs/CONTRACTS.md](docs/CONTRACTS.md),
+which is the same file in all three repositories. [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) lists the
+ProTech tables, fields and Table API calls behind every endpoint.
 
-## Build
+## Architecture
 
-Configured for Java 21; uses BBH Nexus (`tools.bbh.com/nexus`) repository configuration.
+Hexagonal, with Spring MVC controllers as the way in. `ArchitectureSpec` enforces the layers.
+
+```
+com.bbh.itss.beadle.protech
+├── domain/change, calllog     records and rules, no framework
+├── application/<area>         use cases behind port/in, ports to the outside in port/out
+├── adapter/in/web             controllers, the webhook, error handling, the service token filter
+├── adapter/in/schedule        the ticker that looks for moved changes
+├── adapter/out/protech        LiveProTechAdapter (Table API) and the demo ProTech for the laptop
+├── adapter/out/gui            the callbacks to Beadle-GUI
+├── adapter/out/persistence    JPA: call log, followed changes
+└── config                     Spring wiring and properties
+```
+
+Every change raised or read through the API is recorded in `BEADLE_PROTECH_CHANGE` with the state Beadle-GUI knows.
+The ticker asks ProTech every `PROTECH_POLL` what moved, and the webhook triggers the same check at once. For each
+change that moved, one callback goes to `{BEADLE_GUI_URL}/api/callbacks/protech` with the event `STATE_CHANGED`,
+`APPROVAL_CHANGED` or `TASK_CHANGED`. A callback that Beadle-GUI does not accept is sent again at the next check. The
+poll compares ProTech's `sys_updated_on` with this service's clock, so both clocks must be kept in sync by NTP.
+
+## Run on a BBH laptop
 
 ```bash
-./gradlew build                 # the jar, every suite and the coverage gate (60% of lines)
-./gradlew bootJar               # build/libs/beadle-protech-<version>.jar
-./gradlew test                  # the unit specs (Groovy / Spock, >= 60% coverage)
-./gradlew regressionTest        # the API end to end on H2 with the demo ProTech
-./gradlew smokeTest             # health liveness/readiness and key API endpoints
-./gradlew performanceTest       # p95 latency benchmarks
-./gradlew publish -Pnexus.snapshotsUrl=<url>   # the jar to the BBH Nexus
-```
-
-## Configuration
-
-Every setting comes from an environment variable; OpenShift fills them from the ConfigMap `beadle-protech-config`
-and the secrets below. While `PROTECH_URL` is blank the demo ProTech plays; the `rd`, `qc` and `prod` profiles refuse
-to start then, unless `PROTECH_DEMO=true` asks for the demo on purpose.
-
-| Property | Variable | Default | What |
-|---|---|---|---|
-| `beadle.services.token` | `BEADLE_SERVICE_TOKEN` | blank: every call is refused | the token shared by the three Beadle services, checked on every call and sent with the callbacks |
-| `beadle.gui.url` | `BEADLE_GUI_URL` | `http://localhost:8081` | where Beadle-GUI takes the callbacks |
-| `beadle.protech.instance-url` | `PROTECH_URL` | blank: demo | ProTech, for example `https://bbh.service-now.com` |
-| `beadle.protech.username` | `PROTECH_USERNAME` | blank | the Beadle service account in ProTech (basic authentication) |
-| `beadle.protech.password` | `PROTECH_PASSWORD` | blank | its password |
-| `beadle.protech.poll` | `PROTECH_POLL` | `PT1M` | how often the live ProTech is asked what moved |
-| `beadle.protech.tick` | `PROTECH_TICK` | `PT10S` | how often the ticker looks (the demo ProTech at every tick, the live one once the poll interval passed) |
-| `beadle.protech.demo.enabled` | `PROTECH_DEMO` | `false` | `true` lets `rd`, `qc` and `prod` start with a blank `PROTECH_URL`, on the demo ProTech |
-| `beadle.protech.demo.apply-delay` | `PROTECH_DEMO_APPLY_DELAY` | `PT3S` | how long the demo ProTech takes to apply an update |
-| `beadle.protech.fields.*` | | the ServiceNow base system | the tables, fields, state values and lookup tables of ProTech, one property each; see [docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md) |
-
-ProTech's address is `beadle.protech.instance-url` rather than `beadle.protech.url`, because Spring binds an
-environment variable to the property of the same name, and `BEADLE_PROTECH_URL` is Beadle-GUI's address of this
-service (docs/CONTRACTS.md). That variable plays no part here, so the three services can share a shell, an env file
-or a ConfigMap.
-
-The other variables: `PORT` (`8083`), `SPRING_PROFILES_ACTIVE` (`local`), `BEADLE_PROTECH_DATA_DIR` (the H2 folder
-of the `local` profile, `~/bbh-devsecops/beadle-protech`), `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` and
-`DB_POOL_SIZE` (the database). Every client connects within 5 seconds and reads within 30
-(`spring.http.clients.*`). Tokens and passwords come only from the environment; none is written to the repository
-or the log.
-
-## Running locally
-
-```bash
-export BEADLE_SERVICE_TOKEN=<the token Beadle-GUI sends>
-./gradlew bootRun               # http://localhost:8083, profile local
+export BEADLE_SERVICE_TOKEN=local-$(whoami)     # the same value as for Beadle-GUI
+./gradlew bootRun                               # http://localhost:8083, profile local
 curl -H "Authorization: Bearer $BEADLE_SERVICE_TOKEN" http://localhost:8083/api/protech/status
 ```
 
-The `local` profile (the default) keeps an H2 database in `~/bbh-devsecops/beadle-protech`
-(`BEADLE_PROTECH_DATA_DIR` moves it) and uses the demo ProTech: a change it raises moves through the approval
-stages two minutes apart, its tasks are approved by the people of their assignment group, an update shows after
-the apply delay, and the lookups answer a fixed catalogue of BBH people, groups, products and records. The demo
-keeps its changes in memory: after a restart it takes a change back from the copy Beadle-GUI reads. The real
-ProTech is connected by setting `PROTECH_URL`, `PROTECH_USERNAME` and `PROTECH_PASSWORD`. Beadle-GUI is expected on
-`http://localhost:8081` for the callbacks; while it is not running, the callbacks are logged as failed and sent
-again on the next tick. In VS Code the tasks `gradle: bootRun`, `gradle: test`, `gradle: regressionTest` and
-`gradle: build` do the same.
+The `local` profile (the default) uses an H2 file database in Oracle mode in `~/bbh-devsecops/beadle-protech`. It uses
+the demo ProTech while `PROTECH_URL` is blank: a change moves through the approval stages two minutes apart, and the
+lookups answer from a fixed catalogue of BBH people, groups and products. Set `PROTECH_URL`, `PROTECH_USERNAME` and
+`PROTECH_PASSWORD` to use the real ProTech.
 
-## Profiles
+## Build and tests
+
+The build uses the BBH Nexus only, so it runs inside the BBH network or on the VPN.
+
+| Task | What | Typical time |
+|---|---|---|
+| `./gradlew build` | jar, all test suites, coverage gates | about 1 min |
+| `./gradlew bootJar` | `build/libs/beadle-protech-<version>.jar` | 10 s |
+| `./gradlew test` | unit specs (Spock), JaCoCo gate of 60% of lines | 20 s |
+| `./gradlew smokeTest` | probes; a change raised, read back and checked through the webhook | 15 s |
+| `./gradlew regressionTest` | the change journey and the callbacks, on H2 with the demo ProTech | 20 s |
+| `./gradlew performanceTest` | p95 of raising, reading and looking up, each under 500 ms | 15 s |
+| `./gradlew jacocoSuitesReport` | combined coverage of the three suites, gate of 30% | part of `build` |
+
+## Configuration
+
+Every setting comes from an environment variable. In OpenShift they come from the ConfigMap `beadle-protech-config`
+and the secrets listed under Deployment.
+
+| Property | Variable | Default | Meaning |
+|---|---|---|---|
+| `beadle.services.token` | `BEADLE_SERVICE_TOKEN` | blank: every call is refused | token shared by the three services |
+| `beadle.gui.url` | `BEADLE_GUI_URL` | `http://localhost:8081` | where the callbacks go |
+| `beadle.protech.instance-url` | `PROTECH_URL` | blank: demo on a laptop | ProTech's address |
+| `beadle.protech.username`, `.password` | `PROTECH_USERNAME`, `PROTECH_PASSWORD` | blank | Beadle's service account (basic authentication) |
+| `beadle.protech.webhook-token` | `PROTECH_WEBHOOK_TOKEN` | blank: webhook takes the service token only | token ProTech sends to the webhook |
+| `beadle.protech.poll` | `PROTECH_POLL` | `PT1M` (`PT10S` locally) | how often ProTech is asked what moved |
+| `beadle.protech.demo.apply-delay` | `PROTECH_DEMO_APPLY_DELAY` | `PT3S` | how long the demo takes to apply an update |
+| `beadle.protech.fields.*` | | ServiceNow defaults | ProTech's tables, fields, states and lookup tables; see PROTECH-MAPPING.md |
+
+The property is `instance-url`, not `url`, because Spring would otherwise bind Beadle-GUI's `BEADLE_PROTECH_URL` to
+it. Also: `PORT` (`8083`), `SPRING_PROFILES_ACTIVE` (`local`), `BEADLE_PROTECH_DATA_DIR` (H2 folder), `DB_URL`,
+`DB_USERNAME`, `DB_PASSWORD`, `DB_POOL_SIZE`, `LOG_PATH` (`./logs`). Tokens and passwords come only from the
+environment.
 
 | Profile | Database | ProTech |
-|---------|----------|---------|
-| `local` (default) | H2 file in Oracle mode | demo, unless `PROTECH_URL` is set |
-| `rd`, `qc`, `prod` | Oracle from `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (`DB_POOL_SIZE` sizes the pool) | the real one: the service does not start while `PROTECH_URL` is blank, unless `PROTECH_DEMO=true` asks for the demo |
+|---|---|---|
+| `local` (default) | H2 file in Oracle mode | demo while `PROTECH_URL` is blank |
+| `rd`, `qc`, `prod` | Oracle (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) | the real one only; the service does not start without `PROTECH_URL` |
 
-`rd`, `qc` and `prod` each switch on the `oracle` profile. Liquibase updates the schema on every start and
-Hibernate validates it on Oracle. `rd` logs at `DEBUG`. Only `local` shows the health details: on `rd`, `qc` and
-`prod` the open `/actuator/health` answers its status alone, which is all the probes need.
+Liquibase updates the schema at start-up and Hibernate validates it. Logs go to the console and to a rolling file in
+`LOG_PATH`.
 
-## Containers and OpenShift
-
-```bash
-./gradlew bootJar
-docker build -t beadle-protech:0.1.0-SNAPSHOT .
-docker run --rm -p 8083:8083 -e BEADLE_SERVICE_TOKEN=<token> -e BEADLE_GUI_URL=http://host.docker.internal:8081 \
-  beadle-protech:0.1.0-SNAPSHOT
-```
-
-The image runs as user 185, listens on 8083 and keeps the H2 database of the `local` profile in the volume
-`/application/data`.
-
-The manifests in `deploy/openshift/beadle-protech` are a Kustomize base (Deployment, Service and the ConfigMap
-`beadle-protech-config` with the profile, `BEADLE_GUI_URL=http://beadle:8081`, `PROTECH_URL` and `PROTECH_POLL`)
-with one overlay per environment that sets its profile. The base publishes no Route: Beadle-GUI calls the service
-inside the cluster (`BEADLE_PROTECH_URL=http://beadle-protech:8083`). Only once ProTech calls the webhook (see
-[docs/PROTECH-MAPPING.md](docs/PROTECH-MAPPING.md)) does an overlay add the component
-`components/webhook-route` (`components: [../../components/webhook-route]`), whose Route publishes
-`/api/protech/webhook` alone, still behind the service token. The Deployment reads the secrets
-`beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), `beadle-protech-services` (`BEADLE_SERVICE_TOKEN`) and
-`beadle-protech-account`, ProTech's address and the Beadle service account in it (`PROTECH_URL`, `PROTECH_USERNAME`,
-`PROTECH_PASSWORD`; a secret wins over the ConfigMap); its probes are `/actuator/health/liveness` and
-`/actuator/health/readiness`. The Deployment marks `beadle-protech-account` optional only so that an environment can
-run on the demo ProTech on purpose with `PROTECH_DEMO=true` in its overlay: without that, `rd`, `qc` and `prod` do
-not start while `PROTECH_URL` is blank, since the demo ProTech would answer in its place and hand Beadle-GUI made-up
-changes.
+## Deployment
 
 ```bash
-oc create secret generic beadle-protech-db --from-literal=DB_URL='jdbc:oracle:thin:@//<host>:1521/<service>' \
-  --from-literal=DB_USERNAME='<user>' --from-literal=DB_PASSWORD='<password>'
-oc create secret generic beadle-protech-services --from-literal=BEADLE_SERVICE_TOKEN='<token>'
-oc create secret generic beadle-protech-account --from-literal=PROTECH_URL='https://bbh.service-now.com' \
-  --from-literal=PROTECH_USERNAME='<user>' --from-literal=PROTECH_PASSWORD='<password>'
-cd deploy/openshift/beadle-protech/overlays/rd
-kustomize edit set image beadle-protech=<registry>/<project>/beadle-protech:0.1.0-SNAPSHOT
-oc apply -k .
+./gradlew bootJar && docker build -t beadle-protech:0.1.0-SNAPSHOT .
 ```
 
-The Deployment runs 1 replica (`replicas: 1`) on test (`rd`, `qc`) and production (`prod`) OpenShift environments. Redundant instances are not needed because OpenShift automatically respawns the pod if it becomes unavailable. It mounts emptyDir `/application/logs` for rolling logs. Callbacks to Beadle-GUI are idempotent.
+The image runs as user 185 on port 8083, keeps the local H2 database in `/application/data` and writes logs to
+`/application/logs`.
 
-## Tests
+All three Beadle services run in one OpenShift project, one pod each. `deploy/openshift/beadle-protech` holds a
+Kustomize base (Deployment, Service, ConfigMap) and the overlays `rd`, `qc` and `prod`, which set the profile. There is
+no Route: Beadle-GUI reaches the service at `http://beadle-protech:8083`. Once ProTech calls the webhook, an overlay
+adds `components/webhook-route`, which publishes `/api/protech/webhook` alone.
 
-| Suite | What |
-|-------|------|
-| unit (`src/test`) | domain rules, use cases, the controllers and the webhook through MockMvc (including `401` without or with a wrong token, and for a path that only starts like the health endpoint), the live adapter against `MockRestServiceServer` (with the reads and polls in batches), the demo ProTech, the callback client, the ticker, the call log interceptor (leaving out the looks that call for no callback), the Liquibase change sets on H2, the profiles (also with Beadle-GUI's `BEADLE_PROTECH_URL` among the environment variables), the OpenShift manifests (the secrets the Deployment reads, no ServiceNow in their names) and the architecture rules; JaCoCo fails `build` below 60% line coverage (`-Pcoverage.minimum=`) |
-| regression (`src/regressionTest`) | the API end to end on H2 in Oracle mode with the demo ProTech, a clock the specs move and the environment variables of a shell shared with Beadle-GUI: the status reporting `demo` and the `401` of a call without the token or with dot segments after the health path, a change raised with its tasks and read back through the approval stages to implementation, an update applied after the delay, reminders, refusals, lookups, the call log (with a user name in Polish) and the followed changes filling up, and the callbacks for every state, approval and task move (and their retry, the read with which Beadle-GUI answers one, the webhook, and no call log row for a look that finds only a move already called back) taken by a stand-in Beadle-GUI on `MockRestServiceServer` |
+The Deployment reads the secrets `beadle-protech-db` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), `beadle-services`
+(`BEADLE_SERVICE_TOKEN`, shared by the three services) and `beadle-protech-account` (`PROTECH_URL`,
+`PROTECH_USERNAME`, `PROTECH_PASSWORD`, `PROTECH_WEBHOOK_TOKEN`). [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) walks through
+a full deployment of the three services.
 
-`ArchitectureSpec` checks the hexagonal layers: the domain and the application use no framework, adapters in and
-out stay apart, controllers live in `adapter/in/web`, persistence types in `adapter/out/persistence`, inbound
-adapters do not reach the out ports, only the ProTech and Beadle-GUI adapters use an HTTP client, every use case
-implements an in port and calls no other, and no package depends on itself in a cycle.
+## Known gaps
+
+- The connection to the real ProTech has not been tried yet; its address, service account and webhook token must be
+  filled in for each environment, and the field names in PROTECH-MAPPING.md checked against BBH's ProTech.
+- The webhook needs a business rule in ProTech; without it, changes are found by the poll only.
+- Three Oracle identifiers are longer than 30 characters, which needs Oracle 12.2 or later (BBH runs 19c, to be
+  confirmed).
+- The base image tag in the Dockerfile must be set to the BBH-approved UBI 9 OpenJDK 21 image, the same in all three
+  repositories.

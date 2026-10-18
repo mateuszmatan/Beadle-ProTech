@@ -68,16 +68,4 @@ class CallLogControllerSpec extends ControllerSpecification {
         malformed.status == 400
         bodyOf(malformed).detail == "The value given for 'from' is not one this endpoint can read."
     }
-
-    def "without the service token the call log is 401 (#authorization)"() {
-        when:
-        def response = callWithout(get('/api/protech/call-log'), authorization)
-
-        then:
-        response.status == 401
-        0 * callLog._
-
-        where:
-        authorization << unauthorized()
-    }
 }

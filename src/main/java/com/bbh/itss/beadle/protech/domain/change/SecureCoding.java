@@ -4,7 +4,6 @@ import com.bbh.itss.beadle.protech.domain.shared.ValidationProblems;
 import lombok.Builder;
 
 import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.NUMBER_MAX;
-import static com.bbh.itss.beadle.protech.domain.change.ChangeTemplate.REQUIRED;
 import static com.bbh.itss.beadle.protech.domain.shared.Text.isUrl;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
 
@@ -27,14 +26,6 @@ public record SecureCoding(String apoNumber, String bitbucketUrl, String artifac
         link("bitbucketUrl", bitbucketUrl, problems);
         link("artifactLink", artifactLink, problems);
         link("qcApplicationLink", qcApplicationLink, problems);
-    }
-
-    void require(ValidationProblems problems) {
-        problems.require("apoNumber", apoNumber, REQUIRED)
-                .require("bitbucketUrl", bitbucketUrl, REQUIRED)
-                .require("artifactLink", artifactLink, REQUIRED)
-                .require("qcApplicationLink", qcApplicationLink, REQUIRED);
-        validate(problems);
     }
 
     private static void link(String field, String value, ValidationProblems problems) {

@@ -7,6 +7,3 @@ configMapGenerator:
     behavior: merge
     literals:
       - SPRING_PROFILES_ACTIVE=rd
-      # PROTECH_URL, PROTECH_USERNAME and PROTECH_PASSWORD come from the secret beadle-protech-account. Beadle-ProTech
-      # does not start on rd, qc or prod without PROTECH_URL, since the demo ProTech would answer in its place and hand
-      # Beadle-GUI made-up changes; add PROTECH_DEMO=true here only to run rd on the demo ProTech on purpose.

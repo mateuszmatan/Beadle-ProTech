@@ -1,28 +1,33 @@
 package com.bbh.itss.beadle.protech.performance
 
 import com.bbh.itss.beadle.protech.support.BeadleProTechSpecification
-import com.bbh.itss.beadle.protech.support.LatencyStats
+import com.bbh.itss.beadle.protech.support.Json
+
+import static java.time.Duration.ofDays
 
 class ProTechPerformanceSpec extends BeadleProTechSpecification {
 
-    def "status, lookups and call log respond with low p95 latencies"() {
+    def "raising a change, reading changes back and looking up users answer within 500 ms at the 95th percentile"() {
+        given: 'ten changes ProTech holds'
+        def start = clock.instant()
+        def known = (1..10).collect { draft(start, start + ofDays(3)).toBuilder().number(raise(draft(start, start + ofDays(3)))).build() }
+        String read = Json.jackson(known)
+
         when:
-        def statusStats = LatencyStats.measure([calls: 30, threads: 4], 'GET /api/protech/status') {
-            api.get('/api/protech/status').status == 200
+        def raises = LatencyStats.measure(20, 4) {
+            api.postRaw('/api/protech/changes', 'application/json', Json.jackson(draft(start, start + ofDays(3)))).status == 201
         }
-        def lookupStats = LatencyStats.measure([calls: 30, threads: 4], 'GET /api/protech/lookups/users') {
-            api.get('/api/protech/lookups/users?limit=10').status == 200
+        def reads = LatencyStats.measure(30, 4) {
+            api.postRaw('/api/protech/changes/read', 'application/json', read).status == 200
         }
-        def callLogStats = LatencyStats.measure([calls: 20, threads: 2], 'GET /api/protech/call-log') {
-            api.get('/api/protech/call-log?page=0&size=10').status == 200
+        def lookups = LatencyStats.measure(30, 4) {
+            api.get('/api/protech/lookups/users?q=a&limit=20').status == 200
         }
 
         then:
-        statusStats.p95 < 500
-        lookupStats.p95 < 500
-        callLogStats.p95 < 600
-        statusStats.errors == 0
-        lookupStats.errors == 0
-        callLogStats.errors == 0
+        [raises, reads, lookups].every { it.errors == 0 }
+        raises.p95 < 500
+        reads.p95 < 500
+        lookups.p95 < 500
     }
 }

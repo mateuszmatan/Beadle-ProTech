@@ -8,23 +8,15 @@ import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GR
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.BUSINESS_SERVICES
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CLIENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CONFIGURATION_ITEMS
-import static com.bbh.itss.beadle.protech.domain.change.LookupKind.DEPARTMENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.INCIDENTS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.PROBLEMS
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.RELEASES
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.USERS
-import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.DEMO
 import static com.bbh.itss.beadle.protech.domain.change.TaskDetails.RELEASE_MANAGEMENT
 
 class DemoProTechLookupsSpec extends Specification {
 
     def lookups = new DemoProTechLookups()
-
-    def "the demo lookups say they are the demo and not connected to ProTech"() {
-        expect:
-        !lookups.connected()
-        lookups.mode() == DEMO
-    }
 
     def "the users are BBH people with their e-mail, among them the demo approvers, each once"() {
         when:
@@ -38,18 +30,16 @@ class DemoProTechLookupsSpec extends Specification {
         users.size() == DemoProTechLookups.USERS.size()
     }
 
-    def "the departments are BBH's with their cost centre"() {
+    def "the business services are BBH's with their cost centre"() {
         when:
-        def found = lookups.find(DEPARTMENTS, null, 100)
-        def businessServices = lookups.find(BUSINESS_SERVICES, null, 100)
+        def found = lookups.find(BUSINESS_SERVICES, null, 100)
 
         then:
         found*.value() == ['AI Lab', 'Capital Partners', 'Compliance', 'Corporate Technology', 'Custody',
                            'Fund Services', 'Information Security', 'Infrastructure & Operations',
                            'Investor Services', 'Private Banking', 'Treasury']
         found.every { it.detail() ==~ /Cost centre \d{4}/ }
-        lookups.find(DEPARTMENTS, 'operations', 20)*.value() == ['Infrastructure & Operations']
-        businessServices == found
+        lookups.find(BUSINESS_SERVICES, 'operations', 20)*.value() == ['Infrastructure & Operations']
     }
 
     def "the assignment groups are the support groups of the product teams and the infrastructure groups"() {

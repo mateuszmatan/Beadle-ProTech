@@ -1,8 +1,8 @@
 package com.bbh.itss.beadle.protech.adapter.in.web;
 
 import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException;
-import com.bbh.itss.beadle.protech.domain.shared.InvalidRequestException.FieldProblem;
 import com.bbh.itss.beadle.protech.domain.shared.RefusedException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -10,7 +10,6 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -27,6 +26,12 @@ import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.ProblemDetail.forStatusAndDetail;
 
+/**
+ * Answers every failure as a problem: 404 for what does not exist, 409 for what ProTech refused, 502 when ProTech
+ * could not be reached or failed the call (the call log interceptor logged it), 400 for a request at fault and 500
+ * otherwise.
+ */
+@Slf4j
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -42,7 +47,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(UncheckedIOException.class)
     ProblemDetail unavailable(UncheckedIOException e) {
-        logger.warn("ProTech could not be reached or failed the call: " + e.getMessage());
         return problem(BAD_GATEWAY, "Bad Gateway", e.getMessage());
     }
 
@@ -55,7 +59,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpected(Exception e) {
-        logger.error("Beadle-ProTech could not serve a request", e);
+        log.error("Beadle-ProTech could not serve a request", e);
         return problem(INTERNAL_SERVER_ERROR, "Request failed",
                 "Beadle-ProTech could not handle the request. The failure is in its log.");
     }
@@ -69,16 +73,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         if (!body.problems().isEmpty()) {
             detail.setProperty("problems", body.problems());
         }
-        return handleExceptionInternal(e, detail, headers, BAD_REQUEST, request);
-    }
-
-    @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
-                                                                  HttpHeaders headers, HttpStatusCode status,
-                                                                  WebRequest request) {
-        ProblemDetail detail = invalid(new InvalidRequestException(e.getBindingResult().getFieldErrors().stream()
-                .map(error -> new FieldProblem(error.getField(), error.getDefaultMessage()))
-                .toList()));
         return handleExceptionInternal(e, detail, headers, BAD_REQUEST, request);
     }
 

@@ -20,8 +20,6 @@ import static org.apache.commons.lang3.ObjectUtils.max;
 public record TrackedChange(String number, ChangeState state, Instant lastSeenAt, Instant lastEventAt,
                             String correlationId) {
 
-    public static final int NUMBER_MAX = 40;
-
     /** A change as Beadle-GUI came to know it at {@code at}: everything ProTech did to it until then is known. */
     public static TrackedChange seen(String number, ChangeState state, Instant at, String correlationId) {
         return new TrackedChange(number, state, at, at, correlationId);
@@ -57,15 +55,13 @@ public record TrackedChange(String number, ChangeState state, Instant lastSeenAt
     public Optional<ChangeCallback> callbackFor(ChangeActivity activity, Instant now) {
         ChangeState current = getIfNull(activity.state(), state);
         if (activity.state() != null && activity.state() != state) {
-            return Optional.of(new ChangeCallback(number, STATE_CHANGED, current, getIfNull(activity.stateAt(), now),
-                    correlationId));
+            return Optional.of(new ChangeCallback(number, STATE_CHANGED, current, getIfNull(activity.stateAt(), now)));
         }
         if (unknown(activity.approvalsAt())) {
-            return Optional.of(new ChangeCallback(number, APPROVAL_CHANGED, current, activity.approvalsAt(),
-                    correlationId));
+            return Optional.of(new ChangeCallback(number, APPROVAL_CHANGED, current, activity.approvalsAt()));
         }
         if (unknown(activity.tasksAt())) {
-            return Optional.of(new ChangeCallback(number, TASK_CHANGED, current, activity.tasksAt(), correlationId));
+            return Optional.of(new ChangeCallback(number, TASK_CHANGED, current, activity.tasksAt()));
         }
         return Optional.empty();
     }

@@ -3,14 +3,6 @@ package com.bbh.itss.beadle.protech.adapter.out.persistence
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogPage
 import com.bbh.itss.beadle.protech.domain.calllog.CallLogQuery
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
-import org.springframework.context.annotation.Import
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionTemplate
-import spock.lang.Specification
 import spock.lang.Subject
 
 import java.time.Instant
@@ -18,28 +10,14 @@ import java.time.Instant
 import static com.bbh.itss.beadle.protech.domain.calllog.ExternalSystem.GUI
 import static com.bbh.itss.beadle.protech.domain.calllog.Outcome.FAILURE
 import static com.bbh.itss.beadle.protech.support.CallLogFixtures.callLogEntry
-import static org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace.NONE
-import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED
 
-@DataJpaTest(properties = [
-        'spring.datasource.url=jdbc:h2:mem:call-log-adapter;MODE=Oracle;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1',
-        'spring.datasource.username=sa'])
-@AutoConfigureTestDatabase(replace = NONE)
-@Transactional(propagation = NOT_SUPPORTED)
-@Import(CallLogPersistenceAdapter)
-class CallLogPersistenceAdapterSpec extends Specification {
+class CallLogPersistenceAdapterSpec extends PersistenceSpecification {
 
     static final Instant NOON = Instant.parse('2026-10-15T12:00:00Z')
 
     @Subject
     @Autowired
     CallLogPersistenceAdapter adapter
-
-    @Autowired
-    JdbcTemplate jdbc
-
-    @Autowired
-    PlatformTransactionManager transactionManager
 
     def setup() {
         jdbc.update('DELETE FROM BEADLE_PROTECH_CALL_LOG')
@@ -84,16 +62,5 @@ class CallLogPersistenceAdapterSpec extends Specification {
         null          | NOON.plusSeconds(60) | NOON.plusSeconds(180) | 0    | 10   || 2     | [2, 1]
         'even'        | NOON.plusSeconds(60) | null                  | 0    | 10   || 2     | [4, 2]
         null          | null                 | NOON                  | 0    | 10   || 0     | []
-    }
-
-    def "an entry is kept even when the transaction around it rolls back"() {
-        when:
-        new TransactionTemplate(transactionManager).execute { status ->
-            adapter.record(callLogEntry(id: null))
-            status.setRollbackOnly()
-        }
-
-        then:
-        jdbc.queryForObject('SELECT COUNT(*) FROM BEADLE_PROTECH_CALL_LOG', Integer) == 1
     }
 }

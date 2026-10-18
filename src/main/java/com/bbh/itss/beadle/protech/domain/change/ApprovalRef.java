@@ -1,12 +1,5 @@
 package com.bbh.itss.beadle.protech.domain.change;
 
+/** Whom a reminder goes to: the approver of a role of the change, or the approvers of one of its tasks. */
 public record ApprovalRef(ApprovalRole role, String task) {
-
-    public static ApprovalRef of(ApprovalRole role) {
-        return new ApprovalRef(role, null);
-    }
-
-    public static ApprovalRef ofTask(String number) {
-        return new ApprovalRef(null, number);
-    }
 }

@@ -64,7 +64,7 @@ class TrackedChangeSpec extends Specification {
         expect:
         known.callbackFor(new ChangeActivity('CHG0031001', state, stateAt, approvalsAt, tasksAt), LATER) ==
                 Optional.ofNullable(event == null ? null
-                        : new ChangeCallback('CHG0031001', event, current, at, 'corr-1'))
+                        : new ChangeCallback('CHG0031001', event, current, at))
 
         where:
         moved                                      | state            | stateAt        | approvalsAt             | tasksAt                 || event            | current          | at
@@ -80,7 +80,7 @@ class TrackedChangeSpec extends Specification {
     def "a change Beadle-GUI knows no move of hears of any"() {
         expect:
         trackedChange(lastEventAt: null).callbackFor(new ChangeActivity('CHG0031001', DRAFT, CALLED, null, CALLED),
-                LATER) == Optional.of(new ChangeCallback('CHG0031001', TASK_CHANGED, DRAFT, CALLED, 'corr-1'))
+                LATER) == Optional.of(new ChangeCallback('CHG0031001', TASK_CHANGED, DRAFT, CALLED))
     }
 
     def "a reported change knows the new state and every move until the latest one"() {

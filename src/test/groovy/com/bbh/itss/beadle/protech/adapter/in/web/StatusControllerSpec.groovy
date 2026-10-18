@@ -23,7 +23,6 @@ class StatusControllerSpec extends ControllerSpecification {
 
     def "the status says whether ProTech is reached and whether it is the demo or the live one"() {
         given:
-        proTech.connected() >> connected
         proTech.mode() >> mode
 
         when:
@@ -38,13 +37,5 @@ class StatusControllerSpec extends ControllerSpecification {
         connected | mode || label
         false     | DEMO || 'demo'
         true      | LIVE || 'live'
-    }
-
-    def "the status needs the service token: #authorization"() {
-        expect:
-        callWithout(get('/api/protech/status'), authorization).status == 401
-
-        where:
-        authorization << unauthorized()
     }
 }

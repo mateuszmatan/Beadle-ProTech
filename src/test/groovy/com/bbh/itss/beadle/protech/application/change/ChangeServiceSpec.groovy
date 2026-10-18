@@ -23,9 +23,7 @@ import static com.bbh.itss.beadle.protech.domain.change.ProTechMode.LIVE
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.details
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.raised
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.releaseTask
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.schedule
 import static com.bbh.itss.beadle.protech.support.ChangeFixtures.task
-import static com.bbh.itss.beadle.protech.support.ChangeFixtures.template
 import static java.time.Clock.fixed
 import static java.time.ZoneOffset.UTC
 
@@ -45,13 +43,13 @@ class ChangeServiceSpec extends Specification {
         CallerContext.clear()
     }
 
-    def "the status says whether ProTech is reached and which ProTech it is"() {
+    def "the status says which ProTech it is, and only the live one is connected"() {
         given:
-        proTech.connected() >> connected
         proTech.mode() >> mode
 
         expect:
-        service.status() == new ProTechStatus(connected, mode)
+        service.status() == new ProTechStatus(mode)
+        service.status().connected() == connected
 
         where:
         connected | mode
@@ -111,12 +109,6 @@ class ChangeServiceSpec extends Specification {
         where:
         problem                          | changes                                                       || fields
         'no texts'                       | [shortDescription: null, description: ' ']                    || ['shortDescription', 'description']
-        'a text too long'                | [shortDescription: 'x' * 161]                                 || ['shortDescription']
-        'no template'                    | [template: null]                                              || ['template']
-        'an incomplete template'         | [template: template(assignmentGroup: null)]                   || ['template.assignmentGroup']
-        'no schedule'                    | [schedule: null]                                              || ['schedule']
-        'a schedule out of order'        | [schedule: schedule(installationEnd: '2026-10-10T05:00:00Z')] || ['schedule.installationEnd']
-        'a task without a group'         | [tasks: [ChangeTask.of(details(1, [assignmentGroup: null]))]] || ['tasks[0].details.assignmentGroup']
         'a release task without a start' | [tasks: [releaseTask([:], null)]]                             || ['tasks[0].start']
     }
 
@@ -142,7 +134,7 @@ class ChangeServiceSpec extends Specification {
         where:
         problem                          | number       | task                                               || fields
         'no change number'               | ' '          | task(1)                                            || ['number']
-        'no short description'           | 'CHG0031001' | ChangeTask.of(details(1, [shortDescription: null])) || ['details.shortDescription']
+        'no short description'           | 'CHG0031001' | new ChangeTask(null, details(1, [shortDescription: null]), null, null, null, null, null) || ['details.shortDescription']
         'a release task without a start' | 'CHG0031001' | releaseTask([:], null)                             || ['start']
     }
 
@@ -217,8 +209,8 @@ class ChangeServiceSpec extends Specification {
 
         where:
         approval                              || expected
-        ApprovalRef.of(L1)                    || ApprovalRef.of(L1)
-        new ApprovalRef(null, ' CTASK0041001 ') || ApprovalRef.ofTask('CTASK0041001')
+        new ApprovalRef(L1, null)             || new ApprovalRef(L1, null)
+        new ApprovalRef(null, ' CTASK0041001 ') || new ApprovalRef(null, 'CTASK0041001')
     }
 
     def "a reminder with #problem is refused"() {
@@ -235,6 +227,6 @@ class ChangeServiceSpec extends Specification {
         problem                     | number       | approval                            || field    | message
         'neither a role nor a task' | 'CHG0031001' | new ApprovalRef(null, ' ')          || 'task'   | ONE_OF_ROLE_OR_TASK
         'both a role and a task'    | 'CHG0031001' | new ApprovalRef(L1, 'CTASK0041001') || 'task'   | ONE_OF_ROLE_OR_TASK
-        'no change number'          | ''           | ApprovalRef.of(L1)                  || 'number' | 'is required'
+        'no change number'          | ''           | new ApprovalRef(L1, null)           || 'number' | 'is required'
     }
 }

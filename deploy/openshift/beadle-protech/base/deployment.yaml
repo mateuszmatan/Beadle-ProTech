@@ -20,7 +20,7 @@ spec:
       containers:
         - name: beadle-protech
           image: beadle-protech
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8083
@@ -30,11 +30,12 @@ spec:
                 name: beadle-protech-config
             - secretRef:
                 name: beadle-protech-db
+            # BEADLE_SERVICE_TOKEN, the one secret every Beadle service of the project shares.
             - secretRef:
-                name: beadle-protech-services
+                name: beadle-services
+            # PROTECH_URL, PROTECH_USERNAME, PROTECH_PASSWORD and PROTECH_WEBHOOK_TOKEN.
             - secretRef:
                 name: beadle-protech-account
-                optional: true
           env:
             - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
               value: "true"
