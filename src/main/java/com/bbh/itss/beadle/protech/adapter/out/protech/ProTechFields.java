@@ -33,7 +33,6 @@ import static com.bbh.itss.beadle.protech.domain.change.LookupKind.ASSIGNMENT_GR
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.BUSINESS_SERVICES;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CLIENTS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.CONFIGURATION_ITEMS;
-import static com.bbh.itss.beadle.protech.domain.change.LookupKind.DEPARTMENTS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.INCIDENTS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.PROBLEMS;
 import static com.bbh.itss.beadle.protech.domain.change.LookupKind.RELEASES;
@@ -77,7 +76,6 @@ public record ProTechFields(Map<ChangeField, String> change, Map<TaskField, Stri
     static final Map<LookupKind, LookupTable> LOOKUPS = Map.of(
             USERS, new LookupTable("sys_user", "name", "email", "active=true"),
             BUSINESS_SERVICES, new LookupTable("cmn_department", "name", "cost_center", ""),
-            DEPARTMENTS, new LookupTable("cmn_department", "name", "cost_center", ""),
             ASSIGNMENT_GROUPS, new LookupTable("sys_user_group", "name", "description", "active=true"),
             RELEASES, new LookupTable("rm_release", "short_description", "number", ""),
             CONFIGURATION_ITEMS, new LookupTable("cmdb_ci", "name", "sys_class_name", ""),
@@ -185,7 +183,7 @@ public record ProTechFields(Map<ChangeField, String> change, Map<TaskField, Stri
         DOWNTIME_END("schedule.downtimeEnd", "u_downtime_end", DATE_TIME),
         REQUESTED_FOR("template.requestedFor", "u_requested_for", TEXT),
         REQUESTED_BY("template.requestedBy", "requested_by", TEXT),
-        DEPARTMENT("template.department", "u_department", TEXT),
+        BUSINESS_SERVICE("template.businessService", "u_department", TEXT),
         ASSIGNMENT_GROUP("template.assignmentGroup", "assignment_group", TEXT),
         CATEGORY("template.category", "category", TEXT),
         ASSIGNED_TO("template.assignedTo", "assigned_to", TEXT),

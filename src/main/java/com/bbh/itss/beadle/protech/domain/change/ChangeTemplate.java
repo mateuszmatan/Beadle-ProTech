@@ -17,7 +17,7 @@ import static org.apache.commons.lang3.StringUtils.trimToNull;
 import static org.apache.commons.lang3.StringUtils.upperCase;
 
 @Builder(toBuilder = true)
-public record ChangeTemplate(String jiraProjectKey, String requestedFor, String requestedBy, String department,
+public record ChangeTemplate(String jiraProjectKey, String requestedFor, String requestedBy, String businessService,
                              String assignmentGroup, String category, String assignedTo, Type type, String release,
                              String configurationItem, String incident, String directBusinessService, String problem,
                              String risk, String affectedClients, String usersAffected,
@@ -50,7 +50,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         jiraProjectKey = upperCase(trimToNull(jiraProjectKey), ROOT);
         requestedFor = trimToNull(requestedFor);
         requestedBy = trimToNull(requestedBy);
-        department = trimToNull(department);
+        businessService = trimToNull(businessService);
         assignmentGroup = trimToNull(assignmentGroup);
         category = trimToNull(category);
         assignedTo = trimToNull(assignedTo);
@@ -92,7 +92,7 @@ public record ChangeTemplate(String jiraProjectKey, String requestedFor, String 
         }
         problems.fits("requestedFor", requestedFor, GROUP_MAX)
                 .fits("requestedBy", requestedBy, GROUP_MAX)
-                .fits("department", department, NAME_MAX)
+                .fits("businessService", businessService, NAME_MAX)
                 .fits("assignmentGroup", assignmentGroup, GROUP_MAX)
                 .fits("assignedTo", assignedTo, GROUP_MAX)
                 .fits("release", release, NAME_MAX)

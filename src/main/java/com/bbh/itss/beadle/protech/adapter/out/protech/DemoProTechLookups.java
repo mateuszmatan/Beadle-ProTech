@@ -16,7 +16,7 @@ import static java.util.Locale.ROOT;
 import static java.util.stream.IntStream.range;
 
 /**
- * The lookups of the demo ProTech: a fixed catalogue of BBH people, departments, products with their support groups,
+ * The lookups of the demo ProTech: a fixed catalogue of BBH people, business services, products with their support groups,
  * releases and configuration items, infrastructure groups, incidents, problems and clients.
  */
 @Component
@@ -36,7 +36,6 @@ class DemoProTechLookups implements ProTechLookupPort {
             new Lookup("Infrastructure & Operations", "Cost centre 4330"),
             new Lookup("Investor Services", "Cost centre 4520"), new Lookup("Private Banking", "Cost centre 4710"),
             new Lookup("Treasury", "Cost centre 4810"));
-    static final List<Lookup> DEPARTMENTS = BUSINESS_SERVICES;
     static final List<Product> CATALOGUE = List.of(
             new Product("DOCSENSE", "DocSense", "AI Lab", "AI Lab Engineering"),
             new Product("ADVISORAI", "Advisor Assistant", "AI Lab", "AI Lab Engineering"),
@@ -118,9 +117,9 @@ class DemoProTechLookups implements ProTechLookupPort {
     private static Stream<Lookup> lookups(LookupKind kind) {
         return switch (kind) {
             case USERS -> USERS.stream().map(name -> new Lookup(name, emailOf(name)));
-            case BUSINESS_SERVICES, DEPARTMENTS -> BUSINESS_SERVICES.stream();
+            case BUSINESS_SERVICES -> BUSINESS_SERVICES.stream();
             case ASSIGNMENT_GROUPS -> Stream.concat(CATALOGUE.stream()
-                    .map(product -> new Lookup(product.ownerTeam() + SUPPORT, product.department())),
+                    .map(product -> new Lookup(product.ownerTeam() + SUPPORT, product.businessService())),
                     INFRASTRUCTURE_GROUPS.stream()).distinct();
             case RELEASES -> CATALOGUE.stream().flatMap(DemoProTechLookups::releasesOf);
             case CONFIGURATION_ITEMS -> CATALOGUE.stream()
@@ -143,6 +142,6 @@ class DemoProTechLookups implements ProTechLookupPort {
         return name.toLowerCase(ROOT).replaceAll("[^a-z ]", "").replace(' ', '.') + "@bbh.com";
     }
 
-    record Product(String code, String name, String department, String ownerTeam) {
+    record Product(String code, String name, String businessService, String ownerTeam) {
     }
 }

@@ -82,7 +82,7 @@ class ProTechAdaptersSpec extends Specification {
     def "beadle.protech.fields renames a field, leaves one out with an empty name and keeps the defaults of the rest"() {
         expect:
         runner.withPropertyValues('beadle.protech.fields.change.table=x_bbh_change',
-                'beadle.protech.fields.change.department=',
+                'beadle.protech.fields.change.business-service=',
                 'beadle.protech.fields.change.release=u_bbh_release',
                 'beadle.protech.fields.change.l1-manager=u_first_manager',
                 'beadle.protech.fields.task.importance=u_importance',
@@ -96,7 +96,7 @@ class ProTechAdaptersSpec extends Specification {
                 .run { context ->
                     def fields = context.getBean(ProTechProperties).fields()
                     assert fields.column(ChangeField.TABLE) == 'x_bbh_change'
-                    assert fields.column(ChangeField.DEPARTMENT) == ''
+                    assert fields.column(ChangeField.BUSINESS_SERVICE) == ''
                     assert fields.column(ChangeField.RELEASE) == 'u_bbh_release'
                     assert fields.column(ChangeField.L1_MANAGER) == 'u_first_manager'
                     assert fields.column(ChangeField.ASSIGNMENT_GROUP) == 'assignment_group'
@@ -123,7 +123,7 @@ class ProTechAdaptersSpec extends Specification {
         ProTechFields.DEFAULTS.changeStates().keySet() as List == ChangeState.values() as List
         ProTechFields.DEFAULTS.changeStates()[CLOSED].first() == '3'
         ProTechFields.DEFAULTS.taskStates()[CANCELED].first() == '4'
-        ProTechFields.DEFAULTS.lookups().size() == 9
+        ProTechFields.DEFAULTS.lookups().size() == 8
     }
 
     @EnableConfigurationProperties([ProTechProperties, DemoProTechProperties])

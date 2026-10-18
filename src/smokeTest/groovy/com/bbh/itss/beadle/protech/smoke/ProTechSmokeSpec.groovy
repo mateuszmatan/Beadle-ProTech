@@ -23,7 +23,7 @@ class ProTechSmokeSpec extends BeadleProTechSpecification {
         when:
         def status = api.get('/api/protech/status')
         def users = api.get('/api/protech/lookups/users?limit=10')
-        def departments = api.get('/api/protech/lookups/departments?limit=10')
+        def businessServices = api.get('/api/protech/lookups/business-services?limit=10')
         def callLog = api.get('/api/protech/call-log?page=0&size=10')
 
         then:
@@ -31,8 +31,8 @@ class ProTechSmokeSpec extends BeadleProTechSpecification {
         status.json.containsKey('connected')
         users.status == 200
         users.json instanceof List
-        departments.status == 200
-        departments.json instanceof List
+        businessServices.status == 200
+        businessServices.json instanceof List
         callLog.status == 200
     }
 }

@@ -18,7 +18,6 @@ class LookupRegressionSpec extends BeadleProTechSpecification {
         'users'             | 'GRACE'       || ['Grace Mitchell', 'Grace Turner']
         'assignment-groups' | 'fund%20acc'  || ['Fund Accounting Application Support']
         'business-services' | 'custody'     || ['Custody']
-        'departments'       | 'custody'     || ['Custody']
         'incidents'         | 'certificate' || ['INC0105126']
         'problems'          | 'nobody'      || []
     }

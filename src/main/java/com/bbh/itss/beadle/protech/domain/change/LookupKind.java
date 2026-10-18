@@ -6,7 +6,7 @@ import static java.util.Arrays.stream;
 import static java.util.Locale.ROOT;
 
 public enum LookupKind {
-    USERS, BUSINESS_SERVICES, DEPARTMENTS, ASSIGNMENT_GROUPS, RELEASES, CONFIGURATION_ITEMS, INCIDENTS, PROBLEMS, CLIENTS;
+    USERS, BUSINESS_SERVICES, ASSIGNMENT_GROUPS, RELEASES, CONFIGURATION_ITEMS, INCIDENTS, PROBLEMS, CLIENTS;
 
     public static LookupKind of(String path) {
         return stream(values()).filter(kind -> kind.path().equals(path)).findFirst()

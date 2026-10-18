@@ -6,7 +6,7 @@ import com.bbh.itss.beadle.protech.domain.change.ProTechMode;
 
 import java.util.List;
 
-/** The records of ProTech a change refers to: people, departments, groups, releases, items, incidents, problems, clients. */
+/** The records of ProTech a change refers to: people, business services, groups, releases, items, incidents, problems, clients. */
 public interface ProTechLookupPort {
 
     boolean connected();

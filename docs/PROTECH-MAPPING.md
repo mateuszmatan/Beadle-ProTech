@@ -1,7 +1,7 @@
 # How Beadle-ProTech maps a change to ProTech
 
 ProTech is BBH's ServiceNow. When `beadle.protech.instance-url` (`PROTECH_URL`) names it, Beadle-ProTech talks to it
-through `ServiceNowTableApiAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
+through `LiveProTechAdapter`, which uses the ServiceNow Table API (`/api/now/table/{table}`) as the Beadle
 service account (`beadle.protech.username` / `beadle.protech.password`, basic authentication, connect timeout 5 s, read
 timeout 30 s). This page lists which ServiceNow table and field holds each field of a Beadle change, and which
 ServiceNow values stand for each state.
@@ -11,7 +11,7 @@ below is a property under `beadle.protech.fields.*` (class `ProTechFields`) with
 instance can be matched in the configuration map or the environment, without a code change:
 
 - a property that is not set keeps its default;
-- a property set to an empty value (`beadle.protech.fields.change.department=`) leaves that field out of every call:
+- a property set to an empty value (`beadle.protech.fields.change.business-service=`) leaves that field out of every call:
   Beadle neither writes it nor reads it, and keeps its own value;
 - a field ProTech does not have is ignored by ProTech when written and missing from its answers, and Beadle then keeps
   its own value, so a wrong default does no harm beyond not reaching ProTech.
@@ -71,7 +71,7 @@ A refusal of ProTech (`4xx` other than `401`, `403`, `407`, `408`, `429`) is ans
 | `schedule.downtimeEnd` | `downtime-end` | `u_downtime_end` | |
 | `template.requestedFor` | `requested-for` | `u_requested_for` | person |
 | `template.requestedBy` | `requested-by` | `requested_by` | person |
-| `template.department` | `department` | `u_department` | `cmn_department` |
+| `template.businessService` | `business-service` | `u_department` | the business service, from `cmn_department` |
 | `template.assignmentGroup` | `assignment-group` | `assignment_group` | `sys_user_group` |
 | `template.category` | `category` | `category` | choice label, for example `Application` |
 | `template.assignedTo` | `assigned-to` | `assigned_to` | person |
@@ -192,7 +192,7 @@ the value and the detail; a `^` in it is doubled, as the encoded query syntax wa
 | Kind | `table` | `value` | `detail` | `filter` |
 |---|---|---|---|---|
 | `users` | `sys_user` | `name` | `email` | `active=true` |
-| `departments` | `cmn_department` | `name` | `cost_center` | |
+| `business-services` | `cmn_department` | `name` | `cost_center` | |
 | `assignment-groups` | `sys_user_group` | `name` | `description` | `active=true` |
 | `releases` | `rm_release` | `short_description` | `number` | |
 | `configuration-items` | `cmdb_ci` | `name` | `sys_class_name` | |

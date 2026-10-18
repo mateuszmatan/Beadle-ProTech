@@ -139,7 +139,7 @@ class LiveProTechAdapterSpec extends Specification {
         change.template().assignedTo() == 'Ann Lee'
         change.template().type() == EMERGENCY
         change.template().incident() == 'INC0104211'
-        change.template().department() == null
+        change.template().businessService() == null
         change.template().downtime() == false
         change.template().planning().backoutPlan() == 'Redeploy CERT 4.1.'
         change.template().planning().testSummary() == known.template().planning().testSummary()
@@ -334,7 +334,7 @@ class LiveProTechAdapterSpec extends Specification {
         where:
         kind                           | text    | table            | fields                     | query                                                                                    | found                                                       || lookup
         LookupKind.USERS               | 'smith' | 'sys_user'       | 'name,email'               | 'active=true^nameLIKEsmith^ORemailLIKEsmith^ORDERBYname'                                 | [name: 'Jane Smith', email: 'jane.smith@bbh.com']           || new Lookup('Jane Smith', 'jane.smith@bbh.com')
-        LookupKind.DEPARTMENTS         | ''      | 'cmn_department' | 'name,cost_center'         | 'ORDERBYname'                                                                            | [name: 'Custody', cost_center: '4410']                      || new Lookup('Custody', '4410')
+        LookupKind.BUSINESS_SERVICES   | ''      | 'cmn_department' | 'name,cost_center'         | 'ORDERBYname'                                                                            | [name: 'Custody', cost_center: '4410']                      || new Lookup('Custody', '4410')
         LookupKind.ASSIGNMENT_GROUPS   | 'ops'   | 'sys_user_group' | 'name,description'         | 'active=true^nameLIKEops^ORdescriptionLIKEops^ORDERBYname'                               | [name: 'Network Operations', description: 'Networks']       || new Lookup('Network Operations', 'Networks')
         LookupKind.RELEASES            | 'cert'  | 'rm_release'     | 'short_description,number' | 'short_descriptionLIKEcert^ORnumberLIKEcert^ORDERBYshort_description'                    | [short_description: 'CertScanner 4.2', number: 'RLSE0001'] || new Lookup('CertScanner 4.2', 'RLSE0001')
         LookupKind.CONFIGURATION_ITEMS | 'cert'  | 'cmdb_ci'        | 'name,sys_class_name'      | 'nameLIKEcert^ORsys_class_nameLIKEcert^ORDERBYname'                                      | [name: 'CertScanner', sys_class_name: 'Application']        || new Lookup('CertScanner', 'Application')
@@ -376,7 +376,7 @@ class LiveProTechAdapterSpec extends Specification {
 
     def "the configured field names are the ones written, and an empty name leaves a field out"() {
         given:
-        def custom = adapter(new ProTechFields([(TABLE): 'x_bbh_change', (DEPARTMENT): ' ', (RELEASE): 'x_bbh_release',
+        def custom = adapter(new ProTechFields([(TABLE): 'x_bbh_change', (BUSINESS_SERVICE): ' ', (RELEASE): 'x_bbh_release',
                                                 (PRIVILEGED_ACCESS): '', (RISK_ASSESSMENT): ''], null, null, null, null,
                 null, null))
         expect(POST, 'x_bbh_change', [:])
@@ -484,7 +484,7 @@ class LiveProTechAdapterSpec extends Specification {
 
     private static ProductionChange richChange(Map changes = [:]) {
         raised([template: template(release: 'CERT 4.2', requestedFor: 'Mateusz Matan', requestedBy: 'Mateusz Matan',
-                department: 'Corporate Technology', assignedTo: 'Ann Lee', incident: 'INC0104211',
+                businessService: 'Corporate Technology', assignedTo: 'Ann Lee', incident: 'INC0104211',
                 problem: 'PRB0040112', directBusinessService: 'Certificate Services', affectedClients: 'No clients',
                 usersAffected: 'Corporate Technology staff', secureCodingTicket: 'SCP-1001',
                 privilegedAccess: privileged(1))] + changes)
